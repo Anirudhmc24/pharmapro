@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PharmaPro</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080d18;color:#e2e8f0;font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;min-height:100vh}
+input,select,textarea,button{font-family:inherit;font-size:14px}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#0f1623}
+::-webkit-scrollbar-thumb{background:#1e2d42;border-radius:3px}
+select option{background:#131d2e}
+:root{
+  --bg:#080d18;--surface:#0e1520;--card:#131d2e;--border:#1e2d42;
+  --accent:#00c896;--accent-dim:#00c89614;--accent-glow:#00c89633;
+  --warn:#f59e0b;--warn-dim:#f59e0b12;
+  --danger:#ef4444;--danger-dim:#ef444412;
+  --info:#3b82f6;--info-dim:#3b82f612;
+  --green:#10b981;--green-dim:#10b98112;
+  --purple:#a855f7;--purp-dim:#a855f712;
+  --text:#e2e8f0;--muted:#4a6080;--faint:#0f1825;--subtle:#111c2e;
+}
+/* ── Layout ── */
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.app-layout{display:flex;flex:1;overflow:hidden}
+#sidebar{width:210px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+#main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+#topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#content{flex:1;overflow-y:auto;padding:24px}
+/* ── Auth screens ── */
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 20% 50%,#00c89608,transparent 60%),radial-gradient(ellipse at 80% 20%,#3b82f608,transparent 60%),var(--bg)}
+.auth-box{width:100%;max-width:420px;padding:20px}
+.auth-logo{text-align:center;margin-bottom:32px}
+.auth-logo .logo-icon{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--accent),#3b82f6);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 12px}
+.auth-logo h1{font-size:24px;font-weight:900;color:var(--text)}
+.auth-logo p{color:var(--muted);font-size:13px;margin-top:4px}
+.auth-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px}
+.auth-tabs{display:flex;gap:0;margin-bottom:24px;background:var(--faint);border-radius:10px;padding:3px}
+.auth-tab{flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;transition:all .2s}
+.auth-tab.active{background:var(--card);color:var(--text);font-weight:800;box-shadow:0 2px 8px #00000044}
+/* ── Sidebar ── */
+.logo{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#3b82f6);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.logo-text{font-weight:900;font-size:13px}
+.logo-sub{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.user-pill{margin:8px 10px;background:var(--subtle);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px}
+.user-pill .u-name{font-weight:700;color:var(--text)}
+.user-pill .u-role{color:var(--accent);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px}
+nav{padding:6px}
+.nav-btn{width:100%;display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:8px;border:none;background:transparent;color:var(--muted);font-weight:500;font-size:13px;cursor:pointer;text-align:left;margin-bottom:2px;transition:all .15s;position:relative}
+.nav-btn:hover{background:var(--faint);color:var(--text)}
+.nav-btn.active{background:var(--accent-dim);color:var(--accent);font-weight:700}
+.nav-icon{font-size:14px;flex-shrink:0}
+.nav-badge{position:absolute;right:10px;background:var(--danger);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px}
+.nav-badge.warn{background:var(--warn);color:#080d18}
+.nav-sep{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:10px 12px 4px}
+.sidebar-bottom{padding:10px 12px;border-top:1px solid var(--border);margin-top:auto}
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
+.card-sm{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.section-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.gap-10{display:flex;flex-direction:column;gap:10px}
+.gap-14{display:flex;flex-direction:column;gap:14px}
+.gap-16{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;align-items:center;gap:10px}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+/* ── Stat card ── */
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden}
+.stat-val{font-size:22px;font-weight:900}
+.stat-lbl{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.stat-glow{position:absolute;top:0;right:0;width:80px;height:80px;border-radius:50%}
+/* ── Buttons ── */
+.btn{padding:9px 18px;border-radius:9px;border:none;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#00a884);color:#080d18;box-shadow:0 0 14px var(--accent-glow)}
+.btn-primary:hover{box-shadow:0 0 22px var(--accent-glow);transform:translateY(-1px)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:var(--danger-dim);border:1px solid var(--danger)44;color:var(--danger)}
+.btn-warn{background:var(--warn-dim);border:1px solid var(--warn)44;color:var(--warn)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:7px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-full{width:100%;justify-content:center}
+/* ── Tags ── */
+.tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.tag-green{background:var(--green-dim);color:var(--green);border:1px solid #10b98133}
+.tag-red{background:var(--danger-dim);color:var(--danger);border:1px solid #ef444433}
+.tag-amber{background:var(--warn-dim);color:var(--warn);border:1px solid #f59e0b33}
+.tag-blue{background:var(--info-dim);color:var(--info);border:1px solid #3b82f633}
+.tag-teal{background:var(--accent-dim);color:var(--accent);border:1px solid #00c89633}
+.tag-gray{background:#4a608018;color:var(--muted);border:1px solid #4a608033}
+.tag-purple{background:var(--purp-dim);color:var(--purple);border:1px solid #a855f733}
+/* ── Inputs ── */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);outline:none;width:100%;transition:border-color .2s}
+.input:focus{border-color:var(--accent)}
+.input::placeholder{color:var(--muted)}
+.select{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);outline:none;width:100%;cursor:pointer}
+/* ── Table ── */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)}
+.tbl td{padding:10px 14px;border-bottom:1px solid #1e2d4222}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover{background:#ffffff04}
+/* ── Search ── */
+.search-wrap{position:relative}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search-wrap input{padding-left:36px}
+.search-drop{position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:4px;max-height:280px;overflow-y:auto;box-shadow:0 8px 32px #00000088}
+.search-item{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e2d4222;transition:background .15s}
+.search-item:hover{background:var(--faint)}
+.search-item:last-child{border-bottom:none}
+/* ── Alert ── */
+.alert{padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.alert-warn{background:var(--warn-dim);border:1px solid #f59e0b44;color:var(--warn)}
+.alert-danger{background:var(--danger-dim);border:1px solid #ef444444;color:var(--danger)}
+.alert-info{background:var(--info-dim);border:1px solid #3b82f644;color:var(--info)}
+.alert-success{background:var(--green-dim);border:1px solid #10b98144;color:var(--green)}
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:#000000bb;z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:28px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:17px;font-weight:800;color:var(--text);margin-bottom:18px}
+/* ── Toast ── */
+#toast{position:fixed;top:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:13px;font-weight:600;animation:slideIn .3s ease;display:flex;align-items:center;gap:8px;box-shadow:0 4px 20px #00000066}
+.toast-item.success{border-color:var(--green)44;color:var(--green)}
+.toast-item.error{border-color:var(--danger)44;color:var(--danger)}
+.toast-item.warn{border-color:var(--warn)44;color:var(--warn)}
+/* ── Qty ── */
+.qty-ctrl{display:flex;align-items:center;gap:6px}
+.qty-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center}
+.qty-val{width:40px;text-align:center;background:var(--faint);border:1px solid var(--border);border-radius:7px;padding:4px 0;color:var(--accent);font-weight:800;font-size:15px;outline:none}
+/* ── Toggle ── */
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:10px;cursor:pointer;border:1px solid var(--border);background:var(--subtle);transition:all .2s;user-select:none}
+.toggle-row.on{background:var(--accent-dim);border-color:var(--accent)44}
+.toggle-track{width:36px;height:20px;border-radius:10px;position:relative;flex-shrink:0;transition:all .25s}
+.toggle-thumb{position:absolute;top:3px;width:14px;height:14px;border-radius:50%;transition:left .25s}
+/* ── Bar chart ── */
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:90px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--accent),var(--accent)88);transition:height .5s ease}
+.bar-lbl{font-size:10px;color:var(--muted);font-weight:600}
+/* ── Progress ── */
+.progress{height:4px;background:var(--faint);border-radius:10px;overflow:hidden}
+.progress-bar{height:100%;border-radius:10px;transition:width .4s;background:var(--accent)}
+/* ── Strip vis ── */
+.strip-vis{display:flex;gap:2px;flex-wrap:wrap}
+.strip-cell{width:10px;height:16px;border-radius:2px}
+/* ── Wizard ── */
+.wizard-steps{display:flex;gap:0;overflow-x:auto;border-bottom:1px solid var(--border);padding:0 24px}
+.wstep{padding:11px 13px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s}
+.wstep.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:800}
+.wstep.done{color:var(--accent)88;border-bottom-color:var(--accent)44}
+/* ── Status badges ── */
+.status-active{background:var(--green-dim);color:var(--green);border:1px solid var(--green)33;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
+.status-pending{background:var(--warn-dim);color:var(--warn);border:1px solid var(--warn)33;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
+.status-suspended{background:var(--danger-dim);color:var(--danger);border:1px solid var(--danger)33;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
+/* ── Spinner ── */
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.loading-center{display:flex;justify-content:center;align-items:center;padding:60px;gap:12px;color:var(--muted)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="root"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+const APP = { token: localStorage.getItem('pp_token'), user: null, page: 'dashboard' };
+
+// ── API ────────────────────────────────────────────────────────────────────────
+const BASE = '';
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (APP.token) opts.headers['Authorization'] = 'Bearer ' + APP.token;
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(BASE + '/api' + path, opts);
+  if (r.status === 401) { logout(); throw new Error('Session expired'); }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail || r.statusText);
+  }
+  return r.json();
+}
+const GET  = p    => api('GET',  p);
+const POST = (p,b)=> api('POST', p, b);
+const PUT  = (p,b)=> api('PUT',  p, b);
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.innerHTML = `<span>${{success:'✅',error:'❌',warn:'⚠️'}[type]||'ℹ️'}</span><span>${msg}</span>`;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const fmt   = n => '₹' + Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtI  = n => '₹' + Math.round(n||0).toLocaleString('en-IN');
+const today = () => new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+const monthsLeft = ym => { if(!ym)return 99; const [y,m]=ym.split('-').map(Number); return (new Date(y,m-1,1)-new Date())/(1000*60*60*24*30); };
+const fmtExp = ym => { if(!ym)return ''; const [y,m]=ym.split('-'); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+y; };
+const expiryColor = ym => { const ml=monthsLeft(ym); return ml<=0?'var(--danger)':ml<=3?'var(--warn)':'var(--green)'; };
+const accessDaysLeft = expiry => { if(!expiry)return null; return Math.ceil((new Date(expiry)-new Date())/(1000*60*60*24)); };
+
+function statusBadge(s) {
+  const map={active:'status-active',pending:'status-pending',suspended:'status-suspended'};
+  return `<span class="${map[s]||'status-pending'}">${s}</span>`;
+}
+function stripVis(total, filled, color) {
+  let h='<div class="strip-vis">';
+  for(let i=0;i<total;i++) h+=`<div class="strip-cell" style="background:${i<filled?color:'var(--faint)'};border:1px solid ${i<filled?color+'88':'var(--border)'}"></div>`;
+  return h+'</div>';
+}
+const toggleState = {};
+function toggleField(id) {
+  toggleState[id] = !toggleState[id];
+  const row=document.querySelector(`[data-toggle="${id}"]`);
+  if(row) row.className=`toggle-row ${toggleState[id]?'on':''}`;
+  const track=document.getElementById('track-'+id);
+  if(track) track.style.background=toggleState[id]?'var(--accent)':'var(--faint)';
+  const thumb=document.getElementById('thumb-'+id);
+  if(thumb){thumb.style.left=toggleState[id]?'19px':'3px';thumb.style.background=toggleState[id]?'#080d18':'var(--muted)';}
+}
+function toggleHTML(id, on, label, desc='') {
+  toggleState[id]=on;
+  return `<div class="toggle-row ${on?'on':''}" data-toggle="${id}" onclick="toggleField('${id}')">
+    <div><div style="font-weight:700;color:var(--text);font-size:13px">${label}</div>${desc?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${desc}</div>`:''}</div>
+    <div class="toggle-track" id="track-${id}" style="background:${on?'var(--accent)':'var(--faint)'}">
+      <div class="toggle-thumb" id="thumb-${id}" style="left:${on?19:3}px;background:${on?'#080d18':'var(--muted)'}"></div>
+    </div></div>`;
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────────
+function logout() {
+  APP.token=null; APP.user=null;
+  localStorage.removeItem('pp_token');
+  renderAuth();
+}
+
+async function boot() {
+  if (!APP.token) { renderAuth(); return; }
+  try {
+    APP.user = await GET('/auth/me');
+    if (APP.user.role === 'superadmin') renderAdminApp();
+    else renderApp();
+  } catch(e) { logout(); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUTH SCREENS
+// ══════════════════════════════════════════════════════════════════════════════
+function renderAuth(tab='login') {
+  document.getElementById('root').innerHTML = `
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <div class="logo-icon">⚕️</div>
+        <h1>PharmaPro</h1>
+        <p>Smart Pharmacy POS · Cloud Edition</p>
+      </div>
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <button class="auth-tab ${tab==='login'?'active':''}" onclick="renderAuth('login')">Sign In</button>
+          <button class="auth-tab ${tab==='register'?'active':''}" onclick="renderAuth('register')">Register</button>
+        </div>
+        ${tab==='login' ? loginForm() : registerForm()}
+      </div>
+    </div>
+  </div>`;
+}
+
+function loginForm() { return `
+  <div class="gap-14" id="login-form">
+    <div class="field"><label>Email</label><input class="input" id="l-email" type="email" placeholder="your@email.com" autocomplete="email"></div>
+    <div class="field"><label>Password</label>
+      <div style="position:relative">
+        <input class="input" id="l-pass" type="password" placeholder="Password" autocomplete="current-password">
+        <button onclick="togglePw('l-pass')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">👁</button>
+      </div>
+    </div>
+    <div id="login-err" style="display:none" class="alert alert-danger"></div>
+    <button class="btn btn-primary btn-full" id="login-btn" onclick="doLogin()">Sign In →</button>
+    <div style="text-align:center;font-size:12px;color:var(--muted)">New pharmacy? <a onclick="renderAuth('register')" style="color:var(--accent);cursor:pointer">Register for access</a></div>
+  </div>`; }
+
+function registerForm() { return `
+  <div class="gap-14">
+    <div class="alert alert-info" style="font-size:12px">
+      <span>ℹ️</span>
+      <span>After registering, your account will be reviewed by the admin before you can sign in. You'll typically get access within 24 hours.</span>
+    </div>
+    <div class="grid-2">
+      <div class="field"><label>Your Name *</label><input class="input" id="r-name" placeholder="Full name"></div>
+      <div class="field"><label>Shop Name *</label><input class="input" id="r-shop" placeholder="Sri Lakshmi Medical"></div>
+    </div>
+    <div class="field"><label>Email *</label><input class="input" id="r-email" type="email" placeholder="shop@example.com"></div>
+    <div class="field"><label>Phone</label><input class="input" id="r-phone" placeholder="9876543210"></div>
+    <div class="field"><label>Password * (min 8 chars)</label>
+      <div style="position:relative">
+        <input class="input" id="r-pass" type="password" placeholder="Choose a strong password">
+        <button onclick="togglePw('r-pass')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">👁</button>
+      </div>
+    </div>
+    <div id="reg-err" style="display:none" class="alert alert-danger"></div>
+    <button class="btn btn-primary btn-full" id="reg-btn" onclick="doRegister()">Request Access →</button>
+    <div style="text-align:center;font-size:12px;color:var(--muted)">Already registered? <a onclick="renderAuth('login')" style="color:var(--accent);cursor:pointer">Sign in</a></div>
+  </div>`; }
+
+window.togglePw = (id) => {
+  const el = document.getElementById(id);
+  el.type = el.type==='password' ? 'text' : 'password';
+};
+
+window.doLogin = async () => {
+  const email=document.getElementById('l-email')?.value?.trim();
+  const pass=document.getElementById('l-pass')?.value;
+  const err=document.getElementById('login-err');
+  const btn=document.getElementById('login-btn');
+  if(!email||!pass){err.style.display='flex';err.textContent='Email and password required';return;}
+  btn.disabled=true;btn.textContent='Signing in…';
+  try {
+    const res = await POST('/auth/login',{email,password:pass});
+    APP.token=res.token; APP.user=res.user;
+    localStorage.setItem('pp_token',res.token);
+    if(res.user.role==='superadmin') renderAdminApp();
+    else renderApp();
+  } catch(e) {
+    err.style.display='flex';err.innerHTML=`<span>❌</span><span>${e.message}</span>`;
+    btn.disabled=false;btn.textContent='Sign In →';
+  }
+};
+
+window.doRegister = async () => {
+  const name=document.getElementById('r-name')?.value?.trim();
+  const shop=document.getElementById('r-shop')?.value?.trim();
+  const email=document.getElementById('r-email')?.value?.trim();
+  const phone=document.getElementById('r-phone')?.value?.trim();
+  const pass=document.getElementById('r-pass')?.value;
+  const err=document.getElementById('reg-err');
+  const btn=document.getElementById('reg-btn');
+  if(!name||!shop||!email||!pass){err.style.display='flex';err.innerHTML='<span>❌</span><span>All starred fields required</span>';return;}
+  if(pass.length<8){err.style.display='flex';err.innerHTML='<span>❌</span><span>Password must be at least 8 characters</span>';return;}
+  btn.disabled=true;btn.textContent='Submitting…';
+  try {
+    await POST('/auth/register',{name,shop_name:shop,email,phone,password:pass});
+    document.getElementById('root').innerHTML=`
+    <div class="auth-wrap"><div class="auth-box">
+      <div class="auth-logo"><div class="logo-icon">⚕️</div><h1>PharmaPro</h1></div>
+      <div class="auth-card" style="text-align:center;padding:36px">
+        <div style="font-size:48px;margin-bottom:16px">✅</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Registration submitted!</div>
+        <div style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:20px">Your account for <b style="color:var(--text)">${shop}</b> is pending admin approval. You'll be able to sign in once approved.</div>
+        <button class="btn btn-outline btn-full" onclick="renderAuth('login')">← Back to Sign In</button>
+      </div>
+    </div></div>`;
+  } catch(e) {
+    err.style.display='flex';err.innerHTML=`<span>❌</span><span>${e.message}</span>`;
+    btn.disabled=false;btn.textContent='Request Access →';
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SUPER ADMIN APP
+// ══════════════════════════════════════════════════════════════════════════════
+let adminPage = 'overview';
+
+function renderAdminApp() {
+  document.getElementById('root').innerHTML = `
+  <div id="app">
+    <div class="app-layout">
+      <div id="sidebar">
+        <div class="logo">
+          <div class="logo-icon">⚕️</div>
+          <div><div class="logo-text">PharmaPro</div><div class="logo-sub">Admin Console</div></div>
+        </div>
+        <div class="user-pill">
+          <div class="u-name">${APP.user.name}</div>
+          <div class="u-role">Super Admin</div>
+        </div>
+        <nav id="admin-nav"></nav>
+        <div class="sidebar-bottom">
+          <button class="btn btn-outline btn-sm btn-full" onclick="logout()">Sign Out</button>
+        </div>
+      </div>
+      <div id="main">
+        <div id="topbar">
+          <div style="font-size:14px;font-weight:700;color:var(--text)" id="admin-page-title">Overview</div>
+          <div style="font-size:12px;color:var(--muted)">${today()}</div>
+        </div>
+        <div id="content"></div>
+      </div>
+    </div>
+  </div>`;
+  renderAdminNav();
+  navigateAdmin('overview');
+}
+
+const ADMIN_PAGES = [
+  {id:'overview', icon:'⚡', label:'Overview'},
+  {id:'users',    icon:'👥', label:'Shop Owners'},
+  {id:'pending',  icon:'⏳', label:'Pending Approval', badge:'pending'},
+  {id:'log',      icon:'📋', label:'Login Log'},
+];
+
+function renderAdminNav(stats={}) {
+  document.getElementById('admin-nav').innerHTML = ADMIN_PAGES.map(p=>`
+    <button class="nav-btn ${adminPage===p.id?'active':''}" onclick="navigateAdmin('${p.id}')">
+      <span class="nav-icon">${p.icon}</span><span>${p.label}</span>
+      ${p.badge==='pending'&&(stats.pending||0)>0?`<span class="nav-badge">${stats.pending}</span>`:''}
+    </button>`).join('');
+}
+
+async function navigateAdmin(page) {
+  adminPage=page;
+  document.getElementById('admin-page-title').textContent = ADMIN_PAGES.find(p=>p.id===page)?.label||page;
+  const stats = await GET('/admin/stats').catch(()=>({}));
+  renderAdminNav(stats);
+  const c = document.getElementById('content');
+  c.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  if(page==='overview') await renderAdminOverview(c, stats);
+  else if(page==='users')   await renderAdminUsers(c, 'all');
+  else if(page==='pending') await renderAdminUsers(c, 'pending');
+  else if(page==='log')     await renderAdminLog(c);
+}
+
+async function renderAdminOverview(c, stats) {
+  c.innerHTML = `<div class="gap-16 fade-in">
+    <div><h2 style="font-size:18px;font-weight:800">Admin Overview</h2>
+      <div style="color:var(--muted);font-size:12px;margin-top:2px">You control who gets access to PharmaPro</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+      ${adminStat('👥','Total Shops',stats.total||0,'var(--accent)')}
+      ${adminStat('✅','Active',stats.active||0,'var(--green)')}
+      ${adminStat('⏳','Pending',stats.pending||0,'var(--warn)')}
+      ${adminStat('🚫','Suspended',stats.suspended||0,'var(--danger)')}
+      ${adminStat('⚠️','Expiring (30d)',stats.expiring||0,'var(--warn)')}
+      ${adminStat('🔴','Access Expired',stats.expired||0,'var(--danger)')}
+    </div>
+    ${stats.pending>0?`<div class="alert alert-warn">
+      <span>⏳</span><span>${stats.pending} shop${stats.pending>1?'s':''} waiting for your approval.</span>
+      <button class="btn btn-warn btn-sm" onclick="navigateAdmin('pending')">Review Now →</button>
+    </div>`:''}
+    ${stats.expired>0?`<div class="alert alert-danger">
+      <span>🔴</span><span>${stats.expired} shop${stats.expired>1?'s':''} with expired access are still marked active — review them.</span>
+      <button class="btn btn-danger btn-sm" onclick="navigateAdmin('users')">Review →</button>
+    </div>`:''}
+    <div class="card">
+      <div class="section-title">Recent Logins</div>
+      ${stats.recent_logins?.length?`<table class="tbl">
+        <thead><tr><th>Shop</th><th>Email</th><th>Time</th></tr></thead>
+        <tbody>${stats.recent_logins.map(l=>`<tr>
+          <td style="font-weight:700">${l.shop_name||'—'}</td>
+          <td style="color:var(--muted);font-size:12px">${l.email}</td>
+          <td style="font-size:11px;color:var(--muted)">${l.created_at?.slice(0,16).replace('T',' ')}</td>
+        </tr>`).join('')}</tbody>
+      </table>`:'<div style="color:var(--muted);font-size:12px">No logins yet</div>'}
+    </div>
+  </div>`;
+}
+
+function adminStat(icon, label, val, color) {
+  return `<div class="stat-card">
+    <div class="stat-glow" style="background:radial-gradient(circle at 80% 20%,${color}18,transparent 60%)"></div>
+    <div style="font-size:18px;margin-bottom:6px">${icon}</div>
+    <div class="stat-val" style="color:${color}">${val}</div>
+    <div class="stat-lbl">${label}</div>
+  </div>`;
+}
+
+async function renderAdminUsers(c, filter='all') {
+  const users = await GET('/admin/users');
+  const filtered = filter==='pending' ? users.filter(u=>u.status==='pending') : users;
+
+  c.innerHTML = `<div class="gap-16 fade-in">
+    <div class="flex-between">
+      <div><h2 style="font-size:18px;font-weight:800">${filter==='pending'?'Pending Approval':'All Shop Owners'}</h2>
+        <div style="color:var(--muted);font-size:12px">${filtered.length} users</div></div>
+      <button class="btn btn-primary btn-sm" onclick="showCreateUser()">+ Create User</button>
+    </div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl">
+        <thead><tr><th>Shop / Owner</th><th>Email</th><th>Status</th><th>Access Expiry</th><th>Last Login</th><th>Actions</th></tr></thead>
+        <tbody>${filtered.map(u=>{
+          const dl = accessDaysLeft(u.access_expiry);
+          const expTag = !u.access_expiry
+            ? '<span style="color:var(--muted);font-size:11px">No expiry</span>'
+            : dl < 0
+              ? '<span class="tag tag-red">Expired</span>'
+              : dl <= 30
+                ? `<span class="tag tag-amber">⚠️ ${dl}d left</span>`
+                : `<span class="tag tag-green">${dl}d left · ${u.access_expiry}</span>`;
+          return `<tr>
+            <td><div style="font-weight:700">${u.shop_name||'—'}</div>
+                <div style="font-size:11px;color:var(--muted)">${u.name}</div></td>
+            <td style="font-size:12px;color:var(--muted)">${u.email}</td>
+            <td>${statusBadge(u.status)}</td>
+            <td>${expTag}</td>
+            <td style="font-size:11px;color:var(--muted)">${u.last_login?.slice(0,16).replace('T',' ')||'Never'}</td>
+            <td>
+              <div class="row">
+                ${u.status==='pending'?`<button class="btn btn-sm" style="background:var(--green-dim);border:1px solid var(--green)44;color:var(--green)" onclick="approveUser(${u.id})">✅ Approve</button>`:''}
+                ${u.status==='active'?`<button class="btn btn-danger btn-sm" onclick="suspendUser(${u.id})">🚫 Suspend</button>`:''}
+                ${u.status==='suspended'?`<button class="btn btn-warn btn-sm" onclick="reactivateUser(${u.id})">↩ Reactivate</button>`:''}
+                <button class="btn btn-outline btn-sm" onclick="showEditUser(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️ Edit</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')||'<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">No users</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  window.approveUser = async (id) => {
+    await PUT(`/admin/users/${id}/approve`);
+    toast('User approved ✅','success');
+    navigateAdmin(adminPage);
+  };
+  window.suspendUser = async (id) => {
+    if(!confirm('Suspend this user? They will not be able to log in.')) return;
+    await PUT(`/admin/users/${id}/suspend`);
+    toast('User suspended','warn');
+    navigateAdmin(adminPage);
+  };
+  window.reactivateUser = async (id) => {
+    await PUT(`/admin/users/${id}/reactivate`);
+    toast('User reactivated','success');
+    navigateAdmin(adminPage);
+  };
+  window.showEditUser = (u) => {
+    if(typeof u==='string') u=JSON.parse(u);
+    const m=document.createElement('div'); m.className='modal-overlay'; m.innerHTML=`
+    <div class="modal"><div class="modal-title">Edit — ${u.shop_name||u.name}</div>
+      <div class="gap-14">
+        <div class="grid-2">
+          <div class="field"><label>Shop Name</label><input class="input" id="eu-shop" value="${u.shop_name||''}"></div>
+          <div class="field"><label>Owner Name</label><input class="input" id="eu-name" value="${u.name||''}"></div>
+        </div>
+        <div class="field"><label>Phone</label><input class="input" id="eu-phone" value="${u.phone||''}"></div>
+        <div class="field"><label>Access Expiry Date</label>
+          <input class="input" type="date" id="eu-expiry" value="${u.access_expiry||''}"
+            min="${new Date().toISOString().slice(0,10)}">
+          <span style="font-size:11px;color:var(--muted)">Leave blank for no expiry. Set a past date to effectively block access.</span>
+        </div>
+        <div class="field"><label>Status</label>
+          <select class="select" id="eu-status">
+            <option value="active" ${u.status==='active'?'selected':''}>Active</option>
+            <option value="pending" ${u.status==='pending'?'selected':''}>Pending</option>
+            <option value="suspended" ${u.status==='suspended'?'selected':''}>Suspended</option>
+          </select>
+        </div>
+        <div class="field"><label>Admin Notes</label><input class="input" id="eu-notes" value="${u.notes||''}" placeholder="Internal notes"></div>
+        <div style="border-top:1px solid var(--border);padding-top:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">Reset Password</div>
+          <div class="row">
+            <input class="input" id="eu-newpw" type="password" placeholder="New password (min 8 chars)" style="flex:1">
+            <button class="btn btn-warn btn-sm" onclick="doResetPw(${u.id})">Reset</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button class="btn btn-outline" style="flex:1" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button class="btn btn-primary" style="flex:1" onclick="doEditUser(${u.id})">Save Changes</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(m);
+  };
+
+  window.doEditUser = async (id) => {
+    await PUT(`/admin/users/${id}`,{
+      shop_name: document.getElementById('eu-shop')?.value||'',
+      name: document.getElementById('eu-name')?.value||'',
+      phone: document.getElementById('eu-phone')?.value||'',
+      access_expiry: document.getElementById('eu-expiry')?.value||'',
+      status: document.getElementById('eu-status')?.value||'',
+      notes: document.getElementById('eu-notes')?.value||'',
+    });
+    document.querySelector('.modal-overlay')?.remove();
+    toast('User updated','success');
+    navigateAdmin(adminPage);
+  };
+
+  window.doResetPw = async (id) => {
+    const pw = document.getElementById('eu-newpw')?.value;
+    if(!pw||pw.length<8){toast('Password must be at least 8 characters','warn');return;}
+    await POST('/admin/reset-password',{user_id:id,new_password:pw});
+    toast('Password reset','success');
+    document.getElementById('eu-newpw').value='';
+  };
+
+  window.showCreateUser = () => {
+    const m=document.createElement('div'); m.className='modal-overlay'; m.innerHTML=`
+    <div class="modal"><div class="modal-title">Create User Account</div>
+      <div class="gap-14">
+        <div class="grid-2">
+          <div class="field"><label>Owner Name *</label><input class="input" id="cu-name" placeholder="Full name"></div>
+          <div class="field"><label>Shop Name *</label><input class="input" id="cu-shop" placeholder="Shop name"></div>
+        </div>
+        <div class="field"><label>Email *</label><input class="input" id="cu-email" type="email" placeholder="owner@example.com"></div>
+        <div class="field"><label>Phone</label><input class="input" id="cu-phone" placeholder="Mobile number"></div>
+        <div class="field"><label>Password * (min 8 chars)</label><input class="input" id="cu-pass" type="password"></div>
+        <div class="field"><label>Access Expiry (optional)</label>
+          <input class="input" type="date" id="cu-expiry" min="${new Date().toISOString().slice(0,10)}">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button class="btn btn-outline" style="flex:1" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button class="btn btn-primary" style="flex:1" onclick="doCreateUser()">Create & Approve</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(m);
+  };
+
+  window.doCreateUser = async () => {
+    const name=document.getElementById('cu-name')?.value?.trim();
+    const shop=document.getElementById('cu-shop')?.value?.trim();
+    const email=document.getElementById('cu-email')?.value?.trim();
+    const phone=document.getElementById('cu-phone')?.value?.trim();
+    const pass=document.getElementById('cu-pass')?.value;
+    const expiry=document.getElementById('cu-expiry')?.value;
+    if(!name||!shop||!email||!pass){toast('All starred fields required','warn');return;}
+    if(pass.length<8){toast('Password min 8 chars','warn');return;}
+    // Register then auto-approve
+    await POST('/auth/register',{name,shop_name:shop,email,phone:phone||'',password:pass});
+    const users2 = await GET('/admin/users');
+    const created = users2.find(u=>u.email===email.toLowerCase());
+    if(created) {
+      await PUT(`/admin/users/${created.id}/approve`);
+      if(expiry) await PUT(`/admin/users/${created.id}`,{access_expiry:expiry,name,shop_name:shop,phone:phone||'',status:'active',notes:''});
+    }
+    document.querySelector('.modal-overlay')?.remove();
+    toast('User created and approved ✅','success');
+    navigateAdmin(adminPage);
+  };
+}
+
+async function renderAdminLog(c) {
+  const logs = await GET('/admin/login-log');
+  c.innerHTML = `<div class="gap-16 fade-in">
+    <h2 style="font-size:18px;font-weight:800">Login Log</h2>
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl">
+        <thead><tr><th>Shop</th><th>Email</th><th>IP</th><th>Result</th><th>Reason</th><th>Time</th></tr></thead>
+        <tbody>${logs.map(l=>`<tr>
+          <td style="font-size:12px">${l.shop_name||'—'}</td>
+          <td style="font-size:12px;color:var(--muted)">${l.email}</td>
+          <td style="font-size:11px;color:var(--muted);font-family:monospace">${l.ip||'—'}</td>
+          <td>${l.success?'<span class="tag tag-green">✅ Success</span>':'<span class="tag tag-red">❌ Failed</span>'}</td>
+          <td style="font-size:11px;color:var(--muted)">${l.reason||'—'}</td>
+          <td style="font-size:11px;color:var(--muted)">${l.created_at?.slice(0,16).replace('T',' ')}</td>
+        </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">No logs yet</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SHOP OWNER APP
+// ══════════════════════════════════════════════════════════════════════════════
+const PAGES = [
+  {id:'dashboard',   icon:'⚡', label:'Dashboard'},
+  {id:'billing',     icon:'🧾', label:'Billing'},
+  {id:'inventory',   icon:'📦', label:'Inventory', badge:'exp'},
+  {id:'trays',       icon:'✂️', label:'Tray Tracker'},
+  {id:'stock_entry', icon:'📥', label:'Stock Entry'},
+  {id:'putaway',     icon:'🗺️', label:'Put-Away'},
+  {id:'shelves',     icon:'🗄️', label:'Shelf Map'},
+  {id:'customers',   icon:'👥', label:'Customers'},
+  {id:'suppliers',   icon:'🏭', label:'Suppliers'},
+  {id:'reports',     icon:'📊', label:'Reports'},
+  {id:'settings',    icon:'⚙️', label:'Settings'},
+];
+
+let wizardStep=0, wizardData={
+  name:'',owner:'',phone:'',email:'',address:'',gstin:'',licence:'',state:'KA',gst_slab:'12',
+  strategy:'alpha',fefo:true,top_up_tray:true,print_tray_label:true,schedule_warning:true,
+  require_batch_on_sale:true,low_stock_reorder:true,broken_strip_alert:2,expiry_warn_months:3,
+  counter_rack:'R1',eye_level_shelf:'S5',
+  racks:[
+    {rack_id:'R1',name:'R1',shelves:6,color:'#00c896',label:'Near counter'},
+    {rack_id:'R2',name:'R2',shelves:6,color:'#3b82f6',label:''},
+    {rack_id:'R3',name:'R3',shelves:6,color:'#a855f7',label:''},
+    {rack_id:'R4',name:'R4',shelves:6,color:'#f59e0b',label:''},
+    {rack_id:'R5',name:'R5',shelves:6,color:'#ef4444',label:''},
+    {rack_id:'R6',name:'R6',shelves:6,color:'#10b981',label:'Back wall'},
+  ]
+};
+const RACK_COLS=['#00c896','#3b82f6','#a855f7','#f59e0b','#ef4444','#10b981','#06b6d4','#f97316'];
+const WSTEPS=['Shop Details','Rack Setup','Strategy','Rules','Done'];
+
+function renderApp() {
+  // Check access expiry warning
+  const dl = accessDaysLeft(APP.user.access_expiry);
+  const expiryWarn = (dl !== null && dl <= 30)
+    ? `<div style="background:${dl<0?'var(--danger-dim)':'var(--warn-dim)'};border:1px solid ${dl<0?'var(--danger)':'var(--warn)'}44;padding:8px 24px;font-size:12px;font-weight:700;color:${dl<0?'var(--danger)':'var(--warn)'}">
+        ${dl<0?'⛔ Your access has expired. Contact admin to renew.':'⚠️ Your access expires in '+dl+' days. Contact admin to renew.'}
+      </div>` : '';
+
+  document.getElementById('root').innerHTML = `
+  <div id="app">
+    ${expiryWarn}
+    <div class="app-layout" style="${dl<0?'opacity:.5;pointer-events:none':''}">
+      <div id="sidebar">
+        <div class="logo">
+          <div class="logo-icon">⚕️</div>
+          <div><div class="logo-text">PharmaPro</div><div class="logo-sub">Smart POS</div></div>
+        </div>
+        <div class="user-pill">
+          <div class="u-name">${APP.user.shop_name||APP.user.name}</div>
+          <div class="u-role">${APP.user.name}</div>
+          ${APP.user.access_expiry?`<div style="font-size:9px;color:var(--muted);margin-top:2px">Access: ${APP.user.access_expiry}</div>`:''}
+        </div>
+        <nav id="sidebar-nav"></nav>
+        <div class="sidebar-bottom">
+          <button class="btn btn-outline btn-sm btn-full" onclick="logout()">Sign Out</button>
+        </div>
+      </div>
+      <div id="main">
+        <div id="topbar">
+          <div style="font-size:14px;font-weight:700;color:var(--text)" id="page-title">Dashboard</div>
+          <div style="font-size:12px;color:var(--muted)">${today()}</div>
+        </div>
+        <div id="content"></div>
+      </div>
+    </div>
+  </div>`;
+
+  if(!APP.user.setup_done) { showSetupWizard(); return; }
+  renderNav();
+  navigate('dashboard');
+}
+
+function renderNav(alerts={}) {
+  const nav = document.getElementById('sidebar-nav');
+  if(!nav) return;
+  nav.innerHTML = PAGES.map(p=>`
+    <button class="nav-btn ${APP.page===p.id?'active':''}" onclick="navigate('${p.id}')">
+      <span class="nav-icon">${p.icon}</span><span>${p.label}</span>
+      ${p.badge==='exp'&&(alerts.expired||0)+(alerts.expiring||0)>0?`<span class="nav-badge warn">${(alerts.expired||0)+(alerts.expiring||0)}</span>`:''}
+    </button>`).join('');
+}
+
+async function navigate(page) {
+  APP.page=page;
+  const el=document.getElementById('page-title'); if(el) el.textContent=PAGES.find(p=>p.id===page)?.label||page;
+  renderNav();
+  const c=document.getElementById('content'); if(!c) return;
+  c.innerHTML='<div class="loading-center"><div class="spinner"></div></div>';
+  try {
+    const map={
+      dashboard:renderDashboard, billing:renderBilling, inventory:renderInventory,
+      trays:renderTrays, stock_entry:renderStockEntry, putaway:renderPutaway,
+      shelves:renderShelves, customers:renderCustomers, suppliers:renderSuppliers,
+      reports:renderReports, settings:renderSettings
+    };
+    if(map[page]) await map[page](c);
+    else c.innerHTML='<div class="card" style="margin:24px">Coming soon</div>';
+  } catch(e) { c.innerHTML=`<div class="card" style="margin:24px;color:var(--danger)">Error: ${e.message}</div>`; }
+}
+
+// ── SETUP WIZARD ───────────────────────────────────────────────────────────────
+function showSetupWizard() {
+  const c = document.getElementById('content');
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--surface)">
+      <div style="font-size:16px;font-weight:800">🏪 Setup Your Shop</div>
+      <div style="font-size:12px;color:var(--muted)">One-time configuration — takes about 2 minutes</div>
+    </div>
+    <div class="wizard-steps" id="wiz-steps"></div>
+    <div style="flex:1;overflow-y:auto;padding:24px;max-width:700px;width:100%" id="wiz-body"></div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--surface)">
+      <button class="btn btn-outline" id="wiz-back" onclick="wizBack()">← Back</button>
+      <div style="display:flex;gap:5px" id="wiz-dots"></div>
+      <button class="btn btn-primary" id="wiz-next" onclick="wizNext()">Continue →</button>
+    </div>`;
+  renderWizard();
+}
+
+function renderWizard() {
+  const steps=document.getElementById('wiz-steps');
+  const dots=document.getElementById('wiz-dots');
+  const body=document.getElementById('wiz-body');
+  const back=document.getElementById('wiz-back');
+  const next=document.getElementById('wiz-next');
+  if(!steps) return;
+  steps.innerHTML=WSTEPS.map((s,i)=>`<div class="wstep ${i===wizardStep?'active':i<wizardStep?'done':''}">${i+1}. ${s}${i<wizardStep?' ✓':''}</div>`).join('');
+  dots.innerHTML=WSTEPS.map((_,i)=>`<div style="width:${i===wizardStep?20:6}px;height:6px;border-radius:10px;background:${i===wizardStep?'var(--accent)':i<wizardStep?'var(--accent)55':'var(--faint)'};transition:all .3s"></div>`).join('');
+  back.style.opacity=wizardStep===0?'.3':'1'; back.disabled=wizardStep===0;
+  next.textContent=wizardStep===WSTEPS.length-2?'Launch PharmaPro 🚀':'Continue →';
+  const html=[wizStep0,wizStep1,wizStep2,wizStep3,wizStep4];
+  body.innerHTML=html[wizardStep]?html[wizardStep]():'';
+  if(wizardStep===3){['wfefo','wtopup','wprint','wsched','wreorder'].forEach(id=>{
+    const m={wfefo:'fefo',wtopup:'top_up_tray',wprint:'print_tray_label',wsched:'schedule_warning',wreorder:'low_stock_reorder'};
+    toggleState[id]=wizardData[m[id]];});
+  }
+}
+
+function wizStep0(){return `<div class="gap-16"><h2 style="font-size:18px;font-weight:800;margin-bottom:4px">🏪 Shop Details</h2>
+  <div class="grid-2">
+    <div class="field"><label>Shop Name *</label><input class="input" id="w-name" value="${wizardData.name||APP.user.shop_name}" placeholder="Sri Lakshmi Medical" oninput="wizardData.name=this.value"></div>
+    <div class="field"><label>Owner Name</label><input class="input" value="${wizardData.owner||APP.user.name}" oninput="wizardData.owner=this.value"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>GSTIN</label><input class="input" value="${wizardData.gstin}" placeholder="29AABCA1234B1Z3" oninput="wizardData.gstin=this.value"></div>
+    <div class="field"><label>Drug Licence No.</label><input class="input" value="${wizardData.licence}" oninput="wizardData.licence=this.value"></div>
+  </div>
+  <div class="grid-2">
+    <div class="field"><label>Phone</label><input class="input" value="${wizardData.phone||APP.user.phone}" oninput="wizardData.phone=this.value"></div>
+    <div class="field"><label>State</label><select class="select" onchange="wizardData.state=this.value">
+      ${['KA-Karnataka','TN-Tamil Nadu','MH-Maharashtra','DL-Delhi','AP-Andhra Pradesh','TS-Telangana','KL-Kerala','GJ-Gujarat'].map(s=>{const[v,l]=s.split('-');return `<option value="${v}" ${wizardData.state===v?'selected':''}>${l}</option>`;}).join('')}
+    </select></div>
+  </div></div>`;}
+
+function wizStep1(){return `<div class="gap-16"><h2 style="font-size:18px;font-weight:800;margin-bottom:4px">🗄️ Rack & Shelf Setup</h2>
+  <div class="alert alert-info">Each rack can have a different shelf count. Click the colour dot to change colour. Add as many racks as your shop has.</div>
+  <div class="gap-10" id="rack-list">
+    ${wizardData.racks.map((r,i)=>`<div class="card-sm" style="display:grid;grid-template-columns:22px 1fr 1fr auto auto;gap:10px;align-items:center">
+      <div style="width:18px;height:18px;border-radius:4px;background:${r.color};cursor:pointer;border:2px solid ${r.color}88;flex-shrink:0" onclick="cycleRackColor(${i})" title="Click to change colour"></div>
+      <div class="field" style="margin:0"><label>ID</label><input class="input" value="${r.name}" oninput="wizardData.racks[${i}].name=this.value;wizardData.racks[${i}].rack_id=this.value"></div>
+      <div class="field" style="margin:0"><label>Label</label><input class="input" value="${r.label||''}" placeholder="e.g. Near window" oninput="wizardData.racks[${i}].label=this.value"></div>
+      <div><label style="font-size:10px;color:var(--muted);font-weight:700;display:block;margin-bottom:4px">SHELVES</label>
+        <div class="row"><button class="qty-btn" onclick="wizardData.racks[${i}].shelves=Math.max(1,wizardData.racks[${i}].shelves-1);renderWizard()">−</button>
+        <span style="font-weight:900;color:var(--accent);min-width:20px;text-align:center">${r.shelves}</span>
+        <button class="qty-btn" onclick="wizardData.racks[${i}].shelves++;renderWizard()">+</button></div></div>
+      <button style="background:none;border:1px solid var(--danger-dim);border-radius:6px;padding:5px 7px;color:var(--danger);cursor:pointer;font-size:13px" onclick="wizardData.racks.splice(${i},1);renderWizard()">✕</button>
+    </div>`).join('')}
+  </div>
+  <button onclick="wizardData.racks.push({rack_id:'R'+(wizardData.racks.length+1),name:'R'+(wizardData.racks.length+1),shelves:6,color:RACK_COLS[wizardData.racks.length%8],label:''});renderWizard()"
+    style="width:100%;padding:11px;border-radius:10px;border:2px dashed var(--border);background:var(--accent-dim);color:var(--accent);font-weight:700;cursor:pointer">+ Add Rack</button>
+  </div>`;}
+
+window.cycleRackColor=(i)=>{const c=wizardData.racks[i].color,idx=RACK_COLS.indexOf(c);wizardData.racks[i].color=RACK_COLS[(idx+1)%RACK_COLS.length];renderWizard();};
+
+function wizStep2(){return `<div class="gap-16"><h2 style="font-size:18px;font-weight:800;margin-bottom:4px">📐 Placement Strategy</h2>
+  <div class="alert alert-info">💡 <b>Recommendation for a new shop: Alphabetical.</b> Staff find drugs from day one without training. Switch to Velocity after 2–3 months.</div>
+  <div onclick="wizardData.strategy='alpha';renderWizard()" style="background:${wizardData.strategy==='alpha'?'var(--accent-dim)':'var(--card)'};border:2px solid ${wizardData.strategy==='alpha'?'var(--accent)':'var(--border)'};border-radius:14px;padding:18px;cursor:pointer;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:22px">🔤</span>
+      <div><div style="font-weight:900;font-size:14px">Alphabetical Order</div><div style="font-size:11px;color:var(--muted)">A–Z across all racks · New staff find any drug instantly</div></div>
+      <div style="margin-left:auto;width:18px;height:18px;border-radius:50%;border:2px solid ${wizardData.strategy==='alpha'?'var(--accent)':'var(--muted)'};background:${wizardData.strategy==='alpha'?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center">${wizardData.strategy==='alpha'?'<div style="width:7px;height:7px;border-radius:50%;background:#080d18"></div>':''}</div>
+    </div>
+    <div class="grid-2" style="gap:8px">
+      <div style="background:var(--green-dim);border-radius:8px;padding:8px;font-size:11px;color:var(--muted)"><b style="color:var(--green)">✅ Best for:</b> Staff changes often · No training time · New shop</div>
+      <div style="background:var(--danger-dim);border-radius:8px;padding:8px;font-size:11px;color:var(--muted)"><b style="color:var(--danger)">⚠️ Trade-off:</b> Paracetamol may be far from counter</div>
+    </div>
+  </div>
+  <div onclick="wizardData.strategy='velocity';renderWizard()" style="background:${wizardData.strategy==='velocity'?'var(--info-dim)':'var(--card)'};border:2px solid ${wizardData.strategy==='velocity'?'var(--info)':'var(--border)'};border-radius:14px;padding:18px;cursor:pointer">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:22px">⚡</span>
+      <div><div style="font-weight:900;font-size:14px">Velocity Zones</div><div style="font-size:11px;color:var(--muted)">Fast movers closest · Saves walking · Needs 30 days data</div></div>
+      <div style="margin-left:auto;width:18px;height:18px;border-radius:50%;border:2px solid ${wizardData.strategy==='velocity'?'var(--info)':'var(--muted)'};background:${wizardData.strategy==='velocity'?'var(--info)':'transparent'};display:flex;align-items:center;justify-content:center">${wizardData.strategy==='velocity'?'<div style="width:7px;height:7px;border-radius:50%;background:#080d18"></div>':''}</div>
+    </div>
+    <div class="grid-2" style="gap:8px">
+      <div style="background:var(--green-dim);border-radius:8px;padding:8px;font-size:11px;color:var(--muted)"><b style="color:var(--green)">✅ Best for:</b> Same staff for months · 50+ bills/day</div>
+      <div style="background:var(--danger-dim);border-radius:8px;padding:8px;font-size:11px;color:var(--muted)"><b style="color:var(--danger)">⚠️ Trade-off:</b> New staff struggles · Locations change monthly</div>
+    </div>
+  </div></div>`;}
+
+function wizStep3(){return `<div class="gap-14"><h2 style="font-size:18px;font-weight:800;margin-bottom:4px">⚙️ Dispensing Rules</h2>
+  ${toggleHTML('wfefo',true,'FEFO — First Expiry, First Out','Oldest expiry batch/tray first. Strongly recommended.')}
+  ${toggleHTML('wtopup',true,'Top-up open trays from new stock first','')}
+  ${toggleHTML('wprint',true,'Print tray label when a strip is broken','')}
+  ${toggleHTML('wsched',true,'Schedule H / H1 / X warnings on bill','')}
+  ${toggleHTML('wreorder',true,'Auto reorder suggestions when stock is low','')}
+  <div class="grid-2">
+    <div class="field"><label>Alert when tray has ≤ ? tablets</label>
+      <select class="select" onchange="wizardData.broken_strip_alert=+this.value">
+        ${[1,2,3,5].map(n=>`<option value="${n}" ${wizardData.broken_strip_alert===n?'selected':''}>${n} tablet${n>1?'s':''}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Expiry warning how early?</label>
+      <select class="select" onchange="wizardData.expiry_warn_months=+this.value">
+        ${[1,2,3,6].map(n=>`<option value="${n}" ${wizardData.expiry_warn_months===n?'selected':''}>${n} month${n>1?'s':''}</option>`).join('')}
+      </select></div>
+  </div></div>`;}
+
+function wizStep4(){return `<div class="gap-16 fade-in" style="text-align:center;padding-top:20px">
+  <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--accent),#3b82f6);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto">⚕️</div>
+  <div style="font-size:22px;font-weight:900">Ready to launch!</div>
+  <div style="color:var(--muted);font-size:13px;line-height:1.8">
+    <b style="color:var(--accent)">${wizardData.name||APP.user.shop_name}</b><br>
+    ${wizardData.racks.length} racks · ${wizardData.racks.reduce((s,r)=>s+r.shelves,0)} shelf slots<br>
+    ${wizardData.strategy==='alpha'?'🔤 Alphabetical':'⚡ Velocity zone'} placement
+  </div>
+  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+    ${['Shop configured','Shelf map built','Strategy set','Rules active'].map(t=>`<span class="tag tag-teal">✓ ${t}</span>`).join('')}
+  </div></div>`;}
+
+async function wizBack() { if(wizardStep>0){wizardStep--;renderWizard();} }
+async function wizNext() {
+  if(wizardStep===0 && !((wizardData.name||APP.user.shop_name).trim())){toast('Shop name required','warn');return;}
+  if(wizardStep===3){
+    const m={wfefo:'fefo',wtopup:'top_up_tray',wprint:'print_tray_label',wsched:'schedule_warning',wreorder:'low_stock_reorder'};
+    Object.entries(m).forEach(([tid,key])=>{wizardData[key]=toggleState[tid]||false;});
+  }
+  if(wizardStep===WSTEPS.length-2){
+    const btn=document.getElementById('wiz-next'); btn.disabled=true; btn.textContent='Saving…';
+    await POST('/config',{...wizardData, name:wizardData.name||APP.user.shop_name, owner:wizardData.owner||APP.user.name});
+    await POST('/racks', wizardData.racks);
+    wizardStep++;
+    renderWizard();
+    document.getElementById('wiz-next').textContent='Open PharmaPro →';
+    document.getElementById('wiz-next').onclick=()=>{APP.user.setup_done=true;renderApp();};
+    return;
+  }
+  if(wizardStep===WSTEPS.length-1){APP.user.setup_done=true;renderApp();return;}
+  wizardStep++;
+  renderWizard();
+}
+window.wizBack=wizBack; window.wizNext=wizNext;
+
+// ── DASHBOARD ──────────────────────────────────────────────────────────────────
+async function renderDashboard(c) {
+  const d = await GET('/dashboard');
+  const maxRev = Math.max(...(d.week_revenue||[{revenue:1}]).map(r=>r.revenue||1),1);
+  c.innerHTML = `<div class="gap-16 fade-in">
+    <div><div style="font-size:18px;font-weight:800">Good day 👋</div>
+      <div style="color:var(--muted);font-size:12px;margin-top:3px">${today()} · ${APP.user.shop_name||'PharmaPro'}</div></div>
+    ${(d.expired>0||d.expiring>0||d.low_stock>0)?`<div class="alert alert-warn">
+      ${d.expired>0?`<span>⛔ ${d.expired} expired batch${d.expired>1?'es':''}</span>`:''}
+      ${d.expiring>0?`<span>⚠️ ${d.expiring} expiring soon</span>`:''}
+      ${d.low_stock>0?`<span>📦 ${d.low_stock} low stock</span>`:''}
+    </div>`:''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+      ${dstat('💰','Today Revenue',fmtI(d.today_revenue),'var(--accent)',d.today_bills+' bills')}
+      ${dstat('🧾','Bills Today',d.today_bills,'var(--info)','')}
+      ${dstat('📦','Total Drugs',d.total_drugs,'var(--purple)',d.low_stock+' low')}
+      ${dstat('👥','Customers',d.customers,'var(--green)','')}
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="section-title">This Week</div>
+        <div class="bar-chart">
+          ${(d.week_revenue||[]).map(r=>`<div class="bar-col">
+            <div class="bar" style="height:${Math.round((r.revenue/maxRev)*80)}px"></div>
+            <div class="bar-lbl">${r.day?.slice(5)||''}</div>
+          </div>`).join('')||'<div style="color:var(--muted);font-size:12px">No sales yet</div>'}
+        </div>
+      </div>
+      <div class="card"><div class="section-title">Quick Actions</div>
+        <div class="gap-10">
+          <button class="btn btn-primary btn-full" onclick="navigate('billing')">🧾 New Bill</button>
+          <button class="btn btn-outline btn-full" onclick="navigate('stock_entry')">📥 Add Stock</button>
+          <button class="btn btn-outline btn-full" onclick="navigate('trays')">✂️ Tray Tracker</button>
+          <button class="btn btn-outline btn-full" onclick="navigate('reports')">📊 Reports</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  const dash2 = await GET('/dashboard');
+  renderNav({expired:dash2.expired,expiring:dash2.expiring});
+}
+function dstat(icon,lbl,val,color,sub){return `<div class="stat-card">
+  <div class="stat-glow" style="background:radial-gradient(circle at 80% 20%,${color}18,transparent 60%)"></div>
+  <div style="font-size:18px;margin-bottom:6px">${icon}</div>
+  <div class="stat-val" style="color:${color}">${val}</div>
+  <div class="stat-lbl">${lbl}</div>
+  ${sub?`<div class="stat-sub">${sub}</div>`:''}
+</div>`;}
+
+// ── BILLING ────────────────────────────────────────────────────────────────────
+async function renderBilling(c) {
+  let cart=[], customer=null, discount=0, payMode='Cash';
+
+  function billHTML() {
+    const sub=cart.reduce((s,i)=>s+i.qty*i.mrp_per_tablet,0);
+    const disc=sub*discount/100, gst=(sub-disc)*0.12, total=sub-disc+gst;
+    return `<div style="display:grid;grid-template-columns:1fr 320px;gap:16px;height:calc(100vh - 120px)">
+      <div class="gap-10" style="overflow:hidden;display:flex;flex-direction:column">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="input" id="bill-search" placeholder="Search drug…" oninput="billSearch(this.value)" autocomplete="off">
+          <div class="search-drop" id="bill-drop" style="display:none"></div>
+        </div>
+        <div class="card" style="flex:1;overflow:auto;padding:0">
+          ${cart.length===0?`<div style="height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:8px"><span style="font-size:32px">💊</span><span>Search and add medicines</span></div>`:
+          `<table class="tbl"><thead><tr><th>Medicine</th><th>Qty (tabs)</th><th>Amount</th><th></th></tr></thead>
+          <tbody>${cart.map((item,i)=>`<tr>
+            <td><div style="font-weight:700">${item.name}</div><div style="font-size:11px;color:var(--muted)">${item.brand||''}</div>
+                ${stripVis(item.tablets_per_strip||10,item.qty%(item.tablets_per_strip||10)||item.tablets_per_strip||10,'var(--accent)')}</td>
+            <td><div class="qty-ctrl">
+              <button class="qty-btn" onclick="cartQty(${i},${item.qty-1})">−</button>
+              <input class="qty-val" type="number" value="${item.qty}" onchange="cartQty(${i},+this.value)">
+              <button class="qty-btn" onclick="cartQty(${i},${item.qty+1})">+</button>
+            </div></td>
+            <td style="font-weight:700;color:var(--accent)">${fmt(item.qty*item.mrp_per_tablet)}</td>
+            <td><button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px" onclick="cartRemove(${i})">✕</button></td>
+          </tr>`).join('')}</tbody></table>`}
+        </div>
+      </div>
+      <div class="gap-10">
+        <div class="card">
+          <div class="section-title">Customer</div>
+          ${customer?`<div class="flex-between"><div style="font-weight:700">${customer.name}</div>
+            <button style="background:none;border:none;color:var(--danger);cursor:pointer" onclick="billClearCust()">✕</button></div>`:`
+          <div class="search-wrap">
+            <span class="search-icon">👤</span>
+            <input class="input" id="cust-s" placeholder="Search customer…" oninput="custSearch(this.value)" autocomplete="off">
+            <div class="search-drop" id="cust-drop" style="display:none"></div>
+          </div>
+          <input class="input" id="patient-name" placeholder="Patient name (walk-in)" style="margin-top:8px">`}
+        </div>
+        <div class="card" style="flex:1">
+          <div class="section-title">Summary</div>
+          <div class="gap-10">
+            ${[['Subtotal',fmt(sub)],['Disc.','-'+fmt(disc)],['GST (12%)',fmt(gst)]].map(([k,v])=>`
+            <div class="flex-between" style="font-size:13px;color:var(--muted)"><span>${k}</span><span style="color:var(--text)">${v}</span></div>`).join('')}
+            <div class="flex-between" style="font-size:17px;font-weight:900;border-top:1px solid var(--border);padding-top:10px">
+              <span>Total</span><span style="color:var(--accent)">${fmtI(total)}</span></div>
+          </div>
+          <div class="field" style="margin-top:12px"><label>Discount %</label>
+            <input class="input" type="number" min="0" max="30" value="${discount}" oninput="billDisc(+this.value)"></div>
+          <div style="margin-top:12px"><div class="section-title">Payment</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${['Cash','UPI','Card','Credit'].map(m=>`<button onclick="billPay('${m}')" style="flex:1;padding:7px 0;border-radius:8px;border:1px solid ${payMode===m?'var(--accent)':'var(--border)'};background:${payMode===m?'var(--accent-dim)':'var(--surface)'};color:${payMode===m?'var(--accent)':'var(--muted)'};font-weight:700;font-size:12px;cursor:pointer">${m}</button>`).join('')}
+            </div></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline" onclick="billClear()">Clear</button>
+          <button class="btn btn-primary" style="flex:1" id="gen-btn" onclick="billGen()">${cart.length?'Generate · '+fmtI(total):'Generate Bill'}</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  c.innerHTML=billHTML();
+
+  window.billSearch=async(q)=>{if(q.length<2){document.getElementById('bill-drop').style.display='none';return;}
+    const drugs=await GET('/drugs?q='+encodeURIComponent(q));
+    const drop=document.getElementById('bill-drop');
+    drop.innerHTML=drugs.map(d=>`<div class="search-item" onclick="billAdd(${d.id})">
+      <div><div style="font-weight:700">${d.name} <span style="color:var(--muted);font-size:11px">${d.brand||''}</span></div>
+        <div style="font-size:11px;color:var(--muted)">${d.rack||'?'}·${d.shelf||'?'} · ${d.stock_tablets||0} tabs</div></div>
+      <div style="color:var(--accent);font-weight:800">${fmt(d.mrp_per_tablet)}/tab</div>
+    </div>`).join('');
+    drop.style.display=drugs.length?'block':'none';};
+
+  window.billAdd=async(id)=>{const drug=await GET('/drugs/'+id);
+    document.getElementById('bill-drop').style.display='none';
+    document.getElementById('bill-search').value='';
+    const ex=cart.findIndex(i=>i.id===id);
+    if(ex>=0) cart[ex].qty++; else cart.push({...drug,qty:1});
+    c.innerHTML=billHTML();};
+  window.cartQty=(i,q)=>{if(q<=0)cart.splice(i,1);else cart[i].qty=q;c.innerHTML=billHTML();};
+  window.cartRemove=(i)=>{cart.splice(i,1);c.innerHTML=billHTML();};
+  window.billDisc=(v)=>{discount=v;c.innerHTML=billHTML();};
+  window.billPay=(m)=>{payMode=m;c.innerHTML=billHTML();};
+  window.billClear=()=>{cart=[];customer=null;c.innerHTML=billHTML();};
+  window.billClearCust=()=>{customer=null;c.innerHTML=billHTML();};
+  window.custSearch=async(q)=>{if(q.length<1){document.getElementById('cust-drop').style.display='none';return;}
+    const cs=await GET('/customers?q='+encodeURIComponent(q));
+    const drop=document.getElementById('cust-drop');
+    drop.innerHTML=cs.map(cu=>`<div class="search-item" onclick="billSetCust(${cu.id},'${cu.name}','${cu.phone||''}',${cu.loyalty_points||0})">${cu.name} <span style="color:var(--muted);font-size:11px">— ${cu.phone||''}</span></div>`).join('');
+    drop.style.display=cs.length?'block':'none';};
+  window.billSetCust=(id,name,phone,pts)=>{customer={id,name,phone,loyalty_points:pts};c.innerHTML=billHTML();};
+  window.billGen=async()=>{
+    if(!cart.length){toast('Add items first','warn');return;}
+    const btn=document.getElementById('gen-btn');btn.disabled=true;btn.textContent='Processing…';
+    try{
+      const res=await POST('/bills',{customer_id:customer?.id||null,
+        patient_name:document.getElementById('patient-name')?.value||'',
+        discount_pct:discount,payment_mode:payMode,
+        items:cart.map(i=>({drug_id:i.id,tablets_qty:i.qty}))});
+      toast(`Bill ${res.bill_no} · ${fmtI(res.total)}`,'success');
+      cart=[];customer=null;discount=0;c.innerHTML=billHTML();
+    }catch(e){btn.disabled=false;btn.textContent='Generate Bill';}
+  };
+}
+
+// ── INVENTORY ──────────────────────────────────────────────────────────────────
+async function renderInventory(c) {
+  const drugs=await GET('/inventory');
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <div class="flex-between">
+      <div><h2 style="font-size:18px;font-weight:800">Inventory</h2><div style="color:var(--muted);font-size:12px">${drugs.length} drugs</div></div>
+    </div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl"><thead><tr><th>Drug</th><th>Location</th><th>Stock</th><th>Expiry</th><th>MRP/tab</th><th>Status</th></tr></thead>
+        <tbody>${drugs.map(d=>{
+          const low=(d.stock_tablets||0)<(d.reorder_level||20)*(d.tablets_per_strip||10);
+          const ml=monthsLeft(d.nearest_expiry);
+          return `<tr>
+            <td><div style="font-weight:700">${d.name}</div><div style="font-size:11px;color:var(--muted)">${d.brand||''}</div></td>
+            <td><span style="color:var(--accent);font-weight:700">${d.rack||'—'}</span>·<span style="color:var(--muted)">${d.shelf||'—'}</span></td>
+            <td><div style="font-weight:800;color:${low?'var(--danger)':'var(--accent)'}">${d.stock_tablets||0}</div>
+                <div style="font-size:10px;color:var(--muted)">tablets</div></td>
+            <td style="color:${expiryColor(d.nearest_expiry)};font-size:12px">${fmtExp(d.nearest_expiry)||'—'}</td>
+            <td style="font-weight:700">${fmt(d.mrp_per_tablet||0)}</td>
+            <td>${low?'<span class="tag tag-red">Low</span>':ml<=0?'<span class="tag tag-red">Exp</span>':ml<=3?'<span class="tag tag-amber">Soon</span>':'<span class="tag tag-green">OK</span>'}</td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ── TRAYS ──────────────────────────────────────────────────────────────────────
+async function renderTrays(c) {
+  const trays=await GET('/trays?open_only=true');
+  const alertAt=parseInt(APP.user.broken_strip_alert||2);
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <h2 style="font-size:18px;font-weight:800">Tray Tracker · ${trays.length} open trays</h2>
+    <div class="alert alert-info">💡 Trays auto-created when a strip is broken. Expiry inherited from the original batch.</div>
+    ${trays.length===0?'<div class="card" style="text-align:center;padding:40px;color:var(--muted)">No open trays</div>':
+    `<div class="gap-10">${trays.map(t=>{
+      const crit=t.tablets_remaining<=alertAt;
+      const col=crit?'var(--warn)':'var(--accent)';
+      return `<div class="card" style="border-color:${crit?'var(--warn)44':'var(--border)'}">
+        <div class="flex-between" style="margin-bottom:10px">
+          <div class="row">
+            <span style="font-family:monospace;font-weight:800;color:${col}">${t.tray_id}</span>
+            <span style="font-weight:700">${t.drug_name}</span>
+            ${crit?'<span class="tag tag-amber">⚠️ Almost empty</span>':''}
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="printTrayLabel('${t.tray_id}','${t.drug_name}','${t.batch_no}','${t.expiry}',${t.tablets_remaining},${t.tablets_per_strip||10},'${t.rack||''}')">🖨️ Label</button>
+        </div>
+        ${stripVis(t.tablets_per_strip||10,t.tablets_remaining,col)}
+        <div style="margin-top:8px;display:flex;gap:14px;font-size:11px;color:var(--muted)">
+          <span>Batch: <b style="color:var(--text)">${t.batch_no}</b></span>
+          <span>Exp: <b style="color:${expiryColor(t.expiry)}">${fmtExp(t.expiry)}</b></span>
+          <span>Rack: <b style="color:var(--accent)">${t.rack||'?'}</b></span>
+          <span style="color:${col};font-weight:800">${t.tablets_remaining}/${t.tablets_per_strip||10} tabs</span>
+        </div>
+      </div>`;}).join('')}</div>`}
+  </div>`;
+
+  window.printTrayLabel=(tid,drug,batch,expiry,tabs,tps,rack)=>{
+    const w=window.open('','_blank','width=300,height=380');
+    const ml=monthsLeft(expiry), col=ml<=0?'#ef4444':ml<=3?'#f59e0b':'#10b981';
+    w.document.write(`<html><body style="font-family:monospace;padding:14px;background:#fff;color:#111">
+      <div style="font-size:8px;letter-spacing:2px;color:#666;margin-bottom:4px">PHARMAPRO TRAY</div>
+      <div style="font-size:16px;font-weight:900;margin-bottom:8px">${drug}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <div style="background:#f5f5f5;border-radius:5px;padding:5px 7px"><div style="font-size:8px;color:#999">BATCH</div><div style="font-size:13px;font-weight:800">${batch}</div></div>
+        <div style="background:${ml<=3?'#fff3e0':'#e8faf3'};border-radius:5px;padding:5px 7px;border:1px solid ${col}44"><div style="font-size:8px;color:#999">EXPIRY</div><div style="font-size:13px;font-weight:900;color:${col}">${fmtExp(expiry)}</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:7px">
+        <div><div style="font-size:8px;color:#999">TABLETS LEFT</div><div style="font-size:20px;font-weight:900">${tabs}<span style="font-size:11px;color:#999">/${tps}</span></div></div>
+        <div style="text-align:right"><div style="font-size:8px;color:#999">TRAY ID</div><div style="font-size:14px;font-weight:800">${tid}</div><div style="font-size:8px;color:#999">${rack}</div></div>
+      </div>
+      ${ml<=0?'<div style="margin-top:6px;background:#fde8e8;border-radius:5px;padding:4px 7px;color:#ef4444;font-weight:800;font-size:11px;text-align:center">⛔ EXPIRED</div>':''}
+      <script>window.print();window.close();<\/script>
+    </body></html>`);};
+}
+
+// ── STOCK ENTRY ────────────────────────────────────────────────────────────────
+async function renderStockEntry(c) {
+  let mode='keyboard', added=[];
+  function html(){return `<div class="gap-16 fade-in">
+    <h2 style="font-size:18px;font-weight:800">Stock Entry</h2>
+    <div class="grid-3">
+      ${[['keyboard','⌨️','Fast Type','2 letters → autocomplete'],['camera','📷','Scan Strip','Camera reads batch + expiry'],['challan','📄','Scan Challan','Upload whole invoice']].map(([m,ic,lb,ds])=>`
+      <button onclick="setMode('${m}')" style="background:${mode===m?'var(--accent-dim)':'var(--card)'};border:2px solid ${mode===m?'var(--accent)':'var(--border)'};border-radius:12px;padding:14px;cursor:pointer;text-align:left;transition:all .2s">
+        <div style="font-size:22px;margin-bottom:6px">${ic}</div>
+        <div style="font-weight:800;color:${mode===m?'var(--accent)':'var(--text)'};font-size:13px">${lb}</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:2px">${ds}</div>
+      </button>`).join('')}
+    </div>
+    <div id="mode-panel">${modePanel()}</div>
+    ${added.length?`<div class="card-sm"><div class="section-title">Added this session (${added.length})</div>
+      ${added.map(e=>`<div class="flex-between" style="padding:5px 0;border-bottom:1px solid #1e2d4222;font-size:12px">
+        <span style="font-weight:700">${e.n}</span>
+        <div class="row"><span class="tag tag-teal">+${e.s} strips</span><span class="tag tag-green">${fmtExp(e.e)}</span></div>
+      </div>`).join('')}
+    </div>`:''}
+  </div>`;}
+
+  function modePanel(){
+    if(mode==='keyboard') return `<div class="card">
+      <div class="search-wrap"><span class="search-icon">⌨️</span>
+        <input class="input" id="stock-s" placeholder="Type drug name…" oninput="stockSearch(this.value)" autocomplete="off">
+        <div class="search-drop" id="stock-drop" style="display:none"></div>
+      </div>
+      <div id="stock-form" style="display:none;margin-top:14px"></div>
+    </div>`;
+    if(mode==='camera') return `<div class="card" style="text-align:center;padding:32px">
+      <div style="font-size:36px;margin-bottom:10px">📷</div>
+      <div style="font-weight:800;margin-bottom:4px">Scan Strip</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:14px">Point camera at strip — Gemini reads drug name, batch & expiry</div>
+      <button class="btn btn-primary" onclick="startCameraScan()">Start Camera</button>
+      <div id="camera-area" style="margin-top:14px"></div>
+    </div>`;
+    if(mode==='challan') return `<div class="card">
+      <div style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer"
+        onclick="document.getElementById('challan-file').click()">
+        <div style="font-size:36px;margin-bottom:10px">📄</div>
+        <div style="font-weight:800;margin-bottom:4px">Upload Invoice Photo</div>
+        <div style="color:var(--muted);font-size:12px">JPG · PNG · Printed or handwritten</div>
+        <input type="file" id="challan-file" accept="image/*" style="display:none" onchange="handleChallaScan(this.files[0])">
+      </div>
+      <div id="challan-result" style="margin-top:14px"></div>
+    </div>`;
+    return '';
+  }
+
+  c.innerHTML=html();
+  window.setMode=(m)=>{mode=m;c.innerHTML=html();};
+
+  window.stockSearch=async(q)=>{if(q.length<1){document.getElementById('stock-drop').style.display='none';return;}
+    const drugs=await GET('/drugs?q='+encodeURIComponent(q));
+    const drop=document.getElementById('stock-drop');
+    drop.innerHTML=drugs.slice(0,8).map(d=>`<div class="search-item" onclick='stockSel(${JSON.stringify(d).replace(/'/g,"\\'")})'><div style="font-weight:700">${d.name}</div><div style="font-size:11px;color:var(--muted)">${d.brand||''} · ${d.tablets_per_strip||10} tabs/strip</div></div>`).join('');
+    drop.style.display=drugs.length?'block':'none';};
+
+  window.stockSel=(drug)=>{
+    if(typeof drug==='string') drug=JSON.parse(drug);
+    document.getElementById('stock-drop').style.display='none';
+    document.getElementById('stock-s').value=drug.name;
+    const frm=document.getElementById('stock-form'); frm.style.display='block';
+    frm.innerHTML=`<div class="gap-10">
+      <div class="alert alert-success">✅ ${drug.name} · ${drug.tablets_per_strip||10} tabs/strip · MRP ₹${drug.mrp_per_strip||0}/strip</div>
+      <div class="grid-2">
+        <div class="field"><label>Batch No. *</label><input class="input" id="s-batch" placeholder="B24-112"></div>
+        <div class="field"><label>Expiry *</label><input class="input" type="month" id="s-exp"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Strips received</label><input class="input" type="number" id="s-strips" value="1" min="1"></div>
+        <div class="field"><label>Cost/strip ₹</label><input class="input" type="number" id="s-cost" placeholder="Optional"></div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="submitStock(${drug.id},'${drug.name}')">✅ Add to Stock</button>
+    </div>`;};
+
+  window.submitStock=async(id,name)=>{
+    const batch=document.getElementById('s-batch')?.value?.trim();
+    const expiry=document.getElementById('s-exp')?.value;
+    const strips=parseInt(document.getElementById('s-strips')?.value||1);
+    const cost=parseFloat(document.getElementById('s-cost')?.value||0);
+    if(!batch||!expiry){toast('Batch and expiry required','warn');return;}
+    if(monthsLeft(expiry)<=0){toast('Expiry is already past','error');return;}
+    await POST('/batches',{drug_id:id,batch_no:batch,expiry,strips,cost_per_strip:cost});
+    added.push({n:name,s:strips,e:expiry});
+    toast('Stock added ✅','success');
+    document.getElementById('stock-s').value='';
+    document.getElementById('stock-form').style.display='none';
+    c.innerHTML=html();};
+
+  window.startCameraScan=async()=>{
+    const area=document.getElementById('camera-area');
+    area.innerHTML=`<div style="position:relative;margin-top:10px">
+      <video id="cam-vid" autoplay playsinline style="width:100%;border-radius:10px;border:1px solid var(--border)"></video>
+      <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="captureStrip()">📸 Capture</button>
+      <canvas id="cam-canvas" style="display:none"></canvas>
+    </div>`;
+    try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      document.getElementById('cam-vid').srcObject=stream;}
+    catch(e){area.innerHTML='<div class="alert alert-warn">⚠️ Camera unavailable — use Challan mode to upload a photo</div>';}};
+
+  window.captureStrip=async()=>{
+    const vid=document.getElementById('cam-vid'),canvas=document.getElementById('cam-canvas');
+    canvas.width=vid.videoWidth;canvas.height=vid.videoHeight;
+    canvas.getContext('2d').drawImage(vid,0,0);
+    vid.srcObject?.getTracks().forEach(t=>t.stop());
+    const b64=canvas.toDataURL('image/jpeg',0.85).split(',')[1];
+    const area=document.getElementById('camera-area');
+    area.innerHTML='<div class="row" style="justify-content:center;padding:14px"><div class="spinner"></div><span style="color:var(--muted)">Reading with Gemini…</span></div>';
+    const res=await fetch('/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({image_b64:b64,mime:'image/jpeg',mode:'strip'})}).then(r=>r.json());
+    if(!res.ok){area.innerHTML=`<div class="alert alert-warn">⚠️ ${res.error==='no_key'?'No Gemini key set in backend/main.py':res.error}</div>`;return;}
+    area.innerHTML='<div class="alert alert-success">✅ Read — verify below</div>';
+    const r=res.result;
+    const drugs=await GET('/drugs?q='+encodeURIComponent((r.drug_name||'').split(' ')[0]));
+    if(drugs[0]){window.stockSel(drugs[0]);setTimeout(()=>{
+      const b=document.getElementById('s-batch'),e=document.getElementById('s-exp');
+      if(b)b.value=r.batch_no||'';if(e)e.value=r.expiry||'';},100);}
+    else area.innerHTML+=`<div class="alert alert-warn" style="margin-top:8px">Drug "${r.drug_name}" not in catalogue</div>`;};
+
+  window.handleChallaScan=async(file)=>{
+    if(!file)return;
+    const res=document.getElementById('challan-result');
+    res.innerHTML='<div class="row" style="justify-content:center;padding:14px"><div class="spinner"></div><span style="color:var(--muted)">Reading with Gemini…</span></div>';
+    const b64=await new Promise((ok,err)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.onerror=err;r.readAsDataURL(file);});
+    const scanRes=await fetch('/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({image_b64:b64,mime:file.type||'image/jpeg',mode:'challan'})}).then(r=>r.json());
+    if(!scanRes.ok){res.innerHTML=`<div class="alert alert-warn">⚠️ ${scanRes.error==='no_key'?'No Gemini key set in backend/main.py':scanRes.error}</div>`;return;}
+    const items=scanRes.result;
+    res.innerHTML=`<div class="gap-10"><div class="section-title">Gemini found ${items.length} items</div>
+      ${items.map((it,i)=>`<div class="card-sm" style="border-color:var(--info)33">
+        <div style="font-weight:700;margin-bottom:8px">${it.drug_name||'Unknown'}</div>
+        <div class="grid-2" style="gap:8px;margin-bottom:8px">
+          <div class="field"><label>Batch</label><input class="input" value="${it.batch_no||''}" id="ch-b-${i}"></div>
+          <div class="field"><label>Expiry</label><input class="input" type="month" value="${it.expiry||''}" id="ch-e-${i}"></div>
+        </div>
+        <div class="field"><label>Strips</label><input class="input" type="number" value="${it.strips||1}" id="ch-s-${i}" min="1"></div>
+        <button class="btn btn-primary btn-sm btn-full" style="margin-top:8px" onclick="confirmChall(${i},'${(it.drug_name||'').replace(/'/g,"\\'")}')">✅ Add to Stock</button>
+      </div>`).join('')}
+    </div>`;};
+
+  window.confirmChall=async(i,name)=>{
+    const drugs=await GET('/drugs?q='+encodeURIComponent(name.split(' ')[0]));
+    if(!drugs.length){toast('Drug not in catalogue','warn');return;}
+    const d=drugs[0];
+    const batch=document.getElementById('ch-b-'+i)?.value||'';
+    const expiry=document.getElementById('ch-e-'+i)?.value||'';
+    const strips=parseInt(document.getElementById('ch-s-'+i)?.value||1);
+    await POST('/batches',{drug_id:d.id,batch_no:batch,expiry,strips});
+    added.push({n:d.name,s:strips,e:expiry});
+    toast(`${d.name} · ${strips} strips added`,'success');
+    c.innerHTML=html();};
+}
+
+// ── PUT-AWAY ───────────────────────────────────────────────────────────────────
+async function renderPutaway(c) {
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <h2 style="font-size:18px;font-weight:800">Put-Away Guide</h2>
+    <div class="card" style="text-align:center;padding:40px;cursor:pointer;border:2px dashed var(--border)"
+      onclick="document.getElementById('pa-file').click()">
+      <div style="font-size:40px;margin-bottom:10px">📄</div>
+      <div style="font-weight:800;margin-bottom:4px">Scan Supplier Invoice</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:14px">Photo or upload — system tells you exactly where each medicine goes</div>
+      <div class="btn btn-primary" style="display:inline-flex">Scan Invoice</div>
+      <input type="file" id="pa-file" accept="image/*" style="display:none" onchange="processPAFile(this.files[0])">
+    </div>
+    <div id="pa-results"></div>
+  </div>`;
+
+  window.processPAFile=async(file)=>{
+    const res=document.getElementById('pa-results');
+    res.innerHTML='<div class="row" style="justify-content:center;padding:20px"><div class="spinner"></div><span style="color:var(--muted)">Reading invoice…</span></div>';
+    await new Promise(r=>setTimeout(r,1500));
+    const mockItems=[{drug_id:1,name:"Paracetamol 500mg",batch:"B24-301",expiry:"2026-11",strips:4},
+      {drug_id:3,name:"Metformin 500mg",batch:"B24-302",expiry:"2027-02",strips:6},
+      {drug_id:5,name:"Cetirizine 10mg",batch:"B24-303",expiry:"2026-08",strips:3}];
+    const guide=await POST('/putaway/guide',mockItems);
+    let done=[];
+    function guideHTML(){return `<div class="gap-10">
+      <div class="flex-between"><span style="font-weight:700">${done.length}/${guide.length} placed</span>
+        <div class="progress" style="width:150px"><div class="progress-bar" style="width:${Math.round(done.length/guide.length*100)}%"></div></div></div>
+      ${guide.map((g,i)=>{ const d=done.includes(i); return `<div class="card" style="opacity:${d?.6:1};border-color:${d?'var(--green)44':'var(--border)'}">
+        <div class="flex-between" style="margin-bottom:8px">
+          <div><div style="font-weight:800">${g.drug?.name||g.name}</div>
+            <div class="row" style="margin-top:4px"><span class="tag tag-teal">+${g.incoming_strips} strips</span><span style="font-size:11px;color:${expiryColor(g.expiry)}">${fmtExp(g.expiry)}</span></div></div>
+          ${d?'<span class="tag tag-green">✅ Done</span>':`<button class="btn btn-primary btn-sm" onclick="paDone(${i})">Mark Done</button>`}
+        </div>
+        ${g.open_trays?.length?`<div class="alert alert-warn" style="margin-bottom:6px;font-size:11px">✂️ Step 1: Top up tray${g.open_trays.length>1?'s':''}: ${g.open_trays.map(t=>t.tray_id).join(', ')}</div>`:''}
+        <div class="alert alert-info" style="font-size:11px">📦 Place at <b style="color:var(--text)">${g.suggested_rack||'?'} · ${g.suggested_shelf||'?'}</b> · Stack newest at back</div>
+      </div>`; }).join('')}
+    </div>`;}
+    window.paDone=(i)=>{done.push(i);res.innerHTML=guideHTML();};
+    res.innerHTML=guideHTML();};
+}
+
+// ── SHELF MAP ──────────────────────────────────────────────────────────────────
+async function renderShelves(c) {
+  const racks=await GET('/racks');
+  const drugs=await GET('/inventory');
+  const dmap={};
+  drugs.forEach(d=>{if(d.rack&&d.shelf)dmap[d.rack+'-'+d.shelf]=d;});
+  const maxS=Math.max(...racks.map(r=>r.shelves),1);
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <h2 style="font-size:18px;font-weight:800">Shelf Map · ${racks.length} racks</h2>
+    <div class="card">
+      <div style="display:flex;gap:0;overflow-x:auto">
+        <div style="width:50px;flex-shrink:0">
+          <div style="height:24px"></div>
+          ${Array.from({length:maxS},(_,i)=>`<div style="height:36px;display:flex;align-items:center;justify-content:flex-end;padding-right:7px;font-size:10px;color:${i===4?'var(--accent)':'var(--muted)'};font-weight:${i===4?700:400}">S${i+1}${i===4?' 👁':''}</div>`).join('')}
+        </div>
+        ${racks.map(rack=>`<div style="flex:1;min-width:50px;margin-right:4px">
+          <div style="height:24px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:${rack.color}">${rack.name}</div>
+          ${Array.from({length:maxS},(_,si)=>{
+            const shelf='S'+(si+1), key=rack.rack_id+'-'+shelf;
+            const cell=dmap[key], inRack=(si+1)<=rack.shelves;
+            if(!inRack)return `<div style="height:34px;margin-bottom:3px"></div>`;
+            return `<div title="${cell?cell.name+' · '+cell.stock_tablets+' tabs':shelf+' empty'}" style="height:34px;margin-bottom:3px;border-radius:6px;background:${cell?rack.color+'22':'var(--faint)'};border:1px solid ${cell?rack.color+'55':'var(--border)'};display:flex;align-items:center;justify-content:center;cursor:default">
+              ${cell?`<div style="font-size:7px;font-weight:700;color:${rack.color};text-align:center;padding:1px;line-height:1.2">${cell.name.split(' ')[0].slice(0,7)}</div>`:''}
+            </div>`;}).join('')}
+          ${rack.label?`<div style="font-size:8px;color:${rack.color};text-align:center;margin-top:3px">${rack.label}</div>`:''}
+        </div>`).join('')}
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+        ${racks.map(r=>`<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)"><div style="width:8px;height:8px;border-radius:2px;background:${r.color}"></div>${r.name}${r.label?' — '+r.label:''} (${r.shelves}S)</span>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── CUSTOMERS ──────────────────────────────────────────────────────────────────
+async function renderCustomers(c) {
+  const custs=await GET('/customers');
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <div class="flex-between"><h2 style="font-size:18px;font-weight:800">Customers · ${custs.length}</h2>
+      <button class="btn btn-primary btn-sm" onclick="showAddCustomer()">+ Add</button></div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl"><thead><tr><th>Name</th><th>Phone</th><th>Points</th><th>Joined</th></tr></thead>
+        <tbody>${custs.map(cu=>`<tr><td style="font-weight:700">${cu.name}</td><td style="color:var(--muted)">${cu.phone||'—'}</td>
+          <td style="color:var(--accent);font-weight:800">${cu.loyalty_points||0}</td>
+          <td style="font-size:11px;color:var(--muted)">${cu.created_at?.slice(0,10)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+  window.showAddCustomer=()=>{
+    const m=document.createElement('div');m.className='modal-overlay';m.innerHTML=`
+    <div class="modal"><div class="modal-title">Add Customer</div>
+      <div class="gap-14">
+        <div class="field"><label>Name *</label><input class="input" id="ac-n" placeholder="Full name"></div>
+        <div class="field"><label>Phone</label><input class="input" id="ac-p"></div>
+        <div style="display:flex;gap:10px"><button class="btn btn-outline" style="flex:1" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button class="btn btn-primary" style="flex:1" onclick="saveCustomer()">Add</button></div>
+      </div>
+    </div>`;document.body.appendChild(m);};
+  window.saveCustomer=async()=>{
+    const name=document.getElementById('ac-n')?.value?.trim();
+    if(!name){toast('Name required','warn');return;}
+    await POST('/customers',{name,phone:document.getElementById('ac-p')?.value||''});
+    document.querySelector('.modal-overlay')?.remove();toast('Added','success');navigate('customers');};
+}
+
+// ── SUPPLIERS ──────────────────────────────────────────────────────────────────
+async function renderSuppliers(c) {
+  const sups=await GET('/suppliers');
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <div class="flex-between"><h2 style="font-size:18px;font-weight:800">Suppliers</h2>
+      <button class="btn btn-primary btn-sm" onclick="showAddSupplier()">+ Add</button></div>
+    ${sups.length===0?'<div class="card" style="text-align:center;padding:40px;color:var(--muted)">No suppliers yet</div>':`<div class="gap-10">${sups.map(s=>`<div class="card flex-between">
+      <div><div style="font-weight:800;font-size:14px;margin-bottom:3px">${s.name}</div>
+        <div style="color:var(--muted);font-size:12px">${s.contact||'—'} · ${s.phone||'—'} · ${s.gstin||'—'}</div></div>
+      <div style="text-align:right"><div style="font-size:16px;font-weight:900;color:${s.due>0?'var(--warn)':'var(--green)'}">₹${(s.due||0).toLocaleString('en-IN')}</div>
+        <div style="font-size:10px;color:var(--muted)">due</div></div>
+    </div>`).join('')}</div>`}
+  </div>`;
+  window.showAddSupplier=()=>{
+    const m=document.createElement('div');m.className='modal-overlay';m.innerHTML=`
+    <div class="modal"><div class="modal-title">Add Supplier</div>
+      <div class="gap-14">
+        <div class="field"><label>Company *</label><input class="input" id="as-n" placeholder="Supplier company"></div>
+        <div class="grid-2"><div class="field"><label>Contact Person</label><input class="input" id="as-c"></div>
+          <div class="field"><label>Phone</label><input class="input" id="as-p"></div></div>
+        <div class="field"><label>GSTIN</label><input class="input" id="as-g"></div>
+        <div style="display:flex;gap:10px"><button class="btn btn-outline" style="flex:1" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          <button class="btn btn-primary" style="flex:1" onclick="saveSupplier()">Add</button></div>
+      </div>
+    </div>`;document.body.appendChild(m);};
+  window.saveSupplier=async()=>{
+    const name=document.getElementById('as-n')?.value?.trim();
+    if(!name){toast('Name required','warn');return;}
+    await POST('/suppliers',{name,contact:document.getElementById('as-c')?.value||'',phone:document.getElementById('as-p')?.value||'',gstin:document.getElementById('as-g')?.value||''});
+    document.querySelector('.modal-overlay')?.remove();toast('Added','success');navigate('suppliers');};
+}
+
+// ── REPORTS ────────────────────────────────────────────────────────────────────
+async function renderReports(c) {
+  const thisMonth=new Date().toISOString().slice(0,7);
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <h2 style="font-size:18px;font-weight:800">Reports</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+      ${[{ic:'🧾',n:'GSTR-1 Monthly',d:'All taxable bills for GST return',id:'gstr1',c:'var(--accent)'},
+         {ic:'📦',n:'Expiry Report',d:'Expired and near-expiry batches',id:'expiry',c:'var(--warn)'},
+         {ic:'📋',n:'Stock Report',d:'Current stock at tablet level',id:'stock',c:'var(--info)'}].map(r=>`
+      <div class="card" style="cursor:pointer;transition:all .2s" onclick="runReport('${r.id}')"
+        onmouseenter="this.style.borderColor='${r.c}44';this.style.transform='translateY(-2px)'"
+        onmouseleave="this.style.borderColor='var(--border)';this.style.transform='none'">
+        <div style="font-size:26px;margin-bottom:8px">${r.ic}</div>
+        <div style="font-weight:800;font-size:13px;margin-bottom:4px">${r.n}</div>
+        <div style="color:var(--muted);font-size:11px">${r.d}</div>
+      </div>`).join('')}
+    </div>
+    <div id="report-out"></div>
+  </div>`;
+  window.runReport=async(id)=>{
+    const out=document.getElementById('report-out');
+    out.innerHTML='<div class="loading-center"><div class="spinner"></div></div>';
+    await new Promise(r=>setTimeout(r,500));
+    if(id==='gstr1'){
+      const data=await GET('/reports/gstr1?month='+thisMonth);
+      out.innerHTML=`<div class="card"><div class="section-title">GSTR-1 · ${thisMonth}</div>
+        <table class="tbl"><thead><tr><th>Bill</th><th>Date</th><th>Customer</th><th>Taxable</th><th>GST</th><th>Total</th></tr></thead>
+        <tbody>${data.map(r=>`<tr><td style="font-family:monospace;font-size:11px">${r.bill_no}</td>
+          <td style="font-size:11px">${r.created_at?.slice(0,10)}</td><td>${r.customer||'Walk-in'}</td>
+          <td>${fmt(r.taxable)}</td><td>${fmt(r.gst_amt)}</td>
+          <td style="font-weight:700;color:var(--accent)">${fmt(r.total)}</td></tr>`).join('')}
+        </tbody></table></div>`;
+    } else if(id==='expiry'){
+      const data=await GET('/reports/expiry');
+      out.innerHTML=`<div class="card"><div class="section-title">Expiry Report</div>
+        <table class="tbl"><thead><tr><th>Drug</th><th>Batch</th><th>Expiry</th><th>Strips</th><th>Location</th><th>Status</th></tr></thead>
+        <tbody>${data.map(r=>`<tr><td style="font-weight:700">${r.name}</td>
+          <td style="font-family:monospace;font-size:11px">${r.batch_no}</td>
+          <td style="color:${expiryColor(r.expiry)};font-weight:700">${fmtExp(r.expiry)}</td>
+          <td>${r.full_strips}</td><td style="color:var(--accent)">${r.rack}-${r.shelf}</td>
+          <td>${monthsLeft(r.expiry)<=0?'<span class="tag tag-red">Expired</span>':monthsLeft(r.expiry)<=3?'<span class="tag tag-amber">Soon</span>':'<span class="tag tag-green">OK</span>'}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+    }
+  };
+}
+
+// ── SETTINGS ───────────────────────────────────────────────────────────────────
+async function renderSettings(c) {
+  const cfg=await GET('/config');
+  c.innerHTML=`<div class="gap-16 fade-in">
+    <h2 style="font-size:18px;font-weight:800">Settings</h2>
+    <div class="card">
+      <div class="section-title">Shop Details</div>
+      <div class="gap-14">
+        <div class="grid-2">
+          <div class="field"><label>Shop Name</label><input class="input" id="ss-n" value="${cfg.name||''}"></div>
+          <div class="field"><label>Owner</label><input class="input" id="ss-o" value="${cfg.owner||''}"></div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>GSTIN</label><input class="input" id="ss-g" value="${cfg.gstin||''}"></div>
+          <div class="field"><label>Drug Licence</label><input class="input" id="ss-l" value="${cfg.licence||''}"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Changes</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Account</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)">
+        <span>Email: <b style="color:var(--text)">${APP.user.email}</b></span>
+        <span>Shop: <b style="color:var(--text)">${APP.user.shop_name}</b></span>
+        ${APP.user.access_expiry?`<span>Access until: <b style="color:${expiryColor(APP.user.access_expiry)}">${APP.user.access_expiry}</b></span>`:'<span>Access: <b style="color:var(--green)">No expiry</b></span>'}
+      </div>
+    </div>
+  </div>`;
+  window.saveSettings=async()=>{
+    await POST('/config',{name:document.getElementById('ss-n').value,owner:document.getElementById('ss-o').value,
+      gstin:document.getElementById('ss-g').value,licence:document.getElementById('ss-l').value,
+      strategy:cfg.strategy||'alpha',fefo:true,top_up_tray:true,print_tray_label:true,
+      schedule_warning:true,require_batch_on_sale:true,low_stock_reorder:true,broken_strip_alert:2,expiry_warn_months:3});
+    toast('Saved','success');};
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>

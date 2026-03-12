@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pharmapro
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python backend/main.py
+    envVars:
+      - key: ADMIN_EMAIL
+        value: admin@pharmapro.com        # ← Change this
+      - key: ADMIN_PASSWORD
+        value: Admin@1234                 # ← Change this to something strong
+      - key: JWT_SECRET
+        generateValue: true               # Render auto-generates a secure secret
+      - key: GEMINI_API_KEY
+        value: ""                         # ← Paste your Gemini API key here
+      - key: PORT
+        value: 8503
