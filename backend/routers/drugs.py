@@ -1,0 +1,408 @@
+"""
+PharmaPro — routers/drugs.py
+Drug catalogue, batches, FEFO logic
+"""
+
+from backend.database import get_db, row_to_dict, rows_to_list
+from backend.models import DrugIn, DrugUpdateIn, BatchIn, DrugLocationIn
+from backend.routers.auth import get_current_user
+from backend.utils.backup import auto_trigger_backup
+from fastapi import APIRouter, HTTPException, Header, BackgroundTasks
+from typing import Optional
+
+router = APIRouter(prefix="/api/drugs", tags=["drugs"])
+
+
+@router.get("")
+def get_drugs(q: str = ""):
+    with get_db() as conn:
+        if q:
+            like = f"%{q}%"
+            rows = conn.execute("""
+                SELECT d.*,
+                  COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets
+                FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
+                WHERE d.name LIKE ? OR d.brand LIKE ? OR d.composition LIKE ?
+                GROUP BY d.id ORDER BY d.name LIMIT 20""", (like, like, like)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT d.*,
+                  COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets
+                FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
+                GROUP BY d.id ORDER BY d.name""").fetchall()
+        return rows_to_list(rows)
+
+
+# ── IMPORTANT: These static routes MUST come before /{drug_id} ──────────────
+
+@router.get("/master_search")
+def master_search(q: str = ""):
+    """Search the 250k master drug database by name prefix."""
+    with get_db() as conn:
+        if not q or len(q) < 2:
+            # Return empty if query too short
+            return []
+        like = f"{q}%"
+        rows = conn.execute("""
+            SELECT name, manufacturer, composition, mrp, description
+            FROM master_drugs
+            WHERE name LIKE ?
+            ORDER BY name
+            LIMIT 30
+        """, (like,)).fetchall()
+        return rows_to_list(rows)
+
+
+@router.get("/master_all")
+def master_all(page: int = 1, limit: int = 50):
+    """Return master drugs alphabetically, paginated."""
+    offset = (page - 1) * limit
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT name, manufacturer, composition, mrp, description
+            FROM master_drugs
+            ORDER BY name
+            LIMIT ? OFFSET ?
+        """, (limit, offset)).fetchall()
+        total = conn.execute("SELECT COUNT(*) FROM master_drugs").fetchone()[0]
+        return {"items": rows_to_list(rows), "total": total, "page": page, "limit": limit}
+
+
+@router.get("/substitutes")
+def get_substitutes(drug_id: int = 0, name: str = "", composition: str = ""):
+    """
+    Smart substitution engine - 3-layer lookup:
+      1. Resolve composition from shop DB or master DB
+      2. Search shop stock for same-composition alternatives (in-stock first)
+      3. Search master DB for alternatives you could order
+    Works for ANY drug - no hardcoded dictionary needed.
+    """
+    resolved_composition = composition.strip()
+    resolved_name = name.strip()
+
+    with get_db() as conn:
+        # Layer 0: Resolve composition if not provided
+        if not resolved_composition and drug_id:
+            row = conn.execute(
+                "SELECT name, composition FROM drugs WHERE id=?", (drug_id,)
+            ).fetchone()
+            if row:
+                resolved_name = row["name"] or resolved_name
+                resolved_composition = row["composition"] or ""
+
+        if not resolved_composition and resolved_name:
+            row = conn.execute(
+                "SELECT composition FROM master_drugs WHERE name LIKE ? LIMIT 1",
+                (f"{resolved_name}%",)
+            ).fetchone()
+            if row:
+                resolved_composition = row["composition"] or ""
+
+        if not resolved_composition:
+            return {"drug_name": resolved_name, "composition": None,
+                    "in_stock": [], "orderable": []}
+
+        # Extract key active ingredients (strip dose numbers)
+        parts = [p.strip() for p in resolved_composition.split("+")]
+        key_ingredients = []
+        for part in parts[:2]:
+            words = part.split()
+            clean = " ".join(w for w in words if not any(c.isdigit() for c in w)).strip()
+            if len(clean) > 3:
+                key_ingredients.append(clean)
+
+        if not key_ingredients:
+            return {"drug_name": resolved_name, "composition": resolved_composition,
+                    "in_stock": [], "orderable": []}
+
+        conditions = " AND ".join(["composition LIKE ?" for _ in key_ingredients])
+        params = [f"%{ing}%" for ing in key_ingredients]
+
+        # Layer 1: Search YOUR SHOP STOCK
+        shop_rows = conn.execute(f"""
+            SELECT d.id, d.name, d.brand, d.composition, d.mrp_per_strip,
+              COALESCE(SUM(b.full_strips * d.tablets_per_strip), 0) +
+              COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t
+                        WHERE t.drug_id=d.id AND t.closed=0), 0) AS stock_tablets,
+              d.schedule
+            FROM drugs d
+            LEFT JOIN batches b ON b.drug_id = d.id
+            WHERE ({conditions}) AND LOWER(d.name) != LOWER(?)
+            GROUP BY d.id
+            ORDER BY stock_tablets DESC, d.name
+            LIMIT 10
+        """, (*params, resolved_name)).fetchall()
+        in_stock = rows_to_list(shop_rows)
+        for r in in_stock:
+            r["available"] = r["stock_tablets"] > 0
+
+        # Layer 2: Search MASTER DATABASE (orderable)
+        master_rows = conn.execute(f"""
+            SELECT name, manufacturer, composition, mrp
+            FROM master_drugs
+            WHERE ({conditions}) AND LOWER(name) != LOWER(?)
+            ORDER BY name LIMIT 15
+        """, (*params, resolved_name)).fetchall()
+        orderable = rows_to_list(master_rows)
+
+        return {
+            "drug_name": resolved_name,
+            "composition": resolved_composition,
+            "key_ingredients": key_ingredients,
+            "in_stock": in_stock,
+            "orderable": orderable,
+        }
+
+
+@router.get("/{drug_id}")
+def get_drug(drug_id: int):
+    with get_db() as conn:
+        drug = row_to_dict(conn.execute("SELECT * FROM drugs WHERE id=?", (drug_id,)).fetchone())
+        if not drug:
+            raise HTTPException(404, "Drug not found")
+        drug["batches"] = rows_to_list(conn.execute(
+            "SELECT * FROM batches WHERE drug_id=? ORDER BY expiry", (drug_id,)).fetchall())
+        drug["trays"] = rows_to_list(conn.execute("""
+            SELECT t.*, b.batch_no, b.expiry FROM trays t
+            JOIN batches b ON b.id=t.batch_id
+            WHERE t.drug_id=? AND t.closed=0 ORDER BY b.expiry""", (drug_id,)).fetchall())
+        return drug
+
+
+@router.post("")
+def add_drug(drug: DrugIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    with get_db() as conn:
+        cur = conn.execute("""
+            INSERT INTO drugs(name,brand,composition,category,schedule,hsn,
+            tablets_per_strip,strips_per_box,mrp_per_strip,mrp_per_tablet,
+            reorder_level,box_id,offer_type,pack_type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (drug.name, drug.brand, drug.composition, drug.category, drug.schedule, drug.hsn,
+             drug.tablets_per_strip, drug.strips_per_box, drug.mrp_per_strip, drug.mrp_per_tablet,
+             drug.reorder_level, drug.box_id, drug.offer_type, drug.pack_type))
+        drug_id = cur.lastrowid
+        
+    auto_trigger_backup(background_tasks)
+    return {"id": drug_id}
+
+
+@router.put("/{drug_id}")
+def update_drug(drug_id: int, drug: DrugUpdateIn, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    updates = {k: v for k, v in drug.dict().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+    cols = ", ".join(f"{k}=?" for k in updates)
+    with get_db() as conn:
+        conn.execute(f"UPDATE drugs SET {cols} WHERE id=?", (*updates.values(), drug_id))
+    return {"ok": True}
+
+
+@router.put("/{drug_id}/location")
+def update_location(drug_id: int, loc: DrugLocationIn, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    with get_db() as conn:
+        conn.execute("UPDATE drugs SET box_id=?,zone=? WHERE id=?",
+                     (loc.box_id, loc.zone, drug_id))
+    return {"ok": True}
+
+
+@router.get("/{drug_id}/fefo")
+def get_fefo_source(drug_id: int):
+    with get_db() as conn:
+        tray = row_to_dict(conn.execute("""
+            SELECT t.*, b.batch_no, b.expiry, d.tablets_per_strip
+            FROM trays t JOIN batches b ON b.id=t.batch_id JOIN drugs d ON d.id=t.drug_id
+            WHERE t.drug_id=? AND t.closed=0
+            ORDER BY b.expiry ASC LIMIT 1""", (drug_id,)).fetchone())
+        if tray:
+            return {"type": "tray", "source": tray}
+        batch = row_to_dict(conn.execute("""
+            SELECT b.*, d.tablets_per_strip FROM batches b JOIN drugs d ON d.id=b.drug_id
+            WHERE b.drug_id=? AND b.full_strips>0
+            ORDER BY b.expiry ASC LIMIT 1""", (drug_id,)).fetchone())
+        if batch:
+            return {"type": "batch", "source": batch}
+        return {"type": "none", "source": None}
+
+
+@router.get("/{drug_id}/substitutes")
+def get_substitutes(drug_id: int):
+    with get_db() as conn:
+        drug = conn.execute("SELECT composition FROM drugs WHERE id=?", (drug_id,)).fetchone()
+        if not drug or not drug["composition"]:
+            return []
+        
+        comp = drug["composition"].strip()
+        rows = conn.execute("""
+            SELECT d.*, 
+              COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+              COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tabletablets
+            FROM drugs d 
+            LEFT JOIN batches b ON b.drug_id=d.id
+            WHERE d.composition=? AND d.id!=?
+            GROUP BY d.id 
+            ORDER BY stock_tabletablets DESC, d.name
+            LIMIT 10
+        """, (comp, drug_id)).fetchall()
+        return rows_to_list(rows)
+
+
+@router.get("/check_interactions")
+def check_interactions(drug_ids: str = ""):
+    if not drug_ids:
+        return []
+    ids = [int(x) for x in drug_ids.split(",") if x.strip().isdigit()]
+    if len(ids) < 2:
+        return []
+        
+    with get_db() as conn:
+        q = f"SELECT id, name, category, composition FROM drugs WHERE id IN ({','.join(['?']*len(ids))})"
+        drugs_list = conn.execute(q, tuple(ids)).fetchall()
+        
+    # Simple predefined knowledge base of category contraindications
+    RULES = [
+        ({"nsaid", "ssri"}, "Moderate", "Increased risk of bleeding when NSAIDs are combined with SSRIs."),
+        ({"nsaid", "anticoagulant"}, "Major", "High risk of bleeding. Concurrent use of NSAIDs and Anticoagulants is strongly cautioned against."),
+        ({"antibiotic", "antacid"}, "Minor", "Antacids can decrease the absorption of antibiotics. Suggest patient separate doses by 2 hours."),
+        ({"sildenafil", "nitrate"}, "Critical", "SEVERE: Co-administration can cause a life-threatening drop in blood pressure.")
+    ]
+    
+    alerts = []
+    # Check pairwise
+    for i in range(len(drugs_list)):
+        for j in range(i + 1, len(drugs_list)):
+            d1, d2 = drugs_list[i], drugs_list[j]
+            c1 = str(d1["category"] or "").lower()
+            c2 = str(d2["category"] or "").lower()
+            if not c1 or not c2: continue
+            
+            for (rule_set, severity, msg) in RULES:
+                # Check if categories match the rule set
+                if any(x in c1 for x in rule_set) and any(x in c2 for x in rule_set):
+                    # make sure they are matching different items
+                    c1_match = next((x for x in rule_set if x in c1), None)
+                    c2_match = next((x for x in rule_set if x in c2 and x != c1_match), None)
+                    if c1_match and c2_match:
+                        alerts.append({
+                            "drugs": [drugs_list[i]["name"], drugs_list[j]["name"]],
+                            "severity": severity,
+                            "message": msg
+                        })
+    return alerts
+
+# ── Batches ────────────────────────────────────────────────────────────────────
+batches_router = APIRouter(prefix="/api/batches", tags=["batches"])
+
+
+@batches_router.post("")
+def add_batch(b: BatchIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    import sqlite3
+    with get_db() as conn:
+        try:
+            cur = conn.execute("""
+                INSERT INTO batches(drug_id,batch_no,expiry,full_strips,cost_per_strip,
+                                    supplier_id,free_strips,mrp_per_strip,gst_pct)
+                VALUES(?,?,?,?,?,?,?,?,?)""",
+                (b.drug_id, b.batch_no, b.expiry, b.strips, b.cost_per_strip,
+                 b.supplier_id, b.free_strips, b.mrp_per_strip, b.gst_pct))
+            batch_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            conn.execute("""
+                UPDATE batches SET full_strips=full_strips+?, free_strips=free_strips+?,
+                                   cost_per_strip=?, mrp_per_strip=?, gst_pct=?, supplier_id=?
+                WHERE drug_id=? AND batch_no=?""",
+                         (b.strips, b.free_strips, b.cost_per_strip, b.mrp_per_strip, b.gst_pct, b.supplier_id,
+                          b.drug_id, b.batch_no))
+            batch_id = conn.execute("SELECT id FROM batches WHERE drug_id=? AND batch_no=?",
+                                    (b.drug_id, b.batch_no)).fetchone()["id"]
+        
+        # Optionally update box_id
+        if b.box_id is not None:
+            conn.execute("UPDATE drugs SET box_id=? WHERE id=?", (b.box_id, b.drug_id))
+
+        total_rcv = b.strips + b.free_strips
+        conn.execute("INSERT INTO stock_log(drug_id,batch_id,action,qty_change,note) VALUES(?,?,?,?,?)",
+                     (b.drug_id, batch_id, "receive", total_rcv, f"Received {b.strips} strips + {b.free_strips} free"))
+        
+    auto_trigger_backup(background_tasks)
+    return {"batch_id": batch_id}
+
+# ── Global Medicine Dictionary ──────────────────────────────────────────────
+GLOBAL_MEDICINES = {
+    # Pain & Fever
+    "calpol": "Paracetamol", "dolo": "Paracetamol", "crocin": "Paracetamol", "pacimol": "Paracetamol",
+    "combiflam": "Ibuprofen + Paracetamol", "flexon": "Ibuprofen + Paracetamol", "brufen": "Ibuprofen",
+    "voveran": "Diclofenac", "dynapar": "Diclofenac", "zerodol-p": "Aceclofenac + Paracetamol",
+    "ultracet": "Tramadol + Paracetamol", "saridon": "Propyphenazone", "disprin": "Aspirin", "meftal": "Mefenamic Acid",
+
+    # Gastric & Acidity
+    "pan-40": "Pantoprazole", "pantocid": "Pantoprazole", "pan-d": "Pantoprazole + Domperidone",
+    "omez": "Omeprazole", "omee": "Omeprazole", "omez-d": "Omeprazole + Domperidone",
+    "rabium": "Rabeprazole", "rabeloc": "Rabeprazole", "rantac": "Ranitidine", "aciloc": "Ranitidine",
+    "digene": "Antacid", "gelusil": "Antacid", "ondem": "Ondansetron", "zofer": "Ondansetron",
+    "domstal": "Domperidone", "cremaffin": "Liquid Paraffin", "dulcolax": "Bisacodyl",
+
+    # Antibiotics
+    "augmentin": "Amoxicillin + Clavulanic Acid", "clavam": "Amoxicillin + Clavulanic Acid",
+    "novamox": "Amoxicillin", "azithral": "Azithromycin", "azee": "Azithromycin",
+    "taxim-o": "Cefixime", "zifi": "Cefixime", "mahacef": "Cefixime", "monocef": "Ceftriaxone",
+    "monocef-o": "Cefpodoxime", "cepodem": "Cefpodoxime", "cifran": "Ciprofloxacin", "ciplox": "Ciprofloxacin",
+    "levomac": "Levofloxacin", "oflox": "Ofloxacin", "zenflox": "Ofloxacin", "metrogyl": "Metronidazole",
+
+    # Cardiac & BP
+    "telma": "Telmisartan", "telmikind": "Telmisartan", "telvas": "Telmisartan",
+    "telma-am": "Telmisartan + Amlodipine", "amlip": "Amlodipine", "amlovas": "Amlodipine",
+    "stamlo": "Amlodipine", "cilacar": "Cilnidipine", "concor": "Bisoprolol", "betaloc": "Metoprolol",
+    "ecosprin": "Aspirin", "clopilet": "Clopidogrel", "rosuvas": "Rosuvastatin", "lipitor": "Atorvastatin",
+
+    # Diabetes
+    "glyciphage": "Metformin", "metffil": "Metformin", "glycomet": "Metformin", "glimi-save": "Glimepiride",
+    "amaryl": "Glimepiride", "jalra": "Vildagliptin", "galvus": "Vildagliptin", "januvia": "Sitagliptin",
+
+    # Cold & Allergy
+    "allegra": "Fexofenadine", "okacet": "Cetirizine", "alerid": "Cetirizine", "cetzine": "Cetirizine",
+    "levocet": "Levocetirizine", "montair-lc": "Montelukast + Levocetirizine", "montek-lc": "Montelukast + Levocetirizine",
+    "ascoril": "Terbutaline", "benadryl": "Diphenhydramine", "grilinctus": "Dextromethorphan",
+    "sinarest": "Paracetamol + Phenylephrine", "wikoryl": "Paracetamol + Phenylephrine",
+
+    # Vitamins & Skin
+    "shelcal": "Calcium + Vitamin D3", "calcirol": "Vitamin D3", "d-rise": "Vitamin D3",
+    "neurobion": "Vitamin B-Complex", "becosules": "Vitamin B-Complex", "zincovit": "Multivitamin",
+    "candid": "Clotrimazole", "itz": "Itraconazole", "betnovate": "Betamethasone",
+}
+
+@router.get("/global_substitutes")
+def get_global_substitutes(q: str = ""):
+    if not q or len(q) < 2:
+        return {"searched_brand": q, "composition": None, "substitutes": []}
+    
+    q_lower = q.lower().strip()
+    composition = GLOBAL_MEDICINES.get(q_lower)
+    
+    if not composition:
+        return {"searched_brand": q, "composition": None, "substitutes": []}
+        
+    with get_db() as conn:
+        comp_query = f"%{composition}%"
+        rows = conn.execute("""
+            SELECT d.*, 
+              COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+              COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets
+            FROM drugs d 
+            LEFT JOIN batches b ON b.drug_id=d.id
+            WHERE d.composition LIKE ? OR d.name LIKE ?
+            GROUP BY d.id 
+            ORDER BY stock_tablets DESC, d.name
+            LIMIT 10
+        """, (comp_query, comp_query)).fetchall()
+        return {
+            "searched_brand": q,
+            "composition": composition,
+            "substitutes": rows_to_list(rows)
+        }
+
+# master_search and master_all moved above /{drug_id} to fix routing conflict

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PharmaPro — Smart Pharmacy POS</title>
+<meta name="description" content="PharmaPro — AI-powered pharmacy point-of-sale and inventory management system">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ─────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080d18;color:#e2e8f0;font-family:'Inter',system-ui,sans-serif;font-size:15px;min-height:100vh}
+input,select,textarea,button{font-family:inherit;font-size:15px}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#0f1623}
+::-webkit-scrollbar-thumb{background:#1e2d42;border-radius:3px}
+select option{background:#131d2e}
+textarea.input{resize:vertical;min-height:60px}
+
+/* ── Variables ───────────────────────────────────────── */
+:root{
+  --bg:#080d18;--surface:#0e1520;--card:#131d2e;--border:#1e2d42;
+  --accent:#00c896;--accent-dim:#00c89614;--accent-glow:#00c89633;
+  --warn:#f59e0b;--warn-dim:#f59e0b12;
+  --danger:#ef4444;--danger-dim:#ef444412;
+  --info:#3b82f6;--info-dim:#3b82f612;
+  --green:#10b981;--green-dim:#10b98112;
+  --purple:#a855f7;
+  --text:#e2e8f0;--muted:#4a6080;--faint:#0f1825;--subtle:#111c2e;
+}
+
+/* ── Layout ──────────────────────────────────────────── */
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.app-layout{display:flex;flex:1;overflow:hidden}
+#sidebar{width:214px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+#main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+#topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#content{flex:1;overflow-y:auto;padding:24px}
+
+/* ── Sidebar ─────────────────────────────────────────── */
+.logo{padding:18px 16px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#3b82f6);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.logo-text{font-weight:900;font-size:14px;line-height:1.1}
+.logo-sub{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.shop-pill{margin:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px}
+.shop-pill .shop-name{font-weight:700;color:var(--text);margin-bottom:1px}
+.shop-pill .shop-sub{color:var(--muted);font-size:10px}
+nav{padding:8px}
+.nav-section{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:8px 12px 4px}
+.nav-btn{width:100%;display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:9px;border:none;background:transparent;color:var(--muted);font-weight:500;font-size:13px;cursor:pointer;text-align:left;margin-bottom:2px;transition:all .15s;position:relative}
+.nav-btn:hover{background:var(--faint);color:var(--text)}
+.nav-btn.active{background:var(--accent-dim);color:var(--accent);font-weight:700}
+.nav-btn .nav-icon{font-size:15px;flex-shrink:0;width:18px;text-align:center}
+.nav-badge{position:absolute;right:10px;background:var(--danger);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px}
+.nav-badge.warn{background:var(--warn);color:#080d18}
+.sidebar-bottom{padding:12px 14px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);line-height:2;margin-top:auto}
+
+/* ── Cards & UI ──────────────────────────────────────── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
+.card-sm{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.gap-12{display:flex;flex-direction:column;gap:12px}
+.gap-16{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;align-items:center;gap:10px}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+
+/* ── Stat card ───────────────────────────────────────── */
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden}
+.stat-card .stat-val{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums}
+.stat-card .stat-lbl{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
+.stat-card .stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.stat-card .stat-glow{position:absolute;top:0;right:0;width:80px;height:80px;border-radius:50%}
+
+/* ── Buttons ─────────────────────────────────────────── */
+.btn{padding:9px 18px;border-radius:9px;border:none;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#00a884);color:#080d18;box-shadow:0 0 14px var(--accent-glow)}
+.btn-primary:hover{box-shadow:0 0 22px var(--accent-glow);transform:translateY(-1px)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:var(--danger-dim);border:1px solid #ef444444;color:var(--danger)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:7px}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none}
+
+/* ── Tags ────────────────────────────────────────────── */
+.tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.tag-green{background:var(--green-dim);color:var(--green);border:1px solid #10b98133}
+.tag-red{background:var(--danger-dim);color:var(--danger);border:1px solid #ef444433}
+.tag-amber{background:var(--warn-dim);color:var(--warn);border:1px solid #f59e0b33}
+.tag-blue{background:var(--info-dim);color:var(--info);border:1px solid #3b82f633}
+.tag-teal{background:var(--accent-dim);color:var(--accent);border:1px solid #00c89633}
+.tag-gray{background:#4a608018;color:var(--muted);border:1px solid #4a608033}
+.tag-purple{background:#a855f718;color:#a855f7;border:1px solid #a855f733}
+
+/* ── Inputs ──────────────────────────────────────────── */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);outline:none;width:100%;transition:border-color .2s}
+.input:focus{border-color:var(--accent)}
+.input::placeholder{color:var(--muted)}
+.select{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);outline:none;width:100%;cursor:pointer;transition:border-color .2s}
+.select:focus{border-color:var(--accent)}
+
+/* ── Table ───────────────────────────────────────────── */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)}
+.tbl td{padding:10px 14px;border-bottom:1px solid #1e2d4222;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover{background:#ffffff04}
+
+/* ── Search ──────────────────────────────────────────── */
+.search-wrap{position:relative}
+.search-wrap .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search-wrap input{padding-left:36px}
+.search-drop{position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:4px;max-height:280px;overflow-y:auto;box-shadow:0 8px 32px #00000088}
+.search-item{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e2d4222;transition:all .2s ease; border-left:2px solid transparent}
+.search-item:hover{background:var(--faint); transform: translateX(2px); border-left: 2px solid var(--accent)}
+.master-search-header{padding:8px 12px;font-size:11px;background:linear-gradient(90deg, var(--surface-light), var(--card));border-bottom:1px solid var(--border);color:var(--accent);font-weight:700;display:flex;align-items:center;gap:6px;box-shadow:inset 0 1px 0 #ffffff05}
+.master-search-item:hover{border-left: 2px solid var(--info)}
+.search-item:last-child{border-bottom:none}
+
+/* ── Alerts ──────────────────────────────────────────── */
+.alert-strip{padding:10px 16px;border-radius:10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.alert-strip.warn{background:var(--warn-dim);border:1px solid #f59e0b44;color:var(--warn)}
+.alert-strip.danger{background:var(--danger-dim);border:1px solid #ef444444;color:var(--danger)}
+.alert-strip.info{background:var(--info-dim);border:1px solid #3b82f644;color:var(--info)}
+.alert-strip.success{background:var(--green-dim);border:1px solid #10b98144;color:var(--green)}
+
+/* ── Modal ───────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:#000000bb;z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:17px;font-weight:800;color:var(--text);margin-bottom:18px}
+
+/* ── Toast ───────────────────────────────────────────── */
+#toast{position:fixed;top:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:13px;font-weight:600;animation:slideIn .3s ease;display:flex;align-items:center;gap:8px;box-shadow:0 4px 20px #00000066}
+.toast-item.success{border-color:#10b98144;color:var(--green)}
+.toast-item.error{border-color:#ef444444;color:var(--danger)}
+.toast-item.warn{border-color:#f59e0b44;color:var(--warn)}
+.toast-item.info{border-color:#3b82f644;color:var(--info)}
+
+/* ── Misc UI ─────────────────────────────────────────── */
+.progress{height:4px;background:var(--faint);border-radius:10px;overflow:hidden}
+.progress-bar{height:100%;border-radius:10px;transition:width .4s ease;background:var(--accent)}
+.strip-vis{display:flex;gap:2px;flex-wrap:wrap}
+.strip-cell{width:10px;height:16px;border-radius:2px;transition:background .2s}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.qty-ctrl{display:flex;align-items:center;gap:6px}
+.qty-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center}
+.qty-btn:hover{border-color:var(--accent);color:var(--accent)}
+.qty-val{width:40px;text-align:center;background:var(--faint);border:1px solid var(--border);border-radius:7px;padding:4px 0;color:var(--accent);font-weight:800;font-size:15px;outline:none}
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:100px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--accent),var(--accent)88);transition:height .5s ease;box-shadow:0 0 8px var(--accent-glow)}
+.bar-lbl{font-size:10px;color:var(--muted);font-weight:600}
+.shelf-cell{height:36px;border-radius:6px;border:1px solid;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:2px 3px;overflow:hidden}
+
+/* ── Login screen ────────────────────────────────────── */
+#login-screen{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:40px;width:380px;box-shadow:0 20px 60px #000000aa}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.login-logo .logo-icon{width:44px;height:44px;border-radius:12px;font-size:24px}
+
+/* ── Keyframes ───────────────────────────────────────── */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card fade-in">
+    <div class="login-logo">
+      <div class="logo-icon">⚕️</div>
+      <div>
+        <div style="font-weight:900;font-size:20px;color:var(--text)">PharmaPro</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px">Smart Pharmacy POS</div>
+      </div>
+    </div>
+    <div class="gap-12">
+      <div class="field">
+        <label>Username</label>
+        <input class="input" id="login-user" placeholder="Enter username" autofocus autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input class="input" type="password" id="login-pwd" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="login-err" style="display:none" class="alert-strip danger">Invalid username or password</div>
+      <button class="btn btn-primary" style="width:100%;margin-top:4px;padding:12px" onclick="doLogin()" id="login-btn">Sign In →</button>
+    </div>
+    <div style="margin-top:20px;font-size:11px;color:var(--muted);text-align:center">Default: admin / admin123</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="logo">
+        <div class="logo-icon">⚕️</div>
+        <div>
+          <div class="logo-text">PharmaPro</div>
+          <div class="logo-sub">Smart POS v2.0</div>
+        </div>
+      </div>
+      <div class="shop-pill">
+        <div class="shop-name" id="sidebar-shop-name">Loading…</div>
+        <div class="shop-sub">Main Store</div>
+      </div>
+      <nav id="sidebar-nav"></nav>
+      <div class="sidebar-bottom">
+        <div id="sidebar-user" style="color:var(--text);font-weight:700;margin-bottom:4px"></div>
+        <div>🔐 GST Enabled</div>
+        <div>💾 SQLite · Local</div>
+        <button style="background:none;border:none;color:var(--muted);font-size:10px;cursor:pointer;padding:4px 0;margin-top:4px" onclick="doLogout()">Sign out ↗</button>
+      </div>
+    </div>
+    <!-- Content -->
+    <div id="main">
+      <div id="topbar">
+        <div style="font-size:14px;font-weight:700;color:var(--text)" id="page-title">Dashboard</div>
+        <div style="display:flex;gap:14px;align-items:center">
+          <span style="font-size:12px;color:var(--muted)" id="topbar-date"></span>
+          <div style="width:1px;height:20px;background:var(--border)"></div>
+          <span style="font-size:12px;font-weight:700;color:var(--text)" id="topbar-user"></span>
+        </div>
+      </div>
+      <div id="content">
+        <div style="display:flex;justify-content:center;padding:60px"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { setSession, clearSession, getUser, getToken, isLoggedIn } from '/js/api.js';
+import { toast, modal, closeModal } from '/js/utils.js';
+import { renderDashboard } from '/js/dashboard.js';
+import { renderBilling } from '/js/billing.js';
+import { renderInventory } from '/js/inventory.js';
+import { renderTrays, renderStockEntry } from '/js/trays_and_stock.js';
+import { renderPurchaseOrders } from '/js/purchase_orders.js';
+import { renderReports } from '/js/reports.js';
+import { renderStaff } from '/js/staff.js';
+import { renderCustomers, renderSuppliers, renderSettings, renderBackorders, renderBillHistory } from '/js/other_pages.js';
+import { renderLayoutBuilder } from '/js/layout_builder.js';
+import { renderCatalogue } from '/js/catalogue.js';
+import { GET, POST } from '/js/api.js';
+
+// Make all functions global so inline onclick= works
+window.closeModal = closeModal;
+
+// Forward declarations — actual implementations assigned below after function definitions
+window.doLogin  = () => {};
+window.doLogout = () => {};
+
+const APP = {
+  config: {},
+  page: 'dashboard',
+  user: null,
+  navigate,
+};
+window.APP = APP;
+
+// ── Login ────────────────────────────────────────────────
+window.doLogin = async () => {
+  const username   = document.getElementById('login-user').value.trim();
+  const password   = document.getElementById('login-pwd').value;
+  const btn        = document.getElementById('login-btn');
+  const errEl      = document.getElementById('login-err');
+  if (!username || !password) { errEl.style.display = 'flex'; errEl.textContent = 'Enter username and password'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    setSession(data.token, data.user);
+    APP.user = data.user;
+    errEl.style.display = 'none';
+    document.getElementById('login-screen').style.display = 'none';
+    await bootApp();
+  } catch {
+    errEl.style.display = 'flex';
+    errEl.textContent = 'Invalid username or password';
+    btn.disabled = false; btn.textContent = 'Sign In →';
+  }
+};
+
+window.doLogout = async () => {
+  try { await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Token': getToken() } }); } catch {}
+  clearSession();
+  window.location.reload();
+};
+
+// ── Navigation ───────────────────────────────────────────
+const PAGES = [
+  { id: 'dashboard',       icon: '⚡', label: 'Dashboard',       section: 'MAIN' },
+  { id: 'catalogue',       icon: '📚', label: 'Master Catalogue', section: null },
+  { id: 'billing',         icon: '🧾', label: 'Billing',          section: null, badge: 'rx' },
+  { id: 'bill_history',    icon: '📜', label: 'Bill History',     section: null },
+  { id: 'backorders',      icon: '🔔', label: 'Backorders',       section: null },
+  { id: 'inventory',       icon: '📦', label: 'Inventory',        section: null, badge: 'exp' },
+  { id: 'trays',           icon: '✂️', label: 'Tray Tracker',     section: null },
+  { id: 'stock_entry',     icon: '📥', label: 'Stock Entry',      section: 'OPERATIONS' },
+  { id: 'purchase_orders', icon: '📋', label: 'Purchase Orders',  section: null },
+  { id: 'putaway',         icon: '🗺️', label: 'Put-Away Guide',   section: null },
+  { id: 'layout_builder',  icon: '🗺️', label: 'Store Map',        section: 'SETUP' },
+  { id: 'customers',       icon: '👥', label: 'Customers',        section: 'PEOPLE' },
+  { id: 'suppliers',       icon: '🏭', label: 'Suppliers',        section: null },
+  { id: 'staff',           icon: '👤', label: 'Staff',            section: null, adminOnly: true },
+  { id: 'reports',         icon: '📊', label: 'Reports',          section: 'MORE' },
+  { id: 'settings',        icon: '⚙️', label: 'Settings',         section: null },
+];
+
+function renderNav(alerts = {}) {
+  const user   = getUser();
+  const isAdmin = user?.role === 'admin';
+  const nav    = document.getElementById('sidebar-nav');
+  let html     = '';
+  let lastSec  = null;
+  PAGES.forEach(p => {
+    if (p.adminOnly && !isAdmin) return;
+    if (p.section && p.section !== lastSec) {
+      html += `<div class="nav-section">${p.section}</div>`;
+      lastSec = p.section;
+    }
+    let badge = '';
+    if (p.badge === 'exp' && (alerts.expired || 0) + (alerts.expiring || 0) > 0)
+      badge = `<span class="nav-badge warn">${(alerts.expired || 0) + (alerts.expiring || 0)}</span>`;
+    html += `<button class="nav-btn ${APP.page === p.id ? 'active' : ''}" onclick="APP.navigate('${p.id}')">
+      <span class="nav-icon">${p.icon}</span><span>${p.label}</span>${badge}
+    </button>`;
+  });
+  nav.innerHTML = html;
+}
+
+function navigate(page) {
+  APP.page = page;
+  document.getElementById('page-title').textContent = PAGES.find(p => p.id === page)?.label || page;
+  renderNav();
+  renderPage(page);
+}
+
+async function renderPage(page) {
+  const c = document.getElementById('content');
+  if (c._lb_cleanup) { c._lb_cleanup(); delete c._lb_cleanup; }
+  c.innerHTML = '<div style="display:flex;justify-content:center;padding:60px"><div class="spinner"></div></div>';
+  try {
+    if      (page === 'dashboard')       await renderDashboard(c, APP);
+    else if (page === 'billing')         await renderBilling(c, APP);
+    else if (page === 'bill_history')    await renderBillHistory(c, APP);
+    else if (page === 'backorders')      await renderBackorders(c, APP);
+    else if (page === 'inventory')       await renderInventory(c, APP);
+    else if (page === 'trays')           await renderTrays(c, APP);
+    else if (page === 'stock_entry')     await renderStockEntry(c, APP);
+    else if (page === 'purchase_orders') await renderPurchaseOrders(c, APP);
+    else if (page === 'putaway')         await renderPutaway(c, APP);
+    else if (page === 'layout_builder')         await renderLayoutBuilder(c, APP);
+    else if (page === 'customers')       await renderCustomers(c, APP);
+    else if (page === 'suppliers')       await renderSuppliers(c, APP);
+    else if (page === 'staff')           await renderStaff(c, APP);
+    else if (page === 'reports')         await renderReports(c, APP);
+    else if (page === 'settings')        await renderSettings(c, APP);
+    else if (page === 'catalogue')       await renderCatalogue(c, APP);
+    else c.innerHTML = '<div class="card" style="margin:24px">Page coming soon</div>';
+  } catch (e) {
+    c.innerHTML = `<div class="card" style="margin:24px;color:var(--danger)">Error: ${e.message}</div>`;
+    console.error(e);
+  }
+}
+
+// ── Put-away (inline) ────────────────────────────────────
+async function renderPutaway(c, APP) {
+  c.innerHTML = `<div class="gap-16 fade-in">
+    <div><h2 style="font-size:18px;font-weight:800;margin-bottom:2px">Put-Away Guide</h2>
+      <div style="color:var(--muted);font-size:12px">Scan invoice → system tells you exactly where each medicine goes</div></div>
+    <div class="card" style="text-align:center;padding:48px;cursor:pointer;border:2px dashed var(--border)"
+      onclick="document.getElementById('pa-file').click()"
+      ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+      ondrop="handlePAFile(event)">
+      <div style="font-size:48px;margin-bottom:12px">📄</div>
+      <div style="font-weight:800;color:var(--text);font-size:15px;margin-bottom:4px">Scan or upload supplier invoice</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:16px">Photo · Printed invoice · Handwritten challan</div>
+      <div class="btn btn-primary" style="display:inline-flex">Scan Invoice</div>
+      <input type="file" id="pa-file" accept="image/*" style="display:none" onchange="processPAFile(this.files[0])">
+    </div>
+    <div id="pa-results"></div>
+  </div>`;
+
+  window.handlePAFile = (e) => { e.preventDefault(); processPAFile(e.dataTransfer.files[0]); };
+  window.processPAFile = async (file) => {
+    if (!file) return;
+    const res = document.getElementById('pa-results');
+    res.innerHTML = '<div class="row" style="justify-content:center;padding:20px"><div class="spinner"></div><span style="color:var(--muted)">Reading invoice with Gemini…</span></div>';
+    const b64  = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
+    const scan = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': getToken() }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'challan' }) }).then(r => r.json());
+    if (!scan.ok) { res.innerHTML = `<div class="alert-strip warn">⚠️ ${scan.error === 'no_key' ? 'No Gemini key — set it in backend/routers/scan.py' : scan.error}</div>`; return; }
+    const items    = scan.result.map(it => ({ drug_id: null, name: it.drug_name, batch_no: it.batch_no, expiry: it.expiry, strips: it.strips || 1 }));
+    // Look up drug IDs
+    for (const it of items) {
+      const drugs = await GET('/drugs?q=' + encodeURIComponent((it.name || '').split(' ')[0]));
+      if (drugs[0]) it.drug_id = drugs[0].id;
+    }
+    const valid = items.filter(it => it.drug_id);
+    if (!valid.length) { res.innerHTML = '<div class="alert-strip warn">⚠️ No drugs matched — try manual stock entry instead</div>'; return; }
+    const guide = await fetch('/api/putaway/guide', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': getToken() }, body: JSON.stringify(valid) }).then(r => r.json());
+    let done = [];
+    function guideHTML() {
+      return `<div class="gap-12">
+        <div class="flex-between">
+          <div style="font-weight:700">${done.length}/${guide.length} items placed</div>
+          <div class="progress" style="width:200px"><div class="progress-bar" style="width:${Math.round(done.length / guide.length * 100)}%"></div></div>
+        </div>
+        ${guide.map((g, i) => { const d = done.includes(i);
+          return `<div class="card" style="opacity:${d ? 0.6 : 1};border-color:${d ? 'var(--green)44' : 'var(--border)'}">
+            <div class="flex-between" style="margin-bottom:10px">
+              <div><div style="font-weight:800;font-size:15px">${g.drug?.name || g.name}</div>
+                <div class="row" style="margin-top:4px">
+                  <span class="tag tag-teal">+${g.incoming_strips} strips</span>
+                  <span class="tag tag-gray">Batch: ${g.batch_no}</span>
+                </div></div>
+              ${d ? '<span class="tag tag-green">✅ Done</span>' : `<button class="btn btn-primary btn-sm" onclick="paMarkDone(${i})">Mark Done ✓</button>`}
+            </div>
+            ${g.open_trays?.length ? `<div class="alert-strip warn" style="margin-bottom:8px">✂️ First top-up open tray${g.open_trays.length > 1 ? 's' : ''}: ${g.open_trays.map(t => t.tray_id + ' (' + t.tablets_remaining + ' tabs)').join(', ')}</div>` : ''}
+            <div class="alert-strip info">📦 Place at <b style="color:var(--text)">${g.suggested_rack || '?'} · ${g.suggested_shelf || '?'}</b> · Newest at back, oldest at front</div>
+          </div>`;
+        }).join('')}
+        ${done.length === guide.length ? '<div class="alert-strip success" style="text-align:center;justify-content:center">🎉 All stock placed! You\'re done.</div>' : ''}
+      </div>`;
+    }
+    window.paMarkDone = (i) => { done.push(i); res.innerHTML = guideHTML(); };
+    res.innerHTML = guideHTML();
+  };
+}
+
+// ── Boot ─────────────────────────────────────────────────
+async function bootApp() {
+  document.getElementById('app').style.display = 'flex';
+  APP.user = getUser();
+  document.getElementById('topbar-user').textContent = APP.user?.display_name || '';
+  document.getElementById('sidebar-user').textContent = '👤 ' + (APP.user?.display_name || '');
+  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+  try {
+    APP.config = await GET('/config');
+    document.getElementById('sidebar-shop-name').textContent = APP.config.name || 'My Pharmacy';
+  } catch {}
+
+  renderNav();
+  navigate('dashboard');
+}
+
+// ── Init ─────────────────────────────────────────────────
+(async () => {
+  if (isLoggedIn()) {
+    // Verify token is still valid
+    try {
+      const r = await fetch('/api/auth/me', { headers: { 'X-Token': getToken() } });
+      if (r.ok) {
+        APP.user = await r.json();
+        document.getElementById('login-screen').style.display = 'none';
+        await bootApp();
+        return;
+      }
+    } catch {}
+    clearSession();
+  }
+  // Show login
+  document.getElementById('login-screen').style.display = 'flex';
+})();
+</script>
+</body>
+</html>
