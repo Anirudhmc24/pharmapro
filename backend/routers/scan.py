@@ -46,7 +46,11 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
             {"text": prompt},
             {"inline_data": {"mime_type": mime, "data": image_b64}}
         ]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024}
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 1024,
+            "responseMimeType": "application/json"
+        }
     }).encode()
     req = urllib.request.Request(url, data=payload,
           headers={"Content-Type": "application/json"}, method="POST")
@@ -64,13 +68,13 @@ def scan_image(body: ScanIn):
         prompt = (
             "Look at this medicine strip/blister pack photo.\n"
             "Extract: drug_name (name + strength), batch_no, expiry (YYYY-MM), mrp (number).\n"
-            "Respond ONLY with JSON, no markdown:\n"
+            "Respond ONLY with JSON, matching schema:\n"
             '{"drug_name":"","batch_no":"","expiry":"","mrp":0}\n'
             "Use empty string or 0 for unreadable fields."
         )
         try:
             raw  = call_gemini(prompt, body.image_b64, body.mime)
-            data = json.loads(raw.strip().strip("```json").strip("```").strip())
+            data = json.loads(raw.strip())
             return {"ok": True, "mode": "strip", "result": data}
         except Exception as e:
             return {"ok": False, "error": str(e)}
@@ -78,13 +82,13 @@ def scan_image(body: ScanIn):
         prompt = (
             "Look at this pharmacy invoice/challan photo.\n"
             "Extract ALL medicine line items: drug_name, batch_no, expiry (YYYY-MM), strips (int), mrp (number), cost (number).\n"
-            "Respond ONLY with a JSON array, no markdown:\n"
+            "Respond ONLY with a JSON array, matching schema:\n"
             '[{"drug_name":"","batch_no":"","expiry":"","strips":1,"mrp":0,"cost":0}]\n'
             "Use empty string or 0 for unreadable fields."
         )
         try:
             raw  = call_gemini(prompt, body.image_b64, body.mime)
-            data = json.loads(raw.strip().strip("```json").strip("```").strip())
+            data = json.loads(raw.strip())
             if isinstance(data, dict):
                 data = [data]
             return {"ok": True, "mode": "challan", "result": data}

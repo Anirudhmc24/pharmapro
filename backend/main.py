@@ -107,4 +107,4 @@ if __name__ == "__main__":
     # Start browser in a separate thread
     threading.Thread(target=open_browser, daemon=True).start()
     
-    uvicorn.run(app, host="127.0.0.1", port=8503, log_config=None)
+    uvicorn.run(app, host="0.0.0.0", port=8503, log_config=None)
