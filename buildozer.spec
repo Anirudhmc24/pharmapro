@@ -34,7 +34,7 @@ android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, C
 bootstrap = webview
 
 # (int) port number to connect to (default is 5000)
-port = 8503
+port = 5000
 
 # (bool) Use private data directory (True) or public (False)
 android.private_storage = True
