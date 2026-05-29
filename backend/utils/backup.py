@@ -2,12 +2,17 @@ import os
 import zipfile
 import datetime
 from pathlib import Path
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 from typing import Optional
+
+try:
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+    GOOGLE_DRIVE_AVAILABLE = True
+except ImportError:
+    GOOGLE_DRIVE_AVAILABLE = False
 
 BASE_DIR = Path(__file__).parent.parent.parent
 DB_PATH = BASE_DIR / "data" / "pharmapro.db"
@@ -21,6 +26,9 @@ class BackupManager:
         self.folder_id = folder_id
 
     def _get_service(self):
+        if not GOOGLE_DRIVE_AVAILABLE:
+            print("Google Drive backup libraries are not installed in this environment.")
+            return None
         creds = None
         # 1. Look for existing token
         if TOKEN_PATH.exists():
