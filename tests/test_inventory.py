@@ -74,3 +74,37 @@ def test_missing_mandatory_fields(client, auth_headers):
     # Test missing drug_id in batch
     resp = client.post("/api/batches", json={"batch_no": "B1", "expiry": "2025"}, headers=auth_headers)
     assert resp.status_code == 422
+
+
+def test_search_by_problem(client, auth_headers):
+    # Add a drug with indications, side effects, and administration details
+    drug_data = {
+        "name": "HeadacheGone 200mg",
+        "brand": "SymptomRelief",
+        "composition": "Ibuprofen + Caffeine",
+        "category": "Pain Killer",
+        "schedule": "OTC",
+        "hsn": "30049099",
+        "tablets_per_strip": 10,
+        "strips_per_box": 10,
+        "mrp_per_strip": 25.0,
+        "mrp_per_tablet": 2.5,
+        "reorder_level": 5,
+        "indications": "migraine, severe headache, tension headache",
+        "side_effects": "stomach upset, insomnia",
+        "administration": "Take 1 tablet after food every 6 hours"
+    }
+    resp = client.post("/api/drugs", json=drug_data, headers=auth_headers)
+    assert resp.status_code == 200
+    drug_id = resp.json()["id"]
+
+    # Search by problem
+    resp = client.get("/api/drugs/search_by_problem?q=migraine", headers=auth_headers)
+    assert resp.status_code == 200
+    results = resp.json()
+    assert len(results) > 0
+    match = [r for r in results if r["id"] == drug_id]
+    assert len(match) == 1
+    assert match[0]["indications"] == "migraine, severe headache, tension headache"
+    assert match[0]["side_effects"] == "stomach upset, insomnia"
+    assert match[0]["administration"] == "Take 1 tablet after food every 6 hours"

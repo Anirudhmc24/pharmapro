@@ -21,10 +21,14 @@ export async function renderCatalogue(c, APP) {
       <input class="input" id="cat-search" placeholder="Search any medicine (e.g. Glycomet, Augmentin, Metformin)…"
         style="padding-left:36px" oninput="handleCatSearch(this.value)" autocomplete="off">
     </div>
-    <div id="cat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-      <div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">
-        <div class="spinner" style="margin:0 auto 12px"></div>
-        <div>Loading alphabetical list…</div>
+    <div style="display:flex;gap:16px;align-items:flex-start">
+      <div id="cat-grid" style="flex:3;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+        <div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">
+          <div class="spinner" style="margin:0 auto 12px"></div>
+          <div>Loading alphabetical list…</div>
+        </div>
+      </div>
+      <div id="cat-substitutes" style="flex:1;display:none;background:var(--surface);padding:16px;border-radius:12px;border:1px solid var(--border);position:sticky;top:16px">
       </div>
     </div>
     <div id="cat-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:8px"></div>
@@ -71,6 +75,7 @@ export async function renderCatalogue(c, APP) {
   // ── Load alphabetical page ────────────────────────────────
   async function loadPage(page) {
     setGridLoading();
+    document.getElementById('cat-substitutes').style.display = 'none';
     try {
       const data = await GET(`/drugs/master_all?page=${page}&limit=${LIMIT}`);
       totalCount = data.total;
@@ -86,8 +91,13 @@ export async function renderCatalogue(c, APP) {
   // ── Search ────────────────────────────────────────────────
   async function doSearch(q) {
     setGridLoading();
+    document.getElementById('cat-substitutes').style.display = 'none';
     try {
-      const results = await GET(`/drugs/master_search?q=${encodeURIComponent(q)}`);
+      const [results, subsRes] = await Promise.all([
+        GET(`/drugs/master_search?q=${encodeURIComponent(q)}`),
+        GET(`/drugs/global_substitutes?q=${encodeURIComponent(q)}`).catch(() => null)
+      ]);
+      
       if (!Array.isArray(results)) {
         showError('Unexpected response from server.');
         return;
@@ -96,9 +106,38 @@ export async function renderCatalogue(c, APP) {
         results.length ? `Found ${results.length} results for "${q}"` : `No results for "${q}"`;
       renderCards(results);
       document.getElementById('cat-pagination').innerHTML = '';
+
+      if (subsRes && subsRes.substitutes && subsRes.substitutes.length > 0) {
+        renderSubstitutes(subsRes);
+      }
     } catch (e) {
       showError('Search failed: ' + e.message);
     }
+  }
+
+  function renderSubstitutes(data) {
+    const el = document.getElementById('cat-substitutes');
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div style="font-weight:800;font-size:14px;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <span>🔄</span> Generic Alternatives
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.4">
+        Based on composition: <b style="color:var(--text)">${data.composition}</b>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;padding-right:4px">
+        ${data.substitutes.map(s => `
+          <div style="padding:10px;border-radius:8px;background:var(--card);border:1px solid var(--border)">
+            <div style="font-weight:700;font-size:13px;color:var(--text)">${s.name}</div>
+            <div style="font-size:10px;color:var(--muted)">${s.brand || '—'}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+              <div style="font-weight:800;font-size:12px">₹${s.mrp_per_strip ? s.mrp_per_strip.toFixed(2) : '—'}</div>
+              ${s.stock_tablets > 0 ? `<span class="tag tag-green" style="font-size:9px">In Stock</span>` : `<span class="tag tag-gray" style="font-size:9px">Add to Shop</span>`}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   // ── Render helpers ────────────────────────────────────────
@@ -138,6 +177,7 @@ export async function renderCatalogue(c, APP) {
         <div style="font-weight:800;color:var(--accent);font-size:14px;line-height:1.3">${d.name || '—'}</div>
         <div style="font-size:11px;color:var(--muted);font-weight:600">${d.manufacturer || '—'}</div>
         <div style="font-size:12px;color:var(--text);line-height:1.5;flex:1">${compShort || '—'}</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">HSN: ${d.hsn || '30049099'}</div>
         <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;justify-content:space-between;align-items:center">
           <div style="font-weight:700;color:var(--text)">MRP: ₹${mrp > 0 ? mrp.toFixed(2) : '—'}</div>
           <button class="btn btn-primary btn-sm"

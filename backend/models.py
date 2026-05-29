@@ -28,6 +28,13 @@ class DrugIn(BaseModel):
     mrp_per_strip: float = 0; mrp_per_tablet: float = 0
     reorder_level: int = 20; box_id: Optional[int] = None; zone: str = "B"
     offer_type: str = ""; pack_type: str = "Strip"
+    indications: Optional[str] = None
+    side_effects: Optional[str] = None
+    administration: Optional[str] = None
+    # Fields for initial stock entry
+    batch_no: Optional[str] = None
+    expiry: Optional[str] = None
+    initial_strips: int = 0
 
 
 class DrugUpdateIn(BaseModel):
@@ -37,6 +44,9 @@ class DrugUpdateIn(BaseModel):
     mrp_per_tablet: Optional[float] = None; reorder_level: Optional[int] = None
     box_id: Optional[int] = None; zone: Optional[str] = None
     offer_type: Optional[str] = None; pack_type: Optional[str] = None
+    indications: Optional[str] = None
+    side_effects: Optional[str] = None
+    administration: Optional[str] = None
 
 
 class BatchIn(BaseModel):

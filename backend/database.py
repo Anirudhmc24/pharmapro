@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS drugs (
     box_id            INTEGER REFERENCES loc_boxes(id),
     offer_type        TEXT DEFAULT '',
     pack_type         TEXT DEFAULT 'Strip',
+    indications       TEXT,
+    side_effects      TEXT,
+    administration    TEXT,
     created_at        TEXT DEFAULT (datetime('now'))
 );
 
@@ -298,6 +301,18 @@ CREATE TABLE IF NOT EXISTS schedule_log (
     qty_tabs   INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS master_drugs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    manufacturer TEXT,
+    composition TEXT,
+    mrp REAL,
+    hsn TEXT,
+    description TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_master_name ON master_drugs(name);
 """
 
 
@@ -315,6 +330,9 @@ def init_db():
         try: conn.execute("ALTER TABLE drugs ADD COLUMN offer_type TEXT DEFAULT ''")
         except sqlite3.OperationalError: pass
         
+        try: conn.execute("ALTER TABLE master_drugs ADD COLUMN hsn TEXT")
+        except sqlite3.OperationalError: pass
+
         try: conn.execute("ALTER TABLE prescriptions ADD COLUMN image_path TEXT")
         except sqlite3.OperationalError: pass
 
@@ -325,6 +343,15 @@ def init_db():
         except sqlite3.OperationalError: pass
         
         try: conn.execute("ALTER TABLE drugs ADD COLUMN pack_type TEXT DEFAULT 'Strip'")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE drugs ADD COLUMN indications TEXT")
+        except sqlite3.OperationalError: pass
+        
+        try: conn.execute("ALTER TABLE drugs ADD COLUMN side_effects TEXT")
+        except sqlite3.OperationalError: pass
+        
+        try: conn.execute("ALTER TABLE drugs ADD COLUMN administration TEXT")
         except sqlite3.OperationalError: pass
 
         # Seed default admin user

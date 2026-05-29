@@ -51,6 +51,7 @@ from backend.routers.backorders import router as backorders_router
 from backend.routers.returns import router as returns_router
 from backend.routers.prescriptions import router as prescriptions_router
 from backend.routers.cloud import router as cloud_router
+from backend.routers.simulation import router as simulation_router
 
 app = FastAPI(title="PharmaPro", version="2.0.0")
 
@@ -65,7 +66,7 @@ app.add_middleware(
 for r in [auth_router, users_router, config_router, drugs_router, batches_router,
           trays_router, billing_router, inventory_router, customers_router,
           suppliers_router, po_router, reports_router, scan_router,
-          backorders_router, returns_router, prescriptions_router, cloud_router]:
+          backorders_router, returns_router, prescriptions_router, cloud_router, simulation_router]:
     app.include_router(r)
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
@@ -89,9 +90,21 @@ init_db()
 
 if __name__ == "__main__":
     import uvicorn
+    import webbrowser
+    import threading
+    import time
+
+    def open_browser():
+        time.sleep(2)  # Wait for server to start
+        webbrowser.open("http://127.0.0.1:8503")
+
     print("\n" + "="*50)
     print("  PharmaPro v2.0 Starting…")
     print("  Open browser at: http://localhost:8503")
     print("  Default login: admin / admin123")
     print("="*50 + "\n")
+
+    # Start browser in a separate thread
+    threading.Thread(target=open_browser, daemon=True).start()
+    
     uvicorn.run(app, host="127.0.0.1", port=8503, log_config=None)

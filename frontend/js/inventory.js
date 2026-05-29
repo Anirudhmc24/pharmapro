@@ -3,17 +3,24 @@ import { GET, POST, PUT } from './api.js';
 import { fmt, fmtI, tag, expiryTag, expiryColor, fmtExp, monthsLeft, breakdown, toast, modal, closeModal } from './utils.js';
 
 export async function renderInventory(c, APP) {
-  let drugs   = await GET('/inventory');
-  let filter  = '';
+  const [drugsData, layoutData] = await Promise.all([
+    GET('/inventory'),
+    GET('/layout').catch(() => [])
+  ]);
+  let drugs = drugsData;
+  window._layout = layoutData;
+  let filter = '';
+  let activeTab = 'stock';
+  let problemQuery = '';
+  let problemResults = [];
 
   function filteredDrugs() {
     if (!filter) return drugs;
     const q = filter.toLowerCase();
-    return drugs.filter(d => (d.name + d.brand + d.category + d.rack).toLowerCase().includes(q));
+    return drugs.filter(d => (d.name + (d.brand || '') + (d.category || '') + (d.rack || '')).toLowerCase().includes(q));
   }
 
   function html() {
-    const list = filteredDrugs();
     return `<div class="gap-16 fade-in">
       <div class="flex-between">
         <div><h2 style="font-size:18px;font-weight:800;margin-bottom:2px">Inventory</h2>
@@ -23,28 +30,143 @@ export async function renderInventory(c, APP) {
           <button class="btn btn-primary btn-sm" onclick="showAddDrug()">+ Add Drug</button>
         </div>
       </div>
-      <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input class="input" id="inv-filter" placeholder="Filter by name, brand, category, rack…" value="${filter}" oninput="invFilter(this.value)">
+      
+      <!-- Tab Header -->
+      <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px">
+        <button onclick="setInventoryTab('stock')" class="btn" style="border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:-2px;border:none;background:none;border-bottom:3px solid ${activeTab === 'stock' ? 'var(--accent)' : 'transparent'};color:${activeTab === 'stock' ? 'var(--accent)' : 'var(--muted)'};font-weight:800;padding:8px 16px;box-shadow:none">📋 Stock List</button>
+        <button onclick="setInventoryTab('problem')" class="btn" style="border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:-2px;border:none;background:none;border-bottom:3px solid ${activeTab === 'problem' ? 'var(--accent)' : 'transparent'};color:${activeTab === 'problem' ? 'var(--accent)' : 'var(--muted)'};font-weight:800;padding:8px 16px;box-shadow:none">🔍 Search by Problem / Symptom</button>
       </div>
-      <div class="card" style="padding:0;overflow:auto">
-        <table class="tbl" id="inv-table">
-          <thead><tr><th>Drug / Brand</th><th>Category</th><th>Location</th><th>Stock</th><th>Nearest Expiry</th><th>MRP/tab</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>${list.map(d => invRow(d)).join('')}</tbody>
-        </table>
-        ${list.length === 0 ? '<div style="padding:40px;text-align:center;color:var(--muted)">No drugs found</div>' : ''}
-      </div>
+
+      <div id="inv-tab-content">${renderTabContent()}</div>
+    </div>`;
+  }
+
+  function renderTabContent() {
+    if (activeTab === 'stock') {
+      const list = filteredDrugs();
+      return `<div class="gap-16">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="input" id="inv-filter" placeholder="Filter by name, brand, category, rack…" value="${filter}" oninput="invFilter(this.value)">
+        </div>
+        <div class="card" style="padding:0;overflow:auto;margin-top:12px">
+          <table class="tbl" id="inv-table">
+            <thead><tr><th>Drug / Brand</th><th>Category</th><th>Location</th><th>Stock</th><th>Nearest Expiry</th><th>MRP/tab</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>${list.map(d => invRow(d)).join('')}</tbody>
+          </table>
+          ${list.length === 0 ? '<div style="padding:40px;text-align:center;color:var(--muted)">No drugs found</div>' : ''}
+        </div>
+      </div>`;
+    } else {
+      return `<div class="gap-16">
+        <div style="color:var(--muted);font-size:13px;margin-bottom:8px">
+          Search symptoms, problems, or indications (e.g. "cough", "headache", "fever", "hypertension") to find suitable medicines in your stock.
+        </div>
+        <div class="search-wrap" style="margin-bottom:16px">
+          <span class="search-icon">🔍</span>
+          <input class="input" id="prob-search-input" placeholder="Type problem/symptom (e.g. fever, headache)…" value="${problemQuery}" oninput="probSearch(this.value)" autofocus>
+        </div>
+        <div id="problem-results-area">
+          ${renderProblemResults()}
+        </div>
+      </div>`;
+    }
+  }
+
+  function renderProblemResults() {
+    if (problemQuery.length < 2) {
+      return `<div style="text-align:center;padding:48px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:12px">🔍</div>
+        <div>Type 2 or more characters to search matching medicines...</div>
+      </div>`;
+    }
+    if (problemResults.length === 0) {
+      return `<div style="text-align:center;padding:48px;color:var(--muted)">
+        <div style="font-size:48px;margin-bottom:12px">💊</div>
+        <div>No matching medicines found for "${problemQuery}" in your inventory.</div>
+      </div>`;
+    }
+    
+    return `<div style="display:grid;grid-template-columns:1fr;gap:14px">
+      ${problemResults.map(d => {
+        const { full, broken } = breakdown(d);
+        const inStock = (d.stock_tablets || 0) > 0;
+        const exp = d.nearest_expiry;
+        
+        let shelfText = "No location assigned";
+        if (d.box_id && window._layout) {
+          for (let f of window._layout) {
+            for (let c of (f.compartments || [])) {
+              for (let b of (c.boxes || [])) {
+                if (b.id === d.box_id) {
+                  shelfText = `${f.name} › ${c.name} › ${b.name}`;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        return `<div class="card" style="border-left: 5px solid ${inStock ? 'var(--accent)' : 'var(--danger)'}; padding: 18px">
+          <div class="flex-between" style="margin-bottom:10px; align-items: flex-start">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-weight:900;font-size:16px;color:var(--text)">${d.name}</span>
+                <span style="color:var(--muted);font-size:12px">${d.brand || ''}</span>
+                <span class="tag ${d.schedule === 'OTC' ? 'tag-green' : 'tag-red'}" style="font-size:10px">${d.schedule}</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${d.composition || 'No chemical composition recorded'}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">Category: <span style="color:var(--text)">${d.category || 'General'}</span></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:900;font-size:16px;color:${inStock ? 'var(--accent)' : 'var(--danger)'}">
+                ${d.stock_tablets || 0} tablets
+              </div>
+              <div style="font-size:10px;color:var(--muted)">
+                ${full} ${(d.pack_type || 'Strip').toLowerCase()}s${broken > 0 ? ' + ' + broken + ' loose' : ''}
+              </div>
+              ${d.nearest_expiry ? `<div style="font-size:11px;margin-top:4px;color:${expiryColor(exp)}">Exp: ${fmtExp(exp)}</div>` : ''}
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr;gap:8px;background:var(--accent-dim);padding:12px;border-radius:8px;margin:12px 0;font-size:13px">
+            <div>
+              <span style="font-weight:700;color:var(--accent);display:inline-block;width:130px">💡 Indications:</span>
+              <span style="color:var(--text)">${d.indications || '<span style="color:var(--muted)">None recorded</span>'}</span>
+            </div>
+            <div>
+              <span style="font-weight:700;color:var(--danger);display:inline-block;width:130px">⚠️ Side Effects:</span>
+              <span style="color:var(--text)">${d.side_effects || '<span style="color:var(--muted)">None recorded</span>'}</span>
+            </div>
+            <div>
+              <span style="font-weight:700;color:var(--text);display:inline-block;width:130px">🥄 Consumed/Admin:</span>
+              <span style="color:var(--text)">${d.administration || '<span style="color:var(--muted)">No instructions recorded</span>'}</span>
+            </div>
+          </div>
+          
+          <div class="flex-between" style="font-size:12px;color:var(--muted);margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+            <div>
+              <span>📍 Location: <b style="color:var(--accent)">${shelfText}</b></span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-outline btn-sm" onclick="locateDrug(${d.id})">📍 Map Location</button>
+              <button class="btn btn-outline btn-sm" onclick="showEditDrug(${d.id})">✏️ Edit Details</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
     </div>`;
   }
 
   function invRow(d) {
-    const { full, broken, tps } = breakdown(d);
+    const { full, broken } = breakdown(d);
     const low = (d.stock_tablets || 0) < (d.reorder_level || 20);
     const exp = d.nearest_expiry;
     const ml  = monthsLeft(exp);
     return `<tr>
       <td><div style="font-weight:700;color:var(--text)">${d.name}</div>
-          <div style="font-size:11px;color:var(--muted)">${d.brand || ''}</div></td>
+          <div style="font-size:11px;color:var(--muted)">${d.brand || ''}</div>
+          ${d.composition ? `<div style="font-size:11px;color:var(--text);margin-top:2px">${d.composition.length > 55 ? d.composition.substring(0,55)+'...' : d.composition}</div>` : ''}</td>
       <td style="font-size:12px;color:var(--muted)">${d.category || '—'}</td>
       <td style="font-size:12px"><button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:10px" onclick="locateDrug(${d.id})">📍 Locate</button></td>
       <td><div style="font-weight:800;color:${low ? 'var(--danger)' : 'var(--accent)'};font-size:15px">${d.stock_tablets || 0}</div>
@@ -80,7 +202,41 @@ export async function renderInventory(c, APP) {
     }
   };
 
-  window.invFilter = (v) => { filter = v; document.querySelector('#inv-table tbody').innerHTML = filteredDrugs().map(d => invRow(d)).join(''); };
+  window.invFilter = (v) => { filter = v; document.getElementById('inv-tab-content').innerHTML = renderTabContent(); };
+
+  window.setInventoryTab = (tab) => {
+    activeTab = tab;
+    c.innerHTML = html();
+    if (tab === 'problem') {
+      document.getElementById('prob-search-input')?.focus();
+    }
+  };
+
+  let probTimer = null;
+  window.probSearch = async (q) => {
+    problemQuery = q.trim();
+    if (problemQuery.length < 2) {
+      problemResults = [];
+      document.getElementById('problem-results-area').innerHTML = renderProblemResults();
+      return;
+    }
+    
+    clearTimeout(probTimer);
+    probTimer = setTimeout(async () => {
+      try {
+        const area = document.getElementById('problem-results-area');
+        if (area) {
+          area.innerHTML = '<div style="display:flex;justify-content:center;padding:24px"><div class="spinner"></div></div>';
+        }
+        problemResults = await GET('/drugs/search_by_problem?q=' + encodeURIComponent(problemQuery));
+        if (area) {
+          area.innerHTML = renderProblemResults();
+        }
+      } catch (e) {
+        toast('Search failed: ' + e.message, 'error');
+      }
+    }, 250);
+  };
 
   window.showAddDrug = () => {
     modal('➕ Add New Drug', `
@@ -100,7 +256,28 @@ export async function renderInventory(c, APP) {
       <div class="field"><label>Composition</label><input class="input" id="ad-comp" placeholder="Composition"></div>
       <div class="grid-2">
         <div class="field"><label>Category</label><input class="input" id="ad-cat" placeholder="Category"></div>
-        <div class="field"><label>HSN Code</label><input class="input" id="ad-hsn" value="30049099"></div>
+        <div class="field"><label>HSN Code</label>
+          <input class="input" id="ad-hsn" value="30049099" list="hsn-codes">
+          <datalist id="hsn-codes">
+            <option value="30049099">Allopathy (Branded/Generic)</option>
+            <option value="30043110">Insulin</option>
+            <option value="30022011">Vaccines</option>
+            <option value="30049011">Ayurvedic / Homeopathic</option>
+            <option value="21069099">Food Supplements / Vitamins</option>
+            <option value="90189099">Surgical / Medical Devices</option>
+          </datalist>
+        </div>
+      </div>
+      <div style="background:var(--accent-dim);padding:16px;border-radius:12px;margin:12px 0;border:1px dashed var(--accent)">
+        <div style="font-weight:800;font-size:12px;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:6px">📦 INITIAL STOCK ENTRY</div>
+        <div class="grid-2">
+          <div class="field"><label>Batch Number</label><input class="input" id="ad-batch" placeholder="e.g. BT1234"></div>
+          <div class="field"><label>Expiry Date *</label><input class="input" type="month" id="ad-expiry"></div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Initial Qty (Strips)</label><input class="input" type="number" id="ad-qty" value="1"></div>
+          <div class="field"><label>MRP / Strip (₹)</label><input class="input" type="number" id="ad-mrps" value="0" step="0.5"></div>
+        </div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Packaging Type</label>
@@ -114,11 +291,12 @@ export async function renderInventory(c, APP) {
         </div>
         <div class="field"><label>Items / Pack</label><input class="input" type="number" id="ad-tps" value="10"></div>
       </div>
-        <div class="field"><label>MRP / Strip (₹)</label><input class="input" type="number" id="ad-mrps" value="0" step="0.5"></div>
-      </div>
       <div class="field"><label>Schedule</label>
         <select class="select" id="ad-sched"><option value="OTC">OTC</option><option value="Rx">Rx</option><option value="H">H</option></select>
-      </div>`,
+      </div>
+      <div class="field"><label>What it can be given for (Indications / Symptoms)</label><input class="input" id="ad-indications" placeholder="e.g. fever, headache, body pain"></div>
+      <div class="field"><label>Side Effects</label><input class="input" id="ad-side-effects" placeholder="e.g. nausea, drowsiness, dizziness"></div>
+      <div class="field"><label>How it should be administered / consumed</label><input class="input" id="ad-administration" placeholder="e.g. Take with food, twice daily after meals"></div>`,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" style="flex:1" onclick="saveDrug()">Add Drug</button>`
     );
@@ -192,6 +370,7 @@ export async function renderInventory(c, APP) {
     document.getElementById('ad-brand').value = d.manufacturer;
     document.getElementById('ad-comp').value = d.composition;
     document.getElementById('ad-mrps').value = d.mrp || 0;
+    if (d.hsn) document.getElementById('ad-hsn').value = d.hsn;
     document.getElementById('ad-master-results').style.display = 'none';
     document.getElementById('ad-master-search').value = d.name;
     toast('Auto-filled drug details!', 'info');
@@ -203,6 +382,24 @@ export async function renderInventory(c, APP) {
     const tps  = parseInt(document.getElementById('ad-tps')?.value || 10);
     const mrps = parseFloat(document.getElementById('ad-mrps')?.value || 0);
     const mrpt = parseFloat(document.getElementById('ad-mrpt')?.value || 0) || (mrps / tps);
+    const batch = document.getElementById('ad-batch')?.value?.trim();
+    const expiry = document.getElementById('ad-expiry')?.value;
+    const qty = parseInt(document.getElementById('ad-qty')?.value || 0);
+
+    if (qty > 0 && !expiry) {
+        toast('Expiry Date is mandatory for initial stock!', 'warn');
+        return;
+    }
+    // If user entered a batch but no expiry
+    if (batch && !expiry) {
+        toast('Expiry Date is mandatory!', 'warn');
+        return;
+    }
+
+    const indications = document.getElementById('ad-indications')?.value?.trim() || '';
+    const side_effects = document.getElementById('ad-side-effects')?.value?.trim() || '';
+    const administration = document.getElementById('ad-administration')?.value?.trim() || '';
+
     await POST('/drugs', {
       name, brand: document.getElementById('ad-brand')?.value || '',
       composition: document.getElementById('ad-comp')?.value || '',
@@ -212,7 +409,13 @@ export async function renderInventory(c, APP) {
       tablets_per_strip: tps, strips_per_box: 10,
       mrp_per_strip: mrps, mrp_per_tablet: mrpt,
       reorder_level: parseInt(document.getElementById('ad-reorder')?.value || 20),
-      pack_type: document.getElementById('ad-pack')?.value || 'Strip'
+      pack_type: document.getElementById('ad-pack')?.value || 'Strip',
+      batch_no: batch || null,
+      expiry: expiry || null,
+      initial_strips: qty,
+      indications,
+      side_effects,
+      administration
     });
     closeModal();
     toast('Drug added ✅', 'success');
@@ -221,11 +424,41 @@ export async function renderInventory(c, APP) {
   };
 
   window.showEditDrug = async (id) => {
-    const d = await GET('/drugs/' + id);
+    const [d, layout] = await Promise.all([GET('/drugs/' + id), GET('/layout').catch(() => [])]);
+
+    // Build location dropdown options
+    let boxOptions = `<option value="">— No location assigned —</option>`;
+    layout.forEach(fixture => {
+      (fixture.compartments || []).forEach(comp => {
+        (comp.boxes || []).forEach(box => {
+          const selected = box.id === d.box_id ? 'selected' : '';
+          const path = `${fixture.name} › ${comp.name} › ${box.name}`;
+          boxOptions += `<option value="${box.id}" ${selected}>${path}</option>`;
+        });
+      });
+    });
+
     modal('✏️ Edit Drug', `
       <div class="grid-2">
         <div class="field"><label>Drug Name</label><input class="input" id="ed-name" value="${d.name}"></div>
         <div class="field"><label>Brand</label><input class="input" id="ed-brand" value="${d.brand || ''}"></div>
+      </div>
+      <div class="field"><label>Composition</label><input class="input" id="ed-comp" value="${d.composition || ''}"></div>
+      <div class="grid-2">
+        <div class="field"><label>Category</label><input class="input" id="ed-cat" value="${d.category || ''}"></div>
+        <div class="field">
+          <label>📦 Location (Box)</label>
+          <select class="select" id="ed-box" style="font-size:12px">
+            ${boxOptions}
+          </select>
+          ${d.box_id ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">Currently assigned to a box</div>` : `<div style="font-size:10px;color:var(--muted);margin-top:4px">No location set yet</div>`}
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>HSN Code</label>
+          <input class="input" id="ed-hsn" value="${d.hsn || '30049099'}" list="hsn-codes">
+        </div>
+        <div class="field"><label>Reorder Level (tabs)</label><input class="input" type="number" id="ed-reorder" value="${d.reorder_level || 20}"></div>
       </div>
       <div class="grid-2">
         <div class="field"><label>MRP / Pack (₹)</label><input class="input" type="number" id="ed-mrps" value="${d.mrp_per_strip || 0}" step="0.5"></div>
@@ -242,26 +475,74 @@ export async function renderInventory(c, APP) {
       <div class="grid-2">
         <div class="field"><label>MRP / Item (₹)</label><input class="input" type="number" id="ed-mrpt" value="${d.mrp_per_tablet || 0}" step="0.01"></div>
       </div>
-      <div class="field"><label>Reorder Level (tabs)</label><input class="input" type="number" id="ed-reorder" value="${d.reorder_level || 20}"></div>
+      <div class="field"><label>What it can be given for (Indications / Symptoms)</label><input class="input" id="ed-indications" value="${d.indications || ''}" placeholder="e.g. fever, headache, body pain"></div>
+      <div class="field"><label>Side Effects</label><input class="input" id="ed-side-effects" value="${d.side_effects || ''}" placeholder="e.g. nausea, drowsiness, dizziness"></div>
+      <div class="field"><label>How it should be administered / consumed</label><input class="input" id="ed-administration" value="${d.administration || ''}" placeholder="e.g. Take with food, twice daily after meals"></div>
       `,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger)44;flex:0.5" onclick="deleteDrug(${id})">🗑️ Delete</button>
        <button class="btn btn-primary" style="flex:1" onclick="updateDrug(${id})">Save Changes</button>`
     );
   };
 
+  window.deleteDrug = async (id) => {
+    if (!confirm('Are you sure you want to completely remove this drug from your inventory?')) return;
+    try {
+      const token = localStorage.getItem('pp_token') || '';
+      const r = await fetch('/api/drugs/' + id, { method: 'DELETE', headers: { 'x-token': token } });
+      if (!r.ok) {
+        const e = await r.json();
+        throw new Error(e.detail || e.message || 'Failed to delete');
+      }
+      closeModal();
+      toast('Drug deleted ✅', 'success');
+      drugs = await GET('/inventory');
+      c.innerHTML = html();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
   window.updateDrug = async (id) => {
-    await PUT('/drugs/' + id, {
-      name: document.getElementById('ed-name')?.value || undefined,
-      brand: document.getElementById('ed-brand')?.value || undefined,
-      mrp_per_strip: parseFloat(document.getElementById('ed-mrps')?.value) || undefined,
-      mrp_per_tablet: parseFloat(document.getElementById('ed-mrpt')?.value) || undefined,
-      reorder_level: parseInt(document.getElementById('ed-reorder')?.value) || undefined,
-      pack_type: document.getElementById('ed-pack')?.value || undefined
-    });
-    closeModal();
-    toast('Drug updated ✅', 'success');
-    drugs = await GET('/inventory');
-    c.innerHTML = html();
+    try {
+      const getValue = (elId) => {
+        const el = document.getElementById(elId);
+        return (el && el.value !== '') ? el.value : undefined;
+      };
+      const getFloat = (elId) => {
+        const el = document.getElementById(elId);
+        return (el && el.value !== '') ? parseFloat(el.value) : undefined;
+      };
+      const getInt = (elId) => {
+        const el = document.getElementById(elId);
+        return (el && el.value !== '') ? parseInt(el.value) : undefined;
+      };
+
+      const boxEl = document.getElementById('ed-box');
+      const box_id = (boxEl && boxEl.value !== '') ? parseInt(boxEl.value) : null;
+
+      await PUT('/drugs/' + id, {
+        name: getValue('ed-name'),
+        brand: getValue('ed-brand'),
+        composition: getValue('ed-comp'),
+        category: getValue('ed-cat'),
+        box_id: box_id,
+        hsn: getValue('ed-hsn'),
+        mrp_per_strip: getFloat('ed-mrps'),
+        mrp_per_tablet: getFloat('ed-mrpt'),
+        reorder_level: getInt('ed-reorder'),
+        pack_type: getValue('ed-pack'),
+        indications: getValue('ed-indications'),
+        side_effects: getValue('ed-side-effects'),
+        administration: getValue('ed-administration')
+      });
+      closeModal();
+      toast('Drug updated ✅', 'success');
+      drugs = await GET('/inventory');
+      c.innerHTML = html();
+    } catch (e) {
+      toast('Update failed: ' + e.message, 'error');
+    }
   };
 
   window.showExpiryReturn = async (drug_id, drug_name) => {

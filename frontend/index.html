@@ -255,6 +255,7 @@ import { renderStaff } from '/js/staff.js';
 import { renderCustomers, renderSuppliers, renderSettings, renderBackorders, renderBillHistory } from '/js/other_pages.js';
 import { renderLayoutBuilder } from '/js/layout_builder.js';
 import { renderCatalogue } from '/js/catalogue.js';
+import { renderCustomBilling } from '/js/custom_billing.js';
 import { GET, POST } from '/js/api.js';
 
 // Make all functions global so inline onclick= works
@@ -318,6 +319,7 @@ const PAGES = [
   { id: 'stock_entry',     icon: '📥', label: 'Stock Entry',      section: 'OPERATIONS' },
   { id: 'purchase_orders', icon: '📋', label: 'Purchase Orders',  section: null },
   { id: 'putaway',         icon: '🗺️', label: 'Put-Away Guide',   section: null },
+  { id: 'custom_billing',  icon: '🎲', label: 'Custom Billing',   section: null },
   { id: 'layout_builder',  icon: '🗺️', label: 'Store Map',        section: 'SETUP' },
   { id: 'customers',       icon: '👥', label: 'Customers',        section: 'PEOPLE' },
   { id: 'suppliers',       icon: '🏭', label: 'Suppliers',        section: null },
@@ -376,6 +378,7 @@ async function renderPage(page) {
     else if (page === 'reports')         await renderReports(c, APP);
     else if (page === 'settings')        await renderSettings(c, APP);
     else if (page === 'catalogue')       await renderCatalogue(c, APP);
+    else if (page === 'custom_billing')  await renderCustomBilling(c, APP);
     else c.innerHTML = '<div class="card" style="margin:24px">Page coming soon</div>';
   } catch (e) {
     c.innerHTML = `<div class="card" style="margin:24px;color:var(--danger)">Error: ${e.message}</div>`;

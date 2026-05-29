@@ -311,6 +311,7 @@ export async function renderBackorders(c, APP) {
               <td style="font-size:11px;color:var(--muted)">${_fd ? _fd(bo.created_at) : bo.created_at?.slice(0,10)}</td>
               <td style="display:flex;gap:6px">
                 <button class="btn btn-primary btn-sm" onclick="manualNotify(${bo.id})">📱 Notify</button>
+                <button class="btn btn-outline btn-sm" style="color:#10b981;border-color:#10b98144;font-weight:700" onclick="window.open('https://wa.me/91' + '${bo.phone}'.replace(/\\D/g,'') + '?text=Hi%20' + encodeURIComponent('${bo.customer_name}') + ',%20your%20medicines%20have%20arrived%20in%20Shrivari%20Medicals.%20Kindly%20come%20at%20your%20convenience%20and%20collect.', '_blank')">💬 WhatsApp</button>
                 <button class="btn btn-outline btn-sm" onclick="cancelBO(${bo.id})">✕</button>
               </td>
             </tr>`).join('')}</tbody>

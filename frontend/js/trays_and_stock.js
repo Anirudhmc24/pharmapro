@@ -181,7 +181,7 @@ export async function renderStockEntry(c, APP) {
     return `<div class="gap-12">
       <div class="alert-strip info">✅ ${drug.name} · ${drug.tablets_per_strip || 10} tabs/strip · Base MRP ₹${drug.mrp_per_strip || 0}/strip</div>
       <div class="grid-2">
-        <div class="field"><label>Batch No. *</label><input class="input" name="batch_no" id="sf-batch" placeholder="e.g. B25-001"></div>
+        <div class="field"><label>Batch No.</label><input class="input" name="batch_no" id="sf-batch" placeholder="e.g. B25-001 (optional)"></div>
         <div class="field"><label>Expiry *</label><input class="input" type="month" name="expiry" id="sf-exp"></div>
       </div>
       <div class="grid-3">
@@ -323,7 +323,7 @@ export async function renderStockEntry(c, APP) {
       <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
         <div class="section-title">First Stock Batch</div>
         <div class="grid-2">
-          <div class="field"><label>Batch No. *</label><input class="input" id="me-batch" placeholder="e.g. B25-001"></div>
+          <div class="field"><label>Batch No.</label><input class="input" id="me-batch" placeholder="e.g. B25-001 (optional)"></div>
           <div class="field"><label>Expiry *</label><input class="input" type="month" id="me-exp"></div>
         </div>
       <div class="grid-3" style="margin-top:8px">
@@ -375,7 +375,6 @@ export async function renderStockEntry(c, APP) {
     const gst    = parseFloat(document.getElementById('me-gst')?.value || 0);
     const box_id = parseInt(document.getElementById('me-location')?.value) || null;
     if (!name)   { toast('Drug name is required', 'warn'); return; }
-    if (!batch)  { toast('Batch number is required', 'warn'); return; }
     if (!expiry) { toast('Expiry date is required', 'warn'); return; }
     if (monthsLeft(expiry) <= 0) { toast('⛔ That expiry date is already past', 'error'); return; }
     try {
@@ -412,7 +411,7 @@ export async function renderStockEntry(c, APP) {
     const sup_id   = document.getElementById('sf-sup')?.value || null;
     const gst      = parseFloat(document.getElementById('sf-gst')?.value || 0);
     const box_id   = parseInt(document.getElementById('sf-box')?.value) || null;
-    if (!batch_no || !expiry) { toast('Batch and expiry required', 'warn'); return; }
+    if (!expiry) { toast('Expiry date required', 'warn'); return; }
     if (monthsLeft(expiry) <= 0) { toast('⛔ That expiry is already past', 'error'); return; }
     await POST('/batches', { drug_id, batch_no, expiry, strips, cost_per_strip: cost, box_id, free_strips: free, mrp_per_strip: mrp, gst_pct: gst, supplier_id: sup_id });
     added.push({ drug_name, strips, expiry });
@@ -490,9 +489,10 @@ export async function renderStockEntry(c, APP) {
     const drugs = await GET('/drugs?q=' + encodeURIComponent(name.split(' ')[0]));
     if (!drugs.length) { toast('Drug not in catalogue — add it first', 'warn'); return; }
     const drug     = drugs[0];
-    const batch_no = document.getElementById('ch-batch-' + i)?.value || '';
+    const batch_no = document.getElementById('ch-batch-' + i)?.value || 'NA';
     const expiry   = document.getElementById('ch-exp-' + i)?.value || '';
     const strips   = parseInt(document.getElementById('ch-strips-' + i)?.value || 1);
+    if (!expiry) { toast('Expiry required', 'warn'); return; }
     await POST('/batches', { drug_id: drug.id, batch_no, expiry, strips });
     added.push({ drug_name: drug.name, strips, expiry });
     toast(`${drug.name} · ${strips} strips added ✅`, 'success');

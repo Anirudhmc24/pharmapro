@@ -40,7 +40,11 @@ export async function renderLayoutBuilder(c, APP) {
       let boxesHtml = '';
       const boxes = comp.boxes || [];
       boxes.forEach((box, j) => {
-        boxesHtml += `<span class="tag tag-blue" style="margin-right:4px">${box.name}</span>`;
+        boxesHtml += `<div style="display:inline-flex;align-items:center;gap:4px;margin:2px">
+          <input class="input box-name-edit" style="width:90px;padding:3px 6px;font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-dim);border-color:var(--accent)33" 
+            value="${box.name}" data-cid="${i}" data-bid="${j}" placeholder="Box name">
+          <button class="btn btn-sm rm-box" data-cid="${i}" data-bid="${j}" style="padding:2px 6px;font-size:10px;color:var(--danger);border-color:var(--danger)33">✕</button>
+        </div>`;
       });
       compsHtml += `
         <div class="card-sm" style="margin-bottom:8px">
@@ -48,8 +52,8 @@ export async function renderLayoutBuilder(c, APP) {
             <input class="input" style="padding:4px 8px;font-size:12px;width:120px" value="${comp.name}" data-cid="${i}" class="comp-name-edit">
             <button class="btn btn-sm btn-outline rm-comp" data-cid="${i}">✖</button>
           </div>
-          <div style="font-size:10px;margin-bottom:6px">Boxes: ${boxesHtml}</div>
-          <button class="btn btn-sm btn-outline add-box" data-cid="${i}">+ Box</button>
+          <div style="font-size:10px;margin-bottom:6px;display:flex;flex-wrap:wrap;gap:2px">${boxesHtml || '<span style="color:var(--muted);font-size:10px">No boxes yet</span>'}</div>
+          <button class="btn btn-sm btn-outline add-box" data-cid="${i}">+ Add Box</button>
         </div>
       `;
     });
@@ -252,7 +256,21 @@ export async function renderLayoutBuilder(c, APP) {
         const idx = parseInt(btn.getAttribute('data-cid'));
         const comp = activeFixture.compartments[idx];
         if(!comp.boxes) comp.boxes = [];
-        comp.boxes.push({name: "Box " + (comp.boxes.length + 1)});
+        const suggested = 'Box ' + String.fromCharCode(65 + comp.boxes.length);
+        const name = prompt('Enter box name:', suggested);
+        if (name === null) return; // user cancelled
+        comp.boxes.push({name: name.trim() || suggested});
+        updateUI();
+      }));
+      document.querySelectorAll('.box-name-edit').forEach(inp => inp.addEventListener('change', e => {
+        const cid = parseInt(inp.getAttribute('data-cid'));
+        const bid = parseInt(inp.getAttribute('data-bid'));
+        activeFixture.compartments[cid].boxes[bid].name = inp.value;
+      }));
+      document.querySelectorAll('.rm-box').forEach(btn => btn.addEventListener('click', e => {
+        const cid = parseInt(btn.getAttribute('data-cid'));
+        const bid = parseInt(btn.getAttribute('data-bid'));
+        activeFixture.compartments[cid].boxes.splice(bid, 1);
         updateUI();
       }));
       document.querySelectorAll('.comp-name-edit').forEach(inp => inp.addEventListener('change', e => {

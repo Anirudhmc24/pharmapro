@@ -46,12 +46,35 @@ def master_search(q: str = ""):
             return []
         like = f"{q}%"
         rows = conn.execute("""
-            SELECT name, manufacturer, composition, mrp, description
+            SELECT name, manufacturer, composition, mrp, hsn, description
             FROM master_drugs
             WHERE name LIKE ?
             ORDER BY name
             LIMIT 30
         """, (like,)).fetchall()
+        return rows_to_list(rows)
+
+
+@router.get("/search_by_problem")
+def search_by_problem(q: str = ""):
+    """Search drugs in the shop database by indications, category, composition, or name."""
+    if not q or len(q) < 2:
+        return []
+    with get_db() as conn:
+        like = f"%{q}%"
+        rows = conn.execute("""
+            SELECT d.*,
+              COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+              COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
+              (SELECT MIN(b2.expiry) FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0) as nearest_expiry,
+              (SELECT COUNT(*) FROM trays t2 WHERE t2.drug_id=d.id AND t2.closed=0) as open_trays
+            FROM drugs d 
+            LEFT JOIN batches b ON b.drug_id=d.id
+            WHERE d.indications LIKE ? OR d.category LIKE ? OR d.composition LIKE ? OR d.name LIKE ? OR d.brand LIKE ?
+            GROUP BY d.id 
+            ORDER BY stock_tablets DESC, d.name 
+            LIMIT 30
+        """, (like, like, like, like, like)).fetchall()
         return rows_to_list(rows)
 
 
@@ -61,7 +84,7 @@ def master_all(page: int = 1, limit: int = 50):
     offset = (page - 1) * limit
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT name, manufacturer, composition, mrp, description
+            SELECT name, manufacturer, composition, mrp, hsn, description
             FROM master_drugs
             ORDER BY name
             LIMIT ? OFFSET ?
@@ -71,7 +94,7 @@ def master_all(page: int = 1, limit: int = 50):
 
 
 @router.get("/substitutes")
-def get_substitutes(drug_id: int = 0, name: str = "", composition: str = ""):
+def get_substitutes_any(drug_id: int = 0, name: str = "", composition: str = ""):
     """
     Smart substitution engine - 3-layer lookup:
       1. Resolve composition from shop DB or master DB
@@ -175,15 +198,44 @@ def get_drug(drug_id: int):
 def add_drug(drug: DrugIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
     get_current_user(x_token)
     with get_db() as conn:
+        # 1. Create the drug in shop database
         cur = conn.execute("""
             INSERT INTO drugs(name,brand,composition,category,schedule,hsn,
             tablets_per_strip,strips_per_box,mrp_per_strip,mrp_per_tablet,
-            reorder_level,box_id,offer_type,pack_type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            reorder_level,box_id,offer_type,pack_type,indications,side_effects,
+            administration) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (drug.name, drug.brand, drug.composition, drug.category, drug.schedule, drug.hsn,
              drug.tablets_per_strip, drug.strips_per_box, drug.mrp_per_strip, drug.mrp_per_tablet,
-             drug.reorder_level, drug.box_id, drug.offer_type, drug.pack_type))
+             drug.reorder_level, drug.box_id, drug.offer_type, drug.pack_type,
+             drug.indications, drug.side_effects, drug.administration))
         drug_id = cur.lastrowid
         
+        # 2. Sync / Update Master Catalogue (Ensuring every new entry is in master_drugs)
+        master_row = conn.execute("SELECT id FROM master_drugs WHERE name = ?", (drug.name,)).fetchone()
+        if not master_row:
+            conn.execute("""
+                INSERT INTO master_drugs(name, manufacturer, composition, mrp, hsn)
+                VALUES(?,?,?,?,?)
+            """, (drug.name, drug.brand, drug.composition, drug.mrp_per_strip, drug.hsn))
+        else:
+            # Update master entry with latest details if it already exists
+            conn.execute("""
+                UPDATE master_drugs SET manufacturer=?, composition=?, mrp=?, hsn=? WHERE name=?
+            """, (drug.brand, drug.composition, drug.mrp_per_strip, drug.hsn, drug.name))
+
+        # 3. Create initial batch if expiry is provided (batch_no is now optional)
+        if drug.expiry:
+            b_no = drug.batch_no if (drug.batch_no and drug.batch_no.strip()) else "NA"
+            batch_cur = conn.execute("""
+                INSERT INTO batches(drug_id, batch_no, expiry, full_strips, mrp_per_strip)
+                VALUES(?,?,?,?,?)""", 
+                (drug_id, b_no, drug.expiry, drug.initial_strips, drug.mrp_per_strip))
+            batch_id = batch_cur.lastrowid
+            
+            if drug.initial_strips > 0:
+                conn.execute("INSERT INTO stock_log(drug_id, batch_id, action, qty_change, note) VALUES(?,?,?,?,?)",
+                             (drug_id, batch_id, "receive", drug.initial_strips, "Initial stock entry on creation"))
+
     auto_trigger_backup(background_tasks)
     return {"id": drug_id}
 
@@ -197,6 +249,38 @@ def update_drug(drug_id: int, drug: DrugUpdateIn, x_token: Optional[str] = Heade
     cols = ", ".join(f"{k}=?" for k in updates)
     with get_db() as conn:
         conn.execute(f"UPDATE drugs SET {cols} WHERE id=?", (*updates.values(), drug_id))
+        
+        # Sync changes to master catalogue if name/brand/comp/mrp were updated
+        drug_name = updates.get("name")
+        if not drug_name:
+            # If name not in updates, get it from DB to identify master row
+            row = conn.execute("SELECT name FROM drugs WHERE id=?", (drug_id,)).fetchone()
+            drug_name = row["name"] if row else None
+            
+        if drug_name:
+            # Get latest values from shop DB
+            d = conn.execute("SELECT name, brand, composition, mrp_per_strip, hsn FROM drugs WHERE id=?", (drug_id,)).fetchone()
+            if d:
+                hsn_val = d["hsn"] if d["hsn"] else "30049099"
+                conn.execute("""
+                    UPDATE master_drugs SET manufacturer=?, composition=?, mrp=?, hsn=? WHERE name=?
+                """, (d["brand"], d["composition"], d["mrp_per_strip"], hsn_val, d["name"]))
+
+    return {"ok": True}
+
+@router.delete("/{drug_id}")
+def delete_drug(drug_id: int, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    with get_db() as conn:
+        # Check if used in bills
+        has_bills = conn.execute("SELECT 1 FROM bill_items WHERE drug_id=?", (drug_id,)).fetchone()
+        if has_bills:
+            raise HTTPException(400, "Cannot delete drug with billing history. Please return stock or set quantity to 0 instead.")
+            
+        # Delete from associated tables
+        conn.execute("DELETE FROM trays WHERE drug_id=?", (drug_id,))
+        conn.execute("DELETE FROM batches WHERE drug_id=?", (drug_id,))
+        conn.execute("DELETE FROM drugs WHERE id=?", (drug_id,))
     return {"ok": True}
 
 
@@ -239,12 +323,12 @@ def get_substitutes(drug_id: int):
         rows = conn.execute("""
             SELECT d.*, 
               COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
-              COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tabletablets
+              COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets
             FROM drugs d 
             LEFT JOIN batches b ON b.drug_id=d.id
             WHERE d.composition=? AND d.id!=?
             GROUP BY d.id 
-            ORDER BY stock_tabletablets DESC, d.name
+            ORDER BY stock_tablets DESC, d.name
             LIMIT 10
         """, (comp, drug_id)).fetchall()
         return rows_to_list(rows)
@@ -301,13 +385,14 @@ batches_router = APIRouter(prefix="/api/batches", tags=["batches"])
 def add_batch(b: BatchIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
     get_current_user(x_token)
     import sqlite3
+    batch_no = b.batch_no if (b.batch_no and b.batch_no.strip()) else "NA"
     with get_db() as conn:
         try:
             cur = conn.execute("""
                 INSERT INTO batches(drug_id,batch_no,expiry,full_strips,cost_per_strip,
                                     supplier_id,free_strips,mrp_per_strip,gst_pct)
                 VALUES(?,?,?,?,?,?,?,?,?)""",
-                (b.drug_id, b.batch_no, b.expiry, b.strips, b.cost_per_strip,
+                (b.drug_id, batch_no, b.expiry, b.strips, b.cost_per_strip,
                  b.supplier_id, b.free_strips, b.mrp_per_strip, b.gst_pct))
             batch_id = cur.lastrowid
         except sqlite3.IntegrityError:
@@ -316,9 +401,9 @@ def add_batch(b: BatchIn, background_tasks: BackgroundTasks, x_token: Optional[s
                                    cost_per_strip=?, mrp_per_strip=?, gst_pct=?, supplier_id=?
                 WHERE drug_id=? AND batch_no=?""",
                          (b.strips, b.free_strips, b.cost_per_strip, b.mrp_per_strip, b.gst_pct, b.supplier_id,
-                          b.drug_id, b.batch_no))
+                          b.drug_id, batch_no))
             batch_id = conn.execute("SELECT id FROM batches WHERE drug_id=? AND batch_no=?",
-                                    (b.drug_id, b.batch_no)).fetchone()["id"]
+                                    (b.drug_id, batch_no)).fetchone()["id"]
         
         # Optionally update box_id
         if b.box_id is not None:
