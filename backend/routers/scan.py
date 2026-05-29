@@ -14,11 +14,33 @@ GEMINI_API_KEY = ""   # ← paste your key here e.g. "AIzaSy..."
 GEMINI_MODEL   = "gemini-1.5-flash"
 
 
+def get_gemini_key() -> str:
+    # 1. Try environment variable
+    import os
+    env_key = os.environ.get("GEMINI_API_KEY")
+    if env_key:
+        return env_key
+    
+    # 2. Try database configuration
+    from backend.database import get_db
+    try:
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM shop_config WHERE key='gemini_api_key'").fetchone()
+            if row and row["value"]:
+                return row["value"]
+    except Exception:
+        pass
+        
+    # 3. Fallback to hardcoded module variable
+    return GEMINI_API_KEY
+
+
 def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
-    if not GEMINI_API_KEY:
+    key = get_gemini_key()
+    if not key:
         raise ValueError("no_key")
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}")
+           f"{GEMINI_MODEL}:generateContent?key={key}")
     payload = json.dumps({
         "contents": [{"parts": [
             {"text": prompt},
@@ -35,9 +57,9 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
 
 @router.post("/scan")
 def scan_image(body: ScanIn):
-    if not GEMINI_API_KEY:
+    if not get_gemini_key():
         return {"ok": False, "error": "no_key",
-                "message": "Add your Gemini API key in backend/routers/scan.py"}
+                "message": "Add your Gemini API key in Settings or set GEMINI_API_KEY environment variable."}
     if body.mode == "strip":
         prompt = (
             "Look at this medicine strip/blister pack photo.\n"

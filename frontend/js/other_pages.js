@@ -221,6 +221,14 @@ export async function renderSettings(c, APP) {
       </div>
     </div>
     <div class="card gap-12">
+      <div class="section-title">🤖 AI Assistant Settings</div>
+      <div class="field">
+        <label>Gemini API Key</label>
+        <input class="input" id="cfg-geminikey" type="password" value="${cfg.gemini_api_key || ''}" placeholder="AIzaSy...">
+      </div>
+      <div style="color:var(--muted);font-size:11px">Used for AI features such as Scanning Medicine Strips and Supplier Invoices.</div>
+    </div>
+    <div class="card gap-12">
       <div class="section-title">☁️ Cloud Backup (Google Drive)</div>
       <div style="display:flex;gap:12px;align-items:center">
         <label class="switch"><input type="checkbox" id="cfg-backup" ${cfg.backup_enabled === 'True' ? 'checked' : ''}><span class="slider"></span></label>
@@ -247,6 +255,7 @@ export async function renderSettings(c, APP) {
       expiry_warn_months: parseInt(document.getElementById('cfg-expwarn')?.value || 3),
       broken_strip_alert: parseInt(document.getElementById('cfg-bsa')?.value || 2),
       fast2sms_key: document.getElementById('cfg-smskey')?.value?.trim() || '',
+      gemini_api_key: document.getElementById('cfg-geminikey')?.value?.trim() || '',
       backup_enabled: document.getElementById('cfg-backup')?.checked ? 'True' : 'False',
       gdrive_folder_id: document.getElementById('cfg-folder')?.value?.trim() || '',
     };

@@ -18,6 +18,7 @@ class ShopConfigIn(BaseModel):
     require_batch_on_sale: bool = True; low_stock_reorder: bool = True
     counter_rack: str = "R1"; eye_level_shelf: str = "S5"
     fast2sms_key: str = ""
+    gemini_api_key: str = ""
     backup_enabled: bool = False; gdrive_folder_id: str = ""
 
 
