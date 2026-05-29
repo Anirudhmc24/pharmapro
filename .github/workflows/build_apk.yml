@@ -40,7 +40,7 @@ jobs:
           python scripts/import_master_data.py
 
       - name: Build APK with Buildozer
-        uses: ArtemGovorov/buildozer-action@v1
+        uses: ArtemSBulgakov/buildozer-action@v1
         with:
           workdir: .
           buildozer_version: master
