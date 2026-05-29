@@ -22,7 +22,7 @@ source.exclude_dirs = tests, bin, build, dist, .git, .pytest_cache, data_backup_
 version = 2.0.0
 
 # (list) Application requirements
-requirements = python3, fastapi, uvicorn, jinja2, pydantic, anyio, sniffio, idna, click, h11, python-multipart
+requirements = python3, fastapi, uvicorn, jinja2, pydantic==1.10.15, anyio, sniffio, idna, click, h11, python-multipart
 
 # (str) Supported orientations
 orientation = all
