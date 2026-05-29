@@ -11,7 +11,7 @@ from backend.models import ScanIn
 router = APIRouter(prefix="/api", tags=["scan"])
 
 GEMINI_API_KEY = ""   # ← paste your key here e.g. "AIzaSy..."
-GEMINI_MODEL   = "gemini-1.5-flash"
+GEMINI_MODEL   = "gemini-2.5-flash"
 
 
 def get_gemini_key() -> str:
