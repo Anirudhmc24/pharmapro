@@ -22,7 +22,7 @@ source.exclude_dirs = tests, bin, build, dist, .git, .pytest_cache, data_backup_
 version = 2.0.0
 
 # (list) Application requirements
-requirements = python3==3.11, hostpython3==3.11, fastapi==0.99.1, starlette, typing-extensions, passlib, uvicorn, jinja2, pydantic==1.10.15, anyio, sniffio, idna, click, h11, python-multipart
+requirements = python3, hostpython3, fastapi==0.99.1, starlette, typing-extensions, passlib, uvicorn, jinja2, pydantic==1.10.15, anyio, sniffio, idna, click, h11, python-multipart
 
 # (str) Supported orientations
 orientation = all
@@ -50,6 +50,9 @@ android.ndk = 25b
 
 # (bool) If True, then automatically accept SDK license agreements.
 android.accept_sdk_license = True
+
+# (str) python-for-android branch to use, defaults to master
+p4a.branch = v2024.01.21
 
 [buildozer]
 
