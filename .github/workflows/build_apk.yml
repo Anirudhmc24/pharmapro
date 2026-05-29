@@ -29,6 +29,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Initialize and Seed Database
+        run: |
+          python -c "from backend.database import init_db; init_db()"
+          python scripts/import_master_data.py
+
       - name: Build APK with Buildozer
         uses: ArtemGovorov/buildozer-action@v1
         with:
