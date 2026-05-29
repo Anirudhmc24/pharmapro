@@ -479,7 +479,11 @@ export async function renderStockEntry(c, APP) {
           <div class="field"><label>Batch</label><input class="input" value="${it.batch_no || ''}" id="ch-batch-${i}"></div>
           <div class="field"><label>Expiry</label><input class="input" type="month" value="${it.expiry || ''}" id="ch-exp-${i}"></div>
         </div>
-        <div class="field"><label>Strips received</label><input class="input" type="number" value="${it.strips || 1}" id="ch-strips-${i}" min="1"></div>
+        <div class="grid-3" style="gap:8px;margin-bottom:8px">
+          <div class="field"><label>Strips</label><input class="input" type="number" value="${it.strips || 1}" id="ch-strips-${i}" min="1"></div>
+          <div class="field"><label>Cost/Strip (₹)</label><input class="input" type="number" step="0.01" value="${it.cost || 0}" id="ch-cost-${i}" min="0"></div>
+          <div class="field"><label>MRP/Strip (₹)</label><input class="input" type="number" step="0.01" value="${it.mrp || 0}" id="ch-mrp-${i}" min="0"></div>
+        </div>
         <button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" onclick="confirmChallItem(${i},'${(it.drug_name || '').replace(/'/g,"\\'")}')">✅ Add to Stock</button>
       </div>`).join('')}
     </div>`;
@@ -492,8 +496,10 @@ export async function renderStockEntry(c, APP) {
     const batch_no = document.getElementById('ch-batch-' + i)?.value || 'NA';
     const expiry   = document.getElementById('ch-exp-' + i)?.value || '';
     const strips   = parseInt(document.getElementById('ch-strips-' + i)?.value || 1);
+    const cost_per_strip = parseFloat(document.getElementById('ch-cost-' + i)?.value || 0);
+    const mrp_per_strip  = parseFloat(document.getElementById('ch-mrp-' + i)?.value || 0);
     if (!expiry) { toast('Expiry required', 'warn'); return; }
-    await POST('/batches', { drug_id: drug.id, batch_no, expiry, strips });
+    await POST('/batches', { drug_id: drug.id, batch_no, expiry, strips, cost_per_strip, mrp_per_strip });
     added.push({ drug_name: drug.name, strips, expiry });
     toast(`${drug.name} · ${strips} strips added ✅`, 'success');
     c.innerHTML = html();
