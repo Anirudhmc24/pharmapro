@@ -34,21 +34,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libssl-dev libgdbm-dev libsqlite3-dev libffi-dev libbz2-dev libreadline-dev liblzma-dev tk-dev
-          pip install --upgrade pip
-          pip install --upgrade buildozer cython virtualenv
-
       - name: Initialize and Seed Database
         run: |
           python -c "from backend.database import init_db; init_db()"
           python scripts/import_master_data.py
 
       - name: Build APK with Buildozer
-        run: |
-          yes | buildozer android debug
+        uses: digreatbrian/buildozer-action@v2
+        with:
+          python-version: '3.11'
+          buildozer-cmd: buildozer -v android debug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
