@@ -39,6 +39,15 @@ port = 8503
 # (bool) Use private data directory (True) or public (False)
 android.private_storage = True
 
+# (int) Android API to use
+android.api = 33
+
+# (int) Minimum API your APK will support
+android.minapi = 21
+
+# (str) Android NDK version to use
+android.ndk = 25b
+
 [buildozer]
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug)
