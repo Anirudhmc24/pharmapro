@@ -240,6 +240,15 @@ export async function renderSettings(c, APP) {
         <button class="btn btn-outline btn-sm" onclick="manualBackup()" style="flex:1">🚀 Trigger Manual Backup</button>
       </div>
     </div>
+    <div class="card gap-12">
+      <div class="section-title">📂 Offline Database Backup & Restore</div>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:8px">Export your local database to keep backup files, or upload an exported backup to restore your data on this device.</div>
+      <div style="display:flex;gap:12px">
+        <button class="btn btn-outline btn-sm" onclick="exportDatabase()" style="flex:1">📥 Export Database</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('db-import-file').click()" style="flex:1">📤 Restore Database</button>
+        <input type="file" id="db-import-file" accept=".db" style="display:none" onchange="importDatabase(this.files[0])">
+      </div>
+    </div>
     <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
   </div>`;
 
@@ -278,6 +287,41 @@ export async function renderSettings(c, APP) {
       _toast('Backup failed: ' + e.message, 'error');
     } finally {
       btn.disabled = false; btn.textContent = oldText;
+    }
+  };
+
+  window.exportDatabase = () => {
+    const token = localStorage.getItem('token') || '';
+    window.open('/api/config/db/export?token=' + encodeURIComponent(token), '_blank');
+  };
+
+  window.importDatabase = async (file) => {
+    if (!file) return;
+    if (!confirm('Are you sure you want to restore this database? This will completely overwrite all current stock, inventory, and billing data on this device.')) {
+      document.getElementById('db-import-file').value = '';
+      return;
+    }
+    const token = localStorage.getItem('token') || '';
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/config/db/import', {
+        method: 'POST',
+        headers: {
+          'X-Token': token
+        },
+        body: formData
+      }).then(r => r.json());
+      if (res.ok) {
+        _toast('Database restored successfully! Reloading page...', 'success');
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        _toast(res.error || res.message || 'Restore failed', 'error');
+      }
+    } catch(e) {
+      _toast('Restore failed: ' + e.message, 'error');
+    } finally {
+      document.getElementById('db-import-file').value = '';
     }
   };
 }

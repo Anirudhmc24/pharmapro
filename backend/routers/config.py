@@ -3,7 +3,8 @@ PharmaPro — routers/config.py
 Shop config + rack management
 """
 
-from fastapi import APIRouter, Header, BackgroundTasks
+from fastapi import APIRouter, Header, BackgroundTasks, Query, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 from typing import Optional, List
 
 from backend.database import get_db, rows_to_list
@@ -113,4 +114,35 @@ def save_layout(data: LayoutSaveIn, x_token: Optional[str] = Header(default=None
                     else:
                         conn.execute("INSERT INTO loc_boxes(compartment_id,name,capacity) VALUES(?,?,?)", (cid, b["name"], b.get("capacity", 0)))
     return {"ok": True}
+
+
+@router.get("/config/db/export")
+def export_db(x_token: Optional[str] = Header(default=None), token: Optional[str] = Query(default=None)):
+    actual_token = x_token or token
+    get_current_user(actual_token)
+    from backend.database import DB_PATH
+    return FileResponse(
+        path=DB_PATH,
+        filename="pharmapro.db",
+        media_type="application/octet-stream"
+    )
+
+
+@router.post("/config/db/import")
+def import_db(file: UploadFile = File(...), x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    import shutil
+    from backend.database import DB_PATH
+    
+    # Simple validation: ensure it's a valid SQLite file
+    content = file.file.read(16)
+    if content != b"SQLite format 3\x00":
+        raise HTTPException(400, "Invalid SQLite database file")
+    
+    # Overwrite the database file
+    file.file.seek(0)
+    with open(DB_PATH, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+        
+    return {"ok": True, "message": "Database restored successfully. Please refresh the page."}
 
