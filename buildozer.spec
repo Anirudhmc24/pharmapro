@@ -13,7 +13,7 @@ package.domain = org.pharmapro
 source.dir = .
 
 # (list) Source files to include
-source.include_exts = py,png,jpg,jpeg,html,css,js,ico,json,db
+source.include_exts = py,png,jpg,jpeg,html,css,js,ico,json,db,java
 
 # (list) List of directory to exclude
 source.exclude_dirs = tests, bin, build, dist, .git, .pytest_cache, data_backup_before_build, Bills_For_Inward, scratch
@@ -35,6 +35,9 @@ p4a.bootstrap = webview
 
 # (int) port number to connect to (default is 5000)
 p4a.port = 5000
+
+# (str) Additional Java source folders to compile
+android.add_src = java_src
 
 # (bool) Use private data directory (True) or public (False)
 android.private_storage = True
