@@ -40,7 +40,7 @@ p4a.port = 5000
 android.add_src = java_src
 
 # (str) Additional resource directories to include
-android.add_resources = java_src/res:res
+#android.add_resources =
 
 # (bool) Use private data directory (True) or public (False)
 android.private_storage = True
@@ -60,13 +60,6 @@ android.accept_sdk_license = True
 # (str) python-for-android branch to use, defaults to master
 p4a.branch = v2024.01.21
 
-# (list) Gradle dependencies for Java compilation
-android.gradle_dependencies = androidx.core:core:1.12.0
-
-
-# (str) Path to file containing extra XML to inject into AndroidManifest.xml <application> tag
-# Registers FileProvider for camera intents on Android 7+ (API 24+)
-android.extra_manifest_application_arguments = ./extra_manifest_application.xml
 
 
 [buildozer]
