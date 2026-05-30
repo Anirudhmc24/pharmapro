@@ -25,7 +25,7 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: ${{ runner.os }}-buildozer-v9-${{ hashFiles('buildozer.spec') }}
+          key: ${{ runner.os }}-buildozer-v10-${{ hashFiles('buildozer.spec') }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
