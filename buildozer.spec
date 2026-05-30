@@ -64,9 +64,9 @@ p4a.branch = v2024.01.21
 android.gradle_dependencies = androidx.core:core:1.12.0
 
 
-# (str) Extra XML content to inject into AndroidManifest.xml <application> tag
+# (str) Path to file containing extra XML to inject into AndroidManifest.xml <application> tag
 # Registers FileProvider for camera intents on Android 7+ (API 24+)
-android.extra_manifest_application_arguments = <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" /></provider>
+android.extra_manifest_application_arguments = ./extra_manifest_application.xml
 
 
 [buildozer]
