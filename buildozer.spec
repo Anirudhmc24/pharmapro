@@ -31,10 +31,10 @@ orientation = all
 android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, CAMERA
 
 # (str) Bootstrap to use (kivy, sdl2, webview, custom)
-bootstrap = webview
+p4a.bootstrap = webview
 
 # (int) port number to connect to (default is 5000)
-port = 5000
+p4a.port = 5000
 
 # (bool) Use private data directory (True) or public (False)
 android.private_storage = True
