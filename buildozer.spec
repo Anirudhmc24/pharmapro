@@ -13,13 +13,13 @@ package.domain = org.pharmapro
 source.dir = .
 
 # (list) Source files to include
-source.include_exts = py,png,jpg,jpeg,html,css,js,ico,json,db,java
+source.include_exts = py,png,jpg,jpeg,html,css,js,ico,json,db,java,xml
 
 # (list) List of directory to exclude
 source.exclude_dirs = tests, bin, build, dist, .git, .pytest_cache, data_backup_before_build, Bills_For_Inward, scratch
 
 # (str) Application versioning
-version = 2.0.0
+version = 2.0.1
 
 # (list) Application requirements
 requirements = python3, hostpython3, fastapi==0.99.1, starlette==0.27.0, typing-extensions, passlib, uvicorn, jinja2, pydantic==1.10.15, anyio, sniffio, idna, click, h11, python-multipart
@@ -39,6 +39,9 @@ p4a.port = 5000
 # (str) Additional Java source folders to compile
 android.add_src = java_src
 
+# (str) Additional resource directories to include
+android.add_resources = java_src/res:res
+
 # (bool) Use private data directory (True) or public (False)
 android.private_storage = True
 
@@ -56,6 +59,15 @@ android.accept_sdk_license = True
 
 # (str) python-for-android branch to use, defaults to master
 p4a.branch = v2024.01.21
+
+# (list) Gradle dependencies for Java compilation
+android.gradle_dependencies = androidx.core:core:1.12.0
+
+
+# (str) Extra XML content to inject into AndroidManifest.xml <application> tag
+# Registers FileProvider for camera intents on Android 7+ (API 24+)
+android.extra_manifest_application_arguments = <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" /></provider>
+
 
 [buildozer]
 

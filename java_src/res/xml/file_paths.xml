@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- External files directory: getExternalFilesDir(DIRECTORY_PICTURES) -->
+    <external-files-path name="camera_photos" path="Pictures/" />
+    <!-- Fallback: internal files directory -->
+    <files-path name="internal_files" path="." />
+    <!-- External cache -->
+    <external-cache-path name="external_cache" path="." />
+    <!-- Cache dir -->
+    <cache-path name="cache" path="." />
+</paths>

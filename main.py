@@ -51,6 +51,8 @@ def _attach_chrome_client():
         if webView is not None:
             Client = autoclass('org.pharmapro.CustomWebChromeClient')
             webView.setWebChromeClient(Client(activity))
+            # Configure WebView settings for camera/mic/file access
+            Client.configureWebView(webView)
 
     _set_client()
 
@@ -60,12 +62,23 @@ if __name__ == "__main__":
     # Check if running inside Android sandbox
     is_android = "ANDROID_ARGUMENT" in os.environ
     if is_android:
-        # Schedule Android-specific setup in a background thread
-        # so it runs after the WebView has been created by the bootstrap
-        threading.Timer(2.0, _android_setup).start()
+        # Schedule Android-specific setup with retry to ensure WebView is ready
+        def _android_setup_with_retry(attempts=5, delay=1.5):
+            """Retry attaching chrome client until WebView is available."""
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            if PythonActivity.mWebView is not None:
+                _android_setup()
+            elif attempts > 1:
+                threading.Timer(delay, _android_setup_with_retry, args=[attempts - 1, delay]).start()
+            else:
+                # Last resort: try anyway
+                _android_setup()
+        threading.Timer(2.0, _android_setup_with_retry).start()
         # On Android, bind to all interfaces (0.0.0.0) on port 5000 (default p4a webview port)
         # We do not use log_config=None so we can see server startup logs in logcat
         uvicorn.run(app, host="0.0.0.0", port=5000)
+
     else:
         # On Desktop, run on localhost (127.0.0.1) on port 8503
         uvicorn.run(app, host="127.0.0.1", port=8503, log_config=None)

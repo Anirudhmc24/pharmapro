@@ -427,6 +427,18 @@ export async function renderStockEntry(c, APP) {
 
   window.startCameraScan = async () => {
     const area = document.getElementById('camera-area');
+
+    // First check if getUserMedia is available (not always in WebView)
+    const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+    if (!hasGetUserMedia) {
+      // Fallback: use the file input with capture="environment" to open system camera
+      area.innerHTML = `<div class="alert-strip info">📷 Opening system camera…</div>`;
+      const fileInput = document.getElementById('strip-file');
+      if (fileInput) { fileInput.value = ''; fileInput.click(); }
+      return;
+    }
+
     area.innerHTML = `<div style="position:relative;margin-top:12px">
       <video id="cam-video" autoplay playsinline muted style="width:100%;border-radius:10px;border:1px solid var(--border)"></video>
       <button class="btn btn-primary" style="margin-top:10px;width:100%" onclick="captureStrip()">📸 Capture</button>
@@ -434,9 +446,6 @@ export async function renderStockEntry(c, APP) {
       <canvas id="cam-canvas" style="display:none"></canvas>
     </div>`;
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API not available');
-      }
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } 
       });
@@ -446,9 +455,13 @@ export async function renderStockEntry(c, APP) {
       await video.play();
     } catch (e) {
       console.error('Camera error:', e);
-      area.innerHTML = `<div class="alert-strip warn">⚠️ Camera unavailable: ${e.message || 'Permission denied or not supported'}. Use the "Upload Photo" button instead.</div>`;
+      // Fallback: try system camera via file input instead of just showing error
+      area.innerHTML = `<div class="alert-strip info" style="margin-bottom:8px">📷 Live camera unavailable — opening system camera instead…</div>`;
+      const fileInput = document.getElementById('strip-file');
+      if (fileInput) { fileInput.value = ''; fileInput.click(); }
     }
   };
+
 
   window.stopCamera = () => {
     const video = document.getElementById('cam-video');
