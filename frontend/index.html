@@ -170,6 +170,102 @@ nav{padding:8px}
 @keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .fade-in{animation:fadeIn .3s ease}
+
+/* ── Hamburger Toggle ────────────────────────────────── */
+.sidebar-toggle{display:none;background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1}
+.sidebar-toggle:hover{background:var(--faint)}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:#000000aa;z-index:199}
+
+/* ── Mobile-hidden file input (accessible but invisible) ── */
+.file-input-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;opacity:0}
+
+/* ── grid-3 helper ───────────────────────────────────── */
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+
+/* ── Mobile Responsive ──────────────────────────────── */
+@media (max-width: 768px) {
+  /* Sidebar: slide-out drawer */
+  .sidebar-toggle{display:block}
+  .sidebar-overlay.open{display:block;z-index:199}
+  #sidebar{position:fixed;left:-260px;top:0;bottom:0;width:250px;z-index:200;transition:left .28s cubic-bezier(.4,0,.2,1);box-shadow:none}
+  #sidebar.open{left:0;box-shadow:4px 0 24px #000000aa}
+
+  /* Topbar compact */
+  #topbar{padding:8px 12px;gap:8px}
+  #topbar #page-title{font-size:13px}
+
+  /* Content padding reduced */
+  #content{padding:12px}
+
+  /* Grids collapse */
+  .grid-2{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:1fr}
+  .grid-4{grid-template-columns:repeat(2,1fr);gap:10px}
+
+  /* Cards compact */
+  .card{padding:14px;border-radius:12px}
+  .card-sm{padding:10px}
+
+  /* Stat cards */
+  .stat-card{padding:12px 14px}
+  .stat-card .stat-val{font-size:18px}
+
+  /* Buttons */
+  .btn{padding:10px 14px;font-size:12px}
+
+  /* Tables: allow horizontal scroll */
+  .tbl{font-size:12px}
+  .tbl th,.tbl td{padding:8px 8px;white-space:nowrap}
+
+  /* Login card: full-width */
+  .login-card{width:calc(100vw - 32px);max-width:380px;padding:28px 20px}
+
+  /* Modal: near full-screen on mobile */
+  .modal-overlay{padding:8px}
+  .modal{max-width:100%;border-radius:14px;padding:20px;max-height:95vh}
+
+  /* Search dropdowns */
+  .search-drop{max-height:220px}
+
+  /* Tags smaller */
+  .tag{font-size:9px;padding:2px 7px}
+
+  /* Toast positioning */
+  #toast{top:8px;right:8px;left:8px}
+  .toast-item{font-size:12px;padding:10px 14px}
+
+  /* Body font */
+  body{font-size:14px}
+  input,select,textarea,button{font-size:14px}
+
+  /* Nav buttons bigger touch targets */
+  .nav-btn{padding:12px 14px;font-size:14px}
+
+  /* Alert strips wrap better */
+  .alert-strip{font-size:11px;padding:8px 12px}
+
+  /* Section titles */
+  .section-title{font-size:10px}
+
+  /* Qty controls */
+  .qty-btn{width:32px;height:32px;font-size:18px}
+  .qty-val{width:44px;font-size:14px;padding:6px 0}
+
+  /* Billing layout: stack vertically on mobile */
+  .billing-layout{grid-template-columns:1fr !important;height:auto !important}
+  .billing-layout > div{overflow:visible !important}
+
+  /* Bar chart smaller */
+  .bar-chart{height:60px}
+}
+
+@media (max-width: 480px) {
+  .grid-4{grid-template-columns:1fr}
+  .stat-card .stat-val{font-size:16px}
+  #content{padding:8px}
+  .card{padding:12px;border-radius:10px}
+  .login-card{padding:24px 16px}
+}
 </style>
 </head>
 <body>
@@ -229,7 +325,10 @@ nav{padding:8px}
     <!-- Content -->
     <div id="main">
       <div id="topbar">
-        <div style="font-size:14px;font-weight:700;color:var(--text)" id="page-title">Dashboard</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button id="sidebar-toggle" class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+          <div style="font-size:14px;font-weight:700;color:var(--text)" id="page-title">Dashboard</div>
+        </div>
         <div style="display:flex;gap:14px;align-items:center">
           <span style="font-size:12px;color:var(--muted)" id="topbar-date"></span>
           <div style="width:1px;height:20px;background:var(--border)"></div>
@@ -241,6 +340,7 @@ nav{padding:8px}
       </div>
     </div>
   </div>
+  <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 </div>
 
 <script type="module">
@@ -261,6 +361,16 @@ import { GET, POST } from '/js/api.js';
 
 // Make all functions global so inline onclick= works
 window.closeModal = closeModal;
+
+// ── Sidebar toggle for mobile ────────────────────────────
+window.toggleSidebar = () => {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('open');
+};
+// Close sidebar when a nav item is clicked on mobile
+const origNavigate = null;
 
 // Forward declarations — actual implementations assigned below after function definitions
 window.doLogin  = () => {};
@@ -354,6 +464,11 @@ function renderNav(alerts = {}) {
 function navigate(page) {
   APP.page = page;
   document.getElementById('page-title').textContent = PAGES.find(p => p.id === page)?.label || page;
+  // Close sidebar on mobile after navigation
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (sidebar) sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
   renderNav();
   renderPage(page);
 }
@@ -393,14 +508,14 @@ async function renderPutaway(c, APP) {
     <div><h2 style="font-size:18px;font-weight:800;margin-bottom:2px">Put-Away Guide</h2>
       <div style="color:var(--muted);font-size:12px">Scan invoice → system tells you exactly where each medicine goes</div></div>
     <div class="card" style="text-align:center;padding:48px;cursor:pointer;border:2px dashed var(--border)"
-      onclick="document.getElementById('pa-file').click()"
+      onclick="var f=document.getElementById('pa-file');f.value='';f.click()"
       ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
       ondrop="handlePAFile(event)">
       <div style="font-size:48px;margin-bottom:12px">📄</div>
       <div style="font-weight:800;color:var(--text);font-size:15px;margin-bottom:4px">Scan or upload supplier invoice</div>
       <div style="color:var(--muted);font-size:12px;margin-bottom:16px">Photo · Printed invoice · Handwritten challan</div>
       <div class="btn btn-primary" style="display:inline-flex">Scan Invoice</div>
-      <input type="file" id="pa-file" accept="image/*" style="display:none" onchange="processPAFile(this.files[0])">
+      <input type="file" id="pa-file" accept="image/*" capture="environment" class="file-input-hidden" onchange="processPAFile(this.files[0])">
     </div>
     <div id="pa-results"></div>
   </div>`;

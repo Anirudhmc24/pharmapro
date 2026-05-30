@@ -82,7 +82,7 @@ export async function renderStockEntry(c, APP) {
     return `<div class="gap-16 fade-in">
       <div><h2 style="font-size:18px;font-weight:800;margin-bottom:2px">Stock Entry</h2>
         <div style="color:var(--muted);font-size:12px">Add incoming stock to inventory</div></div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px">
         ${[['keyboard','⌨️','Fast Type','Search drug, fill batch'],
            ['camera','📷','Scan Strip','Webcam AI reading'],
            ['challan','📄','Invoice','Photo entire invoice'],
@@ -115,21 +115,25 @@ export async function renderStockEntry(c, APP) {
     if (mode === 'camera') return `<div class="card" style="text-align:center;padding:32px">
       <div style="font-size:36px;margin-bottom:12px">📷</div>
       <div style="font-weight:800;color:var(--text);font-size:15px;margin-bottom:4px">Camera Strip Scan</div>
-      <div style="color:var(--muted);font-size:12px;margin-bottom:16px">Point webcam at a strip — Gemini AI reads drug name, batch & expiry automatically</div>
-      <button class="btn btn-primary" onclick="startCameraScan()">Start Camera</button>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:16px">Point camera at a strip — Gemini AI reads drug name, batch & expiry automatically</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="startCameraScan()">📷 Open Camera</button>
+        <button class="btn btn-outline" onclick="var f=document.getElementById('strip-file');f.value='';f.click()">📁 Upload Photo</button>
+      </div>
+      <input type="file" id="strip-file" accept="image/*" capture="environment" class="file-input-hidden" onchange="handleStripFile(this.files[0])">
       <div id="camera-area" style="margin-top:16px"></div>
     </div>`;
     if (mode === 'challan') return `<div class="card">
       <div style="color:var(--muted);font-size:13px;margin-bottom:14px">📌 Upload a photo of your supplier invoice. Gemini AI will read all medicines and show them as a <b style="color:var(--text)">list for you to verify one-by-one</b> before adding to stock.</div>
       <div style="border:2px dashed var(--border);border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:border-color .2s"
-        onclick="document.getElementById('challan-file').click()"
+        onclick="var f=document.getElementById('challan-file');f.value='';f.click()"
         ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
         ondrop="handleChallaDrop(event)">
         <div style="font-size:36px;margin-bottom:10px">📄</div>
         <div style="font-weight:800;color:var(--text);font-size:15px;margin-bottom:4px">Upload invoice photo</div>
         <div style="color:var(--muted);font-size:12px;margin-bottom:16px">JPG · PNG · Printed or handwritten challan</div>
         <div class="btn btn-primary" style="display:inline-flex">Select File</div>
-        <input type="file" id="challan-file" accept="image/*" style="display:none" onchange="handleChallaScan(this.files[0])">
+        <input type="file" id="challan-file" accept="image/*" capture="environment" class="file-input-hidden" onchange="handleChallaScan(this.files[0])">
       </div>
       <div id="challan-result" style="margin-top:16px"></div>
     </div>`;
@@ -424,15 +428,59 @@ export async function renderStockEntry(c, APP) {
   window.startCameraScan = async () => {
     const area = document.getElementById('camera-area');
     area.innerHTML = `<div style="position:relative;margin-top:12px">
-      <video id="cam-video" autoplay playsinline style="width:100%;border-radius:10px;border:1px solid var(--border)"></video>
+      <video id="cam-video" autoplay playsinline muted style="width:100%;border-radius:10px;border:1px solid var(--border)"></video>
       <button class="btn btn-primary" style="margin-top:10px;width:100%" onclick="captureStrip()">📸 Capture</button>
+      <button class="btn btn-outline" style="margin-top:6px;width:100%" onclick="stopCamera()">✕ Close Camera</button>
       <canvas id="cam-canvas" style="display:none"></canvas>
     </div>`;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      document.getElementById('cam-video').srcObject = stream;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not available');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
+      const video = document.getElementById('cam-video');
+      video.srcObject = stream;
+      // Explicitly play — required on mobile
+      await video.play();
     } catch (e) {
-      area.innerHTML = '<div class="alert-strip warn">⚠️ Camera unavailable — use Invoice scan instead.</div>';
+      console.error('Camera error:', e);
+      area.innerHTML = `<div class="alert-strip warn">⚠️ Camera unavailable: ${e.message || 'Permission denied or not supported'}. Use the "Upload Photo" button instead.</div>`;
+    }
+  };
+
+  window.stopCamera = () => {
+    const video = document.getElementById('cam-video');
+    if (video && video.srcObject) {
+      video.srcObject.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+    const area = document.getElementById('camera-area');
+    if (area) area.innerHTML = '';
+  };
+
+  // Handle file-based strip scan (fallback for mobile)
+  window.handleStripFile = async (file) => {
+    if (!file) return;
+    const area = document.getElementById('camera-area');
+    area.innerHTML = '<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Reading strip with Gemini…</span></div>';
+    const b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
+    const res = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'strip' }) }).then(r => r.json());
+    if (!res.ok) { area.innerHTML = `<div class="alert-strip ${res.error === 'no_key' ? 'warn' : 'danger'}">${res.error === 'no_key' ? '⚠️ No Gemini API key — set it in Settings' : '❌ ' + res.error}</div>`; return; }
+    const r = res.result;
+    area.innerHTML = `<div class="alert-strip success">✅ Strip read — verify fields below</div>`;
+    const drugs = await GET('/drugs?q=' + encodeURIComponent((r.drug_name || '').split(' ')[0]));
+    if (drugs[0]) {
+      window._stockDrugs = window._stockDrugs || {};
+      window._stockDrugs[drugs[0].id] = drugs[0];
+      window.stockSelectDrug(drugs[0].id);
+      setTimeout(() => {
+        const bEl = document.querySelector('[name=batch_no]'); if (bEl) bEl.value = r.batch_no || '';
+        const eEl = document.querySelector('[name=expiry]');   if (eEl) eEl.value = r.expiry || '';
+      }, 100);
+    } else {
+      area.innerHTML += `<div class="alert-strip warn">⚠️ "${r.drug_name}" not found — search manually above</div>`;
     }
   };
 

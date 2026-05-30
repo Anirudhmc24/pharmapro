@@ -41,7 +41,7 @@ export async function renderBilling(c, APP) {
     const gst      = Math.max(0, (subtotal - discAmt) * 0.12);
     const total    = Math.max(0, subtotal - discAmt + gst);
     return `
-    <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;height:calc(100vh - 130px)">
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;height:calc(100vh - 130px)" class="billing-layout">
       <div class="gap-12" style="overflow:hidden;display:flex;flex-direction:column">
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
@@ -110,7 +110,11 @@ export async function renderBilling(c, APP) {
           </div>
           <div class="field" style="margin-top:12px">
             <label>Upload Prescription (Image)</label>
-            <input type="file" id="bill-rx-file" accept="image/*" style="font-size:12px" onchange="uploadRx(this.files[0])">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button type="button" class="btn btn-outline btn-sm" onclick="var f=document.getElementById('bill-rx-file');f.value='';f.click()">📷 Choose Image</button>
+              <span id="rx-file-name" style="font-size:11px;color:var(--muted)"></span>
+            </div>
+            <input type="file" id="bill-rx-file" accept="image/*" capture="environment" class="file-input-hidden" onchange="uploadRx(this.files[0]); var nameEl=document.getElementById('rx-file-name'); if(nameEl && this.files[0]) nameEl.textContent=this.files[0].name">
             <input type="hidden" id="bill-rx-path">
             <div id="rx-upload-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>

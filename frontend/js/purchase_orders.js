@@ -103,7 +103,7 @@ export async function renderPurchaseOrders(c, APP) {
           </div>
           <button onclick="removeLine(${i})" style="background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:0 4px">✕</button>
         </div>
-        <div style="display:grid;grid-template-columns:2fr 1.5fr 1.5fr 1.5fr 1.5fr;gap:8px;align-items:end">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;align-items:end">
           <div class="field"><label>Strips ordered *</label>
             <input class="input" type="number" value="${l.qty}" min="1" oninput="updateLine(${i},'qty',this.value)" style="text-align:center"></div>
           <div class="field"><label>Rate/strip (₹) *</label>
@@ -153,7 +153,7 @@ export async function renderPurchaseOrders(c, APP) {
       </div>
 
       <!-- 2-column top section -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="grid-2">
         <!-- Supplier Panel -->
         <div class="card">
           <div class="section-title">Supplier</div>
