@@ -252,7 +252,23 @@ export async function renderSettings(c, APP) {
     <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
   </div>`;
 
+  function extractGDriveFolderId(val) {
+    if (!val) return '';
+    val = val.trim();
+    const folderMatch = val.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+    if (folderMatch) return folderMatch[1];
+    const queryMatch = val.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+    if (queryMatch) return queryMatch[1];
+    if (!val.includes('drive.google.com') && !val.includes('/')) return val;
+    const tokenMatch = val.match(/([a-zA-Z0-9-_]{20,})/);
+    if (tokenMatch) return tokenMatch[0];
+    return val;
+  }
+
   window.saveSettings = async () => {
+    const rawFolder = document.getElementById('cfg-folder')?.value || '';
+    const cleanFolder = extractGDriveFolderId(rawFolder);
+
     const data = {
       name:    document.getElementById('cfg-name')?.value?.trim() || '',
       owner:   document.getElementById('cfg-owner')?.value || '',
@@ -266,16 +282,27 @@ export async function renderSettings(c, APP) {
       fast2sms_key: document.getElementById('cfg-smskey')?.value?.trim() || '',
       gemini_api_key: document.getElementById('cfg-geminikey')?.value?.trim() || '',
       backup_enabled: document.getElementById('cfg-backup')?.checked ? 'True' : 'False',
-      gdrive_folder_id: document.getElementById('cfg-folder')?.value?.trim() || '',
+      gdrive_folder_id: cleanFolder,
     };
     if (!data.name) { _toast('Shop name required', 'warn'); return; }
     await _POST('/config', data);
     APP.config = { ...APP.config, ...data };
     document.getElementById('sidebar-shop-name').textContent = data.name;
+    if (document.getElementById('cfg-folder')) {
+      document.getElementById('cfg-folder').value = cleanFolder;
+    }
     _toast('Settings saved ✅', 'success');
   };
 
   window.manualBackup = async () => {
+    const rawFolder = document.getElementById('cfg-folder')?.value || '';
+    const cleanFolder = extractGDriveFolderId(rawFolder);
+    
+    if (cleanFolder !== (APP.config?.gdrive_folder_id || '')) {
+      _toast('Saving new settings first...', 'info');
+      await saveSettings();
+    }
+
     const btn = event.currentTarget;
     const oldText = btn.textContent;
     btn.disabled = true; btn.textContent = 'Backing up...';

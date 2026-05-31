@@ -24,12 +24,38 @@ def get_config():
         return cfg
 
 
+import re
+
+def extract_gdrive_folder_id(val: str) -> str:
+    if not val:
+        return ""
+    val = val.strip()
+    # Pattern for /folders/<ID>
+    match = re.search(r'/folders/([a-zA-Z0-9-_]+)', val)
+    if match:
+        return match.group(1)
+    # Pattern for ?id=<ID> or &id=<ID>
+    match = re.search(r'[?&]id=([a-zA-Z0-9-_]+)', val)
+    if match:
+        return match.group(1)
+    # If it doesn't look like a URL, assume it's the ID itself
+    if "drive.google.com" not in val and "/" not in val:
+        return val
+    # Fallback to general base64-like token search
+    match = re.search(r'([a-zA-Z0-9-_]{20,})', val)
+    if match:
+        return match.group(0)
+    return val
+
+
 @router.post("/config")
 def save_config(cfg: ShopConfigIn, x_token: Optional[str] = Header(default=None)):
     get_current_user(x_token)
     with get_db() as conn:
         for k, v in cfg.dict().items():
             if v is not None:
+                if k == "gdrive_folder_id":
+                    v = extract_gdrive_folder_id(str(v))
                 conn.execute("INSERT OR REPLACE INTO shop_config(key,value) VALUES(?,?)", (k, str(v)))
         conn.execute("INSERT OR REPLACE INTO shop_config(key,value) VALUES('setup_done','1')")
     return {"ok": True}
@@ -42,10 +68,10 @@ def manual_backup(background_tasks: BackgroundTasks, x_token: Optional[str] = He
         rows = conn.execute("SELECT key,value FROM shop_config").fetchall()
         cfg = {r["key"]: r["value"] for r in rows}
     
-    if cfg.get("backup_enabled") == "True" and cfg.get("gdrive_folder_id"):
+    if cfg.get("gdrive_folder_id"):
         background_tasks.add_task(trigger_backup_task, cfg["gdrive_folder_id"])
         return {"ok": True, "message": "Backup started in background"}
-    return {"ok": False, "message": "Backup not configured or disabled"}
+    return {"ok": False, "message": "Backup not configured: Google Drive folder ID missing"}
 
 
 @router.get("/layout")
