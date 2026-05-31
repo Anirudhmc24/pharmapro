@@ -56,3 +56,19 @@ def test_env_key_takes_precedence(client, auth_headers):
     
     # Environment variable should take precedence
     assert get_gemini_key() == "EnvKey456"
+
+
+def test_clean_json_response():
+    from backend.routers.scan import clean_json_response
+    assert clean_json_response("```json\n{\"test\": 1}\n```") == '{"test": 1}'
+    assert clean_json_response("Here is JSON:\n{\"test\": 1}\nHope it helps!") == '{"test": 1}'
+    assert clean_json_response("[\n  {\"name\": \"item\"}\n]") == '[\n  {"name": "item"}\n]'
+
+
+def test_parse_tolerant_json():
+    from backend.routers.scan import parse_tolerant_json
+    assert parse_tolerant_json('{"test": 1}') == {"test": 1}
+    assert parse_tolerant_json("{'test': 1, 'name': 'hello'}") == {"test": 1, "name": "hello"}
+    assert parse_tolerant_json('{"test": 1,}') == {"test": 1}
+    assert parse_tolerant_json('{"ok": true, "err": false, "val": null}') == {"ok": True, "err": False, "val": None}
+

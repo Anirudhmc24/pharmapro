@@ -35,6 +35,7 @@ def get_gemini_key() -> str:
     return GEMINI_API_KEY
 
 
+import ast
 import re
 import ssl
 import traceback
@@ -47,7 +48,71 @@ def clean_json_response(raw: str) -> str:
         raw = re.sub(r"^```(?:json)?\n", "", raw, flags=re.IGNORECASE)
         # Remove closing ```
         raw = re.sub(r"\n```$", "", raw)
+    raw = raw.strip()
+    
+    # Extract JSON content if embedded in other text
+    if not (raw.startswith("{") or raw.startswith("[")):
+        first_brace = raw.find('{')
+        first_bracket = raw.find('[')
+        start = -1
+        if first_brace != -1 and first_bracket != -1:
+            start = min(first_brace, first_bracket)
+        elif first_brace != -1:
+            start = first_brace
+        elif first_bracket != -1:
+            start = first_bracket
+            
+        last_brace = raw.rfind('}')
+        last_bracket = raw.rfind(']')
+        end = -1
+        if last_brace != -1 and last_bracket != -1:
+            end = max(last_brace, last_bracket)
+        elif last_brace != -1:
+            end = last_brace
+        elif last_bracket != -1:
+            end = last_bracket
+            
+        if start != -1 and end != -1 and end > start:
+            raw = raw[start:end+1]
+            
     return raw.strip()
+
+
+def parse_tolerant_json(s: str):
+    s = s.strip()
+    try:
+        return json.loads(s)
+    except Exception as e:
+        print(f"Standard json.loads failed: {e}. Attempting tolerant parsing.")
+        print(f"Raw string to parse: {s!r}")
+        
+    try:
+        # Regex matches string literals (double/single quoted with escapes) or true/false/null tokens
+        pattern = re.compile(
+            r'("(?:[^"\\]|\\.)*")|'          # Double-quoted string
+            r'(\'(?:[^\'\\]|\\.)*\')|'        # Single-quoted string
+            r'(\btrue\b)|(\bfalse\b)|(\bnull\b)',
+            re.IGNORECASE
+        )
+        
+        def replace_token(match):
+            if match.group(1) or match.group(2):
+                return match.group(0) # Keep string contents unchanged
+            val = match.group(0).lower()
+            if val == 'true':
+                return 'True'
+            elif val == 'false':
+                return 'False'
+            elif val == 'null':
+                return 'None'
+            return match.group(0)
+            
+        pythonic_str = pattern.sub(replace_token, s)
+        return ast.literal_eval(pythonic_str)
+    except Exception as eval_err:
+        print(f"ast.literal_eval also failed: {eval_err}")
+        # Reraise original json error so the caller knows it was invalid
+        raise e
 
 
 def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
@@ -101,8 +166,10 @@ def scan_image(body: ScanIn):
         )
         try:
             raw  = call_gemini(prompt, body.image_b64, body.mime)
+            print(f"Gemini raw response (strip mode): {raw}")
             cleaned = clean_json_response(raw)
-            data = json.loads(cleaned)
+            print(f"Gemini cleaned response (strip mode): {cleaned}")
+            data = parse_tolerant_json(cleaned)
             return {"ok": True, "mode": "strip", "result": data}
         except Exception as e:
             traceback.print_exc()
@@ -117,8 +184,10 @@ def scan_image(body: ScanIn):
         )
         try:
             raw  = call_gemini(prompt, body.image_b64, body.mime)
+            print(f"Gemini raw response (challan mode): {raw}")
             cleaned = clean_json_response(raw)
-            data = json.loads(cleaned)
+            print(f"Gemini cleaned response (challan mode): {cleaned}")
+            data = parse_tolerant_json(cleaned)
             if isinstance(data, dict):
                 data = [data]
             return {"ok": True, "mode": "challan", "result": data}
