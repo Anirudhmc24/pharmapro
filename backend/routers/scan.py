@@ -49,16 +49,25 @@ def clean_json_response(raw: str) -> str:
     raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE | re.MULTILINE)
     raw = raw.replace("`", "")
     
-    # Locate the first '{' or '[' and the last '}' or ']'
-    start = re.search(r"[\{\[]", raw)
-    # Search backwards from the end for the last closing brace/bracket
-    end = re.search(r"[\}\]](?=[^\{\}\[\]]*$)", raw[::-1])
+    # Find the range of the outermost JSON object/array
+    start = raw.find('{')
+    start_arr = raw.find('[')
     
-    if start and end:
-        # Calculate real index from reversed search
-        end_idx = len(raw) - end.start() - 1
-        if end_idx > start.start():
-            return raw[start.start():end_idx+1].strip()
+    if start == -1 or (start_arr != -1 and start_arr < start):
+        start = start_arr
+        
+    if start == -1:
+        return raw
+
+    # Find matching closing bracket by counting nesting level
+    depth = 0
+    for i in range(start, len(raw)):
+        if raw[i] in '{[':
+            depth += 1
+        elif raw[i] in '}]':
+            depth -= 1
+            if depth == 0:
+                return raw[start:i+1].strip()
         
     return raw
 
