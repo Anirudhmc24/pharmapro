@@ -67,8 +67,12 @@ def test_clean_json_response():
 
 def test_parse_tolerant_json():
     from backend.routers.scan import parse_tolerant_json
+    import json
     assert parse_tolerant_json('{"test": 1}') == {"test": 1}
     assert parse_tolerant_json("{'test': 1, 'name': 'hello'}") == {"test": 1, "name": "hello"}
     assert parse_tolerant_json('{"test": 1,}') == {"test": 1}
     assert parse_tolerant_json('{"ok": true, "err": false, "val": null}') == {"ok": True, "err": False, "val": None}
+    
+    with pytest.raises(json.JSONDecodeError):
+        parse_tolerant_json('invalid string')
 

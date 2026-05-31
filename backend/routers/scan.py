@@ -80,9 +80,11 @@ def clean_json_response(raw: str) -> str:
 
 def parse_tolerant_json(s: str):
     s = s.strip()
+    orig_err = None
     try:
         return json.loads(s)
     except Exception as e:
+        orig_err = e
         print(f"Standard json.loads failed: {e}. Attempting tolerant parsing.")
         print(f"Raw string to parse: {s!r}")
         
@@ -112,7 +114,9 @@ def parse_tolerant_json(s: str):
     except Exception as eval_err:
         print(f"ast.literal_eval also failed: {eval_err}")
         # Reraise original json error so the caller knows it was invalid
-        raise e
+        if orig_err:
+            raise orig_err
+        raise eval_err
 
 
 def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
