@@ -527,42 +527,123 @@ async function renderPutaway(c, APP) {
     res.innerHTML = '<div class="row" style="justify-content:center;padding:20px"><div class="spinner"></div><span style="color:var(--muted)">Reading invoice with Gemini…</span></div>';
     const b64  = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
     const scan = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': getToken() }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'challan' }) }).then(r => r.json());
-    if (!scan.ok) { res.innerHTML = `<div class="alert-strip warn">⚠️ ${scan.error === 'no_key' ? 'No Gemini key — set it in backend/routers/scan.py' : scan.error}</div>`; return; }
-    const items    = scan.result.map(it => ({ drug_id: null, name: it.drug_name, batch_no: it.batch_no, expiry: it.expiry, strips: it.strips || 1 }));
-    // Look up drug IDs
-    for (const it of items) {
-      const drugs = await GET('/drugs?q=' + encodeURIComponent((it.name || '').split(' ')[0]));
-      if (drugs[0]) it.drug_id = drugs[0].id;
-    }
-    const valid = items.filter(it => it.drug_id);
-    if (!valid.length) { res.innerHTML = '<div class="alert-strip warn">⚠️ No drugs matched — try manual stock entry instead</div>'; return; }
-    const guide = await fetch('/api/putaway/guide', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': getToken() }, body: JSON.stringify(valid) }).then(r => r.json());
+    if (!scan.ok) { res.innerHTML = `<div class="alert-strip warn">⚠️ ${scan.error === 'no_key' ? 'No Gemini key — set it in Settings' : scan.error}</div>`; return; }
+    
+    let scannedItems = scan.result.map(it => ({
+      drug_id: null,
+      name: it.drug_name || 'Unknown Item',
+      batch_no: it.batch_no || '',
+      expiry: it.expiry || '',
+      strips: it.strips || 1,
+      mrp: it.mrp || 0,
+      cost: it.cost || 0
+    }));
+
     let done = [];
-    function guideHTML() {
-      return `<div class="gap-12">
-        <div class="flex-between">
-          <div style="font-weight:700">${done.length}/${guide.length} items placed</div>
-          <div class="progress" style="width:200px"><div class="progress-bar" style="width:${Math.round(done.length / guide.length * 100)}%"></div></div>
-        </div>
-        ${guide.map((g, i) => { const d = done.includes(i);
-          return `<div class="card" style="opacity:${d ? 0.6 : 1};border-color:${d ? 'var(--green)44' : 'var(--border)'}">
-            <div class="flex-between" style="margin-bottom:10px">
-              <div><div style="font-weight:800;font-size:15px">${g.drug?.name || g.name}</div>
-                <div class="row" style="margin-top:4px">
-                  <span class="tag tag-teal">+${g.incoming_strips} strips</span>
-                  <span class="tag tag-gray">Batch: ${g.batch_no}</span>
-                </div></div>
-              ${d ? '<span class="tag tag-green">✅ Done</span>' : `<button class="btn btn-primary btn-sm" onclick="paMarkDone(${i})">Mark Done ✓</button>`}
-            </div>
-            ${g.open_trays?.length ? `<div class="alert-strip warn" style="margin-bottom:8px">✂️ First top-up open tray${g.open_trays.length > 1 ? 's' : ''}: ${g.open_trays.map(t => t.tray_id + ' (' + t.tablets_remaining + ' tabs)').join(', ')}</div>` : ''}
-            <div class="alert-strip info">📦 Place at <b style="color:var(--text)">${g.suggested_rack || '?'} · ${g.suggested_shelf || '?'}</b> · Newest at back, oldest at front</div>
+
+    async function refreshMatchesAndRender() {
+      // Look up drug IDs
+      for (const it of scannedItems) {
+        if (!it.drug_id) {
+          const drugs = await GET('/drugs?q=' + encodeURIComponent((it.name || '').split(' ')[0]));
+          if (drugs[0]) it.drug_id = drugs[0].id;
+        }
+      }
+      
+      const valid = scannedItems.filter(it => it.drug_id);
+      const invalid = scannedItems.filter(it => !it.drug_id);
+      
+      let guide = [];
+      if (valid.length > 0) {
+        try {
+          guide = await fetch('/api/putaway/guide', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'X-Token': getToken() }, 
+            body: JSON.stringify(valid) 
+          }).then(r => r.json());
+        } catch (e) {
+          console.error("Failed to fetch put-away guide:", e);
+        }
+      }
+      
+      let htmlContent = `<div class="gap-16">`;
+      
+      if (valid.length > 0 && guide.length > 0) {
+        htmlContent += `
+          <div class="section-title">📦 Put-Away Guide (${done.length}/${guide.length} items placed)</div>
+          <div class="progress" style="margin-bottom:12px"><div class="progress-bar" style="width:${Math.round(done.length / guide.length * 100)}%"></div></div>
+          <div class="gap-12">
+            ${guide.map((g, i) => { 
+              const itemKey = `${g.drug?.id}-${g.batch_no}`;
+              const d = done.includes(itemKey);
+              return `<div class="card" style="opacity:${d ? 0.6 : 1};border-color:${d ? 'var(--green)44' : 'var(--border)'}">
+                <div class="flex-between" style="margin-bottom:10px">
+                  <div><div style="font-weight:800;font-size:15px">${g.drug?.name || g.name}</div>
+                    <div class="row" style="margin-top:4px">
+                      <span class="tag tag-teal">+${g.incoming_strips} strips</span>
+                      <span class="tag tag-gray">Batch: ${g.batch_no}</span>
+                    </div></div>
+                  ${d ? '<span class="tag tag-green">✅ Done</span>' : `<button class="btn btn-primary btn-sm" onclick="paMarkDone('${itemKey}')">Mark Done ✓</button>`}
+                </div>
+                ${g.open_trays?.length ? `<div class="alert-strip warn" style="margin-bottom:8px">✂️ First top-up open tray${g.open_trays.length > 1 ? 's' : ''}: ${g.open_trays.map(t => t.tray_id + ' (' + t.tablets_remaining + ' tabs)').join(', ')}</div>` : ''}
+                <div class="alert-strip info">📦 Place at <b style="color:var(--text)">${g.suggested_location || '?'}</b> · Newest at back, oldest at front</div>
+              </div>`;
+            }).join('')}
+            ${done.length === guide.length ? '<div class="alert-strip success" style="text-align:center;justify-content:center">🎉 All stock placed! You\'re done.</div>' : ''}
           </div>`;
-        }).join('')}
-        ${done.length === guide.length ? '<div class="alert-strip success" style="text-align:center;justify-content:center">🎉 All stock placed! You\'re done.</div>' : ''}
-      </div>`;
+      } else {
+        htmlContent += `<div class="alert-strip info">No items matched in the catalogue yet. Add any missing items below to generate the Put-Away Guide.</div>`;
+      }
+      
+      if (invalid.length > 0) {
+        htmlContent += `
+          <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+            <div class="section-title" style="color:var(--warn);margin-bottom:12px">⚠️ Scanned Items Missing from Catalogue (${invalid.length})</div>
+            <div class="gap-12">
+              ${invalid.map((it, idx) => `
+                <div class="card-sm" style="border:1px dashed var(--warn);background:var(--accent-dim);padding:12px">
+                  <div style="font-weight:700;color:var(--text);margin-bottom:6px">${it.name}</div>
+                  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+                    <b>Batch:</b> ${it.batch_no || '—'} &nbsp;|&nbsp; 
+                    <b>Expiry:</b> ${it.expiry || '—'} &nbsp;|&nbsp; 
+                    <b>Qty:</b> ${it.strips} strips &nbsp;|&nbsp; 
+                    <b>MRP:</b> ₹${it.mrp || 0}
+                  </div>
+                  <button class="btn btn-primary btn-sm" style="width:100%" 
+                    onclick="paAddMissingItem(${scannedItems.indexOf(it)})">
+                    ➕ Add to Master Catalogue
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+      }
+      
+      htmlContent += `</div>`;
+      res.innerHTML = htmlContent;
     }
-    window.paMarkDone = (i) => { done.push(i); res.innerHTML = guideHTML(); };
-    res.innerHTML = guideHTML();
+
+    window.paMarkDone = (key) => { done.push(key); refreshMatchesAndRender(); };
+    
+    window.paAddMissingItem = (itemIdx) => {
+      const it = scannedItems[itemIdx];
+      window._onDrugAdded = async (newDrug) => {
+        it.drug_id = newDrug.id;
+        it.name = newDrug.name;
+        toast(`${newDrug.name} added to master catalogue ✅`, 'success');
+        await refreshMatchesAndRender();
+      };
+      
+      window.showAddDrug({
+        name: it.name,
+        batch: it.batch_no,
+        expiry: it.expiry,
+        mrps: it.mrp,
+        qty: it.strips
+      });
+    };
+
+    await refreshMatchesAndRender();
   };
 }
 
