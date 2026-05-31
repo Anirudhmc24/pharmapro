@@ -35,6 +35,21 @@ def get_gemini_key() -> str:
     return GEMINI_API_KEY
 
 
+import re
+import ssl
+import traceback
+import urllib.error
+
+def clean_json_response(raw: str) -> str:
+    raw = raw.strip()
+    if raw.startswith("```"):
+        # Remove opening ```json or ```
+        raw = re.sub(r"^```(?:json)?\n", "", raw, flags=re.IGNORECASE)
+        # Remove closing ```
+        raw = re.sub(r"\n```$", "", raw)
+    return raw.strip()
+
+
 def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
     key = get_gemini_key()
     if not key:
@@ -54,9 +69,21 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
     }).encode()
     req = urllib.request.Request(url, data=payload,
           headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as r:
-        resp = json.loads(r.read())
-    return resp["candidates"][0]["content"]["parts"][0]["text"]
+    
+    # Bypass SSL verification to support Android environments lacking standard certs
+    context = ssl._create_unverified_context()
+    try:
+        with urllib.request.urlopen(req, timeout=30, context=context) as r:
+            resp = json.loads(r.read())
+        return resp["candidates"][0]["content"]["parts"][0]["text"]
+    except urllib.error.HTTPError as he:
+        try:
+            error_body = he.read().decode("utf-8")
+            error_json = json.loads(error_body)
+            msg = error_json.get("error", {}).get("message", he.reason)
+            raise ValueError(msg)
+        except Exception:
+            raise he
 
 
 @router.post("/scan")
@@ -74,9 +101,11 @@ def scan_image(body: ScanIn):
         )
         try:
             raw  = call_gemini(prompt, body.image_b64, body.mime)
-            data = json.loads(raw.strip())
+            cleaned = clean_json_response(raw)
+            data = json.loads(cleaned)
             return {"ok": True, "mode": "strip", "result": data}
         except Exception as e:
+            traceback.print_exc()
             return {"ok": False, "error": str(e)}
     elif body.mode == "challan":
         prompt = (
@@ -88,11 +117,13 @@ def scan_image(body: ScanIn):
         )
         try:
             raw  = call_gemini(prompt, body.image_b64, body.mime)
-            data = json.loads(raw.strip())
+            cleaned = clean_json_response(raw)
+            data = json.loads(cleaned)
             if isinstance(data, dict):
                 data = [data]
             return {"ok": True, "mode": "challan", "result": data}
         except Exception as e:
+            traceback.print_exc()
             return {"ok": False, "error": str(e)}
     return {"ok": False, "error": "unknown mode"}
 
