@@ -58,25 +58,40 @@ def _attach_chrome_client():
     _set_client()
 
 
+@app.on_event("startup")
+async def startup_event():
+    import asyncio
+    is_android = "ANDROID_ARGUMENT" in os.environ
+    if is_android:
+        async def _android_setup_with_retry_async(attempts=5, delay=1.5):
+            """Retry attaching chrome client until WebView is available."""
+            for i in range(attempts):
+                await asyncio.sleep(delay)
+                try:
+                    from jnius import autoclass
+                    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                    activity = PythonActivity.mActivity
+                    if activity is not None and activity.mWebView is not None:
+                        _android_setup()
+                        return
+                except Exception as e:
+                    import logging
+                    logging.error(f"Error checking WebView/PythonActivity (attempt {i+1}/{attempts}): {e}")
+            # Last resort
+            try:
+                _android_setup()
+            except Exception as e:
+                import logging
+                logging.error(f"Last resort setup failed: {e}")
+
+        asyncio.create_task(_android_setup_with_retry_async())
+
+
 if __name__ == "__main__":
     import uvicorn
     # Check if running inside Android sandbox
     is_android = "ANDROID_ARGUMENT" in os.environ
     if is_android:
-        # Schedule Android-specific setup with retry to ensure WebView is ready
-        def _android_setup_with_retry(attempts=5, delay=1.5):
-            """Retry attaching chrome client until WebView is available."""
-            from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            activity = PythonActivity.mActivity
-            if activity is not None and activity.mWebView is not None:
-                _android_setup()
-            elif attempts > 1:
-                threading.Timer(delay, _android_setup_with_retry, args=[attempts - 1, delay]).start()
-            else:
-                # Last resort: try anyway
-                _android_setup()
-        threading.Timer(2.0, _android_setup_with_retry).start()
         # On Android, bind to all interfaces (0.0.0.0) on port 5000 (default p4a webview port)
         # We do not use log_config=None so we can see server startup logs in logcat
         uvicorn.run(app, host="0.0.0.0", port=5000)
