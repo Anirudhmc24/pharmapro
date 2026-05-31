@@ -473,16 +473,21 @@ export async function renderStockEntry(c, APP) {
     if (area) area.innerHTML = '';
   };
 
-  // Handle file-based strip scan (fallback for mobile)
-  window.handleStripFile = async (file) => {
-    if (!file) return;
-    const area = document.getElementById('camera-area');
-    area.innerHTML = '<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Reading strip with Gemini…</span></div>';
-    const b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
-    const res = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'strip' }) }).then(r => r.json());
-    if (!res.ok) { area.innerHTML = `<div class="alert-strip ${res.error === 'no_key' ? 'warn' : 'danger'}">${res.error === 'no_key' ? '⚠️ No Gemini API key — set it in Settings' : '❌ ' + res.error}</div>`; return; }
-    const r = res.result;
-    area.innerHTML = `<div class="alert-strip success">✅ Strip read — verify fields below</div>`;
+  window.quickAddMasterFromScan = (name, batch, expiry, mrp) => {
+    window._onDrugAdded = (newDrug) => {
+      window._stockDrugs = window._stockDrugs || {};
+      window._stockDrugs[newDrug.id] = newDrug;
+      window.stockSelectDrug(newDrug.id);
+      setTimeout(() => {
+        const bEl = document.querySelector('[name=batch_no]'); if (bEl) bEl.value = batch || '';
+        const eEl = document.querySelector('[name=expiry]');   if (eEl) eEl.value = expiry || '';
+      }, 100);
+    };
+    window.showAddDrug({ name, batch, expiry, mrps: mrp });
+  };
+
+  const handleScanResult = async (r, area) => {
+    area.innerHTML = `<div class="alert-strip success">✅ Strip read successfully</div>`;
     const drugs = await GET('/drugs?q=' + encodeURIComponent((r.drug_name || '').split(' ')[0]));
     if (drugs[0]) {
       window._stockDrugs = window._stockDrugs || {};
@@ -493,8 +498,33 @@ export async function renderStockEntry(c, APP) {
         const eEl = document.querySelector('[name=expiry]');   if (eEl) eEl.value = r.expiry || '';
       }, 100);
     } else {
-      area.innerHTML += `<div class="alert-strip warn">⚠️ "${r.drug_name}" not found — search manually above</div>`;
+      area.innerHTML += `
+        <div class="alert-strip warn" style="margin-bottom:8px">⚠️ "${r.drug_name || 'Item'}" not found in catalogue</div>
+        <div class="card" style="padding:12px;margin-top:8px;border:1px dashed var(--warn);background:var(--accent-dim)">
+          <div style="font-weight:800;font-size:12px;margin-bottom:4px;color:var(--text)">📋 SCANNED DETAILS:</div>
+          <div style="font-size:11px;color:var(--muted);line-height:1.4">
+            <b>Name:</b> ${r.drug_name || '—'}<br>
+            <b>Batch:</b> ${r.batch_no || '—'}<br>
+            <b>Expiry:</b> ${r.expiry || '—'}<br>
+            <b>MRP:</b> ₹${r.mrp || 0}
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" 
+            onclick="quickAddMasterFromScan('${(r.drug_name || '').replace(/'/g,"\\'")}', '${(r.batch_no || '').replace(/'/g,"\\'")}', '${r.expiry || ''}', ${r.mrp || 0})">
+            ➕ Add to Master Directory & Stock
+          </button>
+        </div>`;
     }
+  };
+
+  // Handle file-based strip scan (fallback for mobile)
+  window.handleStripFile = async (file) => {
+    if (!file) return;
+    const area = document.getElementById('camera-area');
+    area.innerHTML = '<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Reading strip with Gemini…</span></div>';
+    const b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
+    const res = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'strip' }) }).then(r => r.json());
+    if (!res.ok) { area.innerHTML = `<div class="alert-strip ${res.error === 'no_key' ? 'warn' : 'danger'}">${res.error === 'no_key' ? '⚠️ No Gemini API key — set it in Settings' : '❌ ' + res.error}</div>`; return; }
+    await handleScanResult(res.result, area);
   };
 
   window.captureStrip = async () => {
@@ -508,20 +538,7 @@ export async function renderStockEntry(c, APP) {
     area.innerHTML = '<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Reading with Gemini…</span></div>';
     const res = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: 'image/jpeg', mode: 'strip' }) }).then(r => r.json());
     if (!res.ok) { area.innerHTML = `<div class="alert-strip ${res.error === 'no_key' ? 'warn' : 'danger'}">${res.error === 'no_key' ? '⚠️ No Gemini API key — set it in backend/routers/scan.py' : '❌ ' + res.error}</div>`; return; }
-    const r = res.result;
-    area.innerHTML = `<div class="alert-strip success">✅ Strip read — verify fields below</div>`;
-    const drugs = await GET('/drugs?q=' + encodeURIComponent((r.drug_name || '').split(' ')[0]));
-    if (drugs[0]) {
-      window._stockDrugs = window._stockDrugs || {};
-      window._stockDrugs[drugs[0].id] = drugs[0];
-      window.stockSelectDrug(drugs[0].id);
-      setTimeout(() => {
-        const bEl = document.querySelector('[name=batch_no]'); if (bEl) bEl.value = r.batch_no || '';
-        const eEl = document.querySelector('[name=expiry]');   if (eEl) eEl.value = r.expiry || '';
-      }, 100);
-    } else {
-      area.innerHTML += `<div class="alert-strip warn">⚠️ "${r.drug_name}" not found — search manually above</div>`;
-    }
+    await handleScanResult(res.result, area);
   };
 
   window.handleChallaDrop = (e) => { e.preventDefault(); handleChallaScan(e.dataTransfer.files[0]); };
@@ -552,13 +569,40 @@ export async function renderStockEntry(c, APP) {
 
   window.confirmChallItem = async (i, name) => {
     const drugs = await GET('/drugs?q=' + encodeURIComponent(name.split(' ')[0]));
-    if (!drugs.length) { toast('Drug not in catalogue — add it first', 'warn'); return; }
-    const drug     = drugs[0];
     const batch_no = document.getElementById('ch-batch-' + i)?.value || 'NA';
     const expiry   = document.getElementById('ch-exp-' + i)?.value || '';
     const strips   = parseInt(document.getElementById('ch-strips-' + i)?.value || 1);
     const cost_per_strip = parseFloat(document.getElementById('ch-cost-' + i)?.value || 0);
     const mrp_per_strip  = parseFloat(document.getElementById('ch-mrp-' + i)?.value || 0);
+
+    if (!drugs.length) {
+      if (confirm(`Drug "${name}" is not in the master directory. Would you like to add it now?`)) {
+        window._onDrugAdded = async (newDrug) => {
+          await POST('/batches', { 
+            drug_id: newDrug.id, 
+            batch_no, 
+            expiry, 
+            strips, 
+            cost_per_strip, 
+            mrp_per_strip 
+          });
+          added.push({ drug_name: newDrug.name, strips, expiry });
+          toast(`${newDrug.name} · ${strips} strips added ✅`, 'success');
+          c.innerHTML = html();
+        };
+        
+        window.showAddDrug({
+          name: name,
+          batch: batch_no,
+          expiry: expiry,
+          mrps: mrp_per_strip,
+          qty: strips
+        });
+      }
+      return;
+    }
+    
+    const drug = drugs[0];
     if (!expiry) { toast('Expiry required', 'warn'); return; }
     await POST('/batches', { drug_id: drug.id, batch_no, expiry, strips, cost_per_strip, mrp_per_strip });
     added.push({ drug_name: drug.name, strips, expiry });

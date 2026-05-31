@@ -238,26 +238,26 @@ export async function renderInventory(c, APP) {
     }, 250);
   };
 
-  window.showAddDrug = () => {
+  window.showAddDrug = (prefill = {}) => {
     modal('➕ Add New Drug', `
       <div class="field" style="position:relative">
         <label>Search Master Database (250k+ Drugs)</label>
         <div class="search-wrap" style="margin-bottom:8px">
-          <input class="input" id="ad-master-search" placeholder="Type 3+ letters to search (e.g. Augmentin)" oninput="searchMaster(this.value)">
+          <input class="input" id="ad-master-search" placeholder="Type 3+ letters to search (e.g. Augmentin)" oninput="searchMaster(this.value)" value="${prefill.name || ''}">
           <button class="btn btn-outline btn-sm" style="position:absolute;right:8px;top:32px;padding:4px 8px;font-size:11px" onclick="searchCloudDirect()">🌐 Cloud Sync</button>
           <div id="ad-master-results" class="card" style="position:absolute;top:100%;left:0;right:0;z-index:999;display:none;max-height:200px;overflow-y:auto;box-shadow:var(--shadow-lg)"></div>
         </div>
       </div>
       <div id="cloud-status" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
       <div class="grid-2">
-        <div class="field"><label>Drug Name *</label><input class="input" id="ad-name" placeholder="Name"></div>
-        <div class="field"><label>Brand / Manufacturer</label><input class="input" id="ad-brand" placeholder="Brand"></div>
+        <div class="field"><label>Drug Name *</label><input class="input" id="ad-name" placeholder="Name" value="${prefill.name || ''}"></div>
+        <div class="field"><label>Brand / Manufacturer</label><input class="input" id="ad-brand" placeholder="Brand" value="${prefill.brand || ''}"></div>
       </div>
-      <div class="field"><label>Composition</label><input class="input" id="ad-comp" placeholder="Composition"></div>
+      <div class="field"><label>Composition</label><input class="input" id="ad-comp" placeholder="Composition" value="${prefill.composition || ''}"></div>
       <div class="grid-2">
-        <div class="field"><label>Category</label><input class="input" id="ad-cat" placeholder="Category"></div>
+        <div class="field"><label>Category</label><input class="input" id="ad-cat" placeholder="Category" value="${prefill.category || ''}"></div>
         <div class="field"><label>HSN Code</label>
-          <input class="input" id="ad-hsn" value="30049099" list="hsn-codes">
+          <input class="input" id="ad-hsn" value="${prefill.hsn || '30049099'}" list="hsn-codes">
           <datalist id="hsn-codes">
             <option value="30049099">Allopathy (Branded/Generic)</option>
             <option value="30043110">Insulin</option>
@@ -271,25 +271,25 @@ export async function renderInventory(c, APP) {
       <div style="background:var(--accent-dim);padding:16px;border-radius:12px;margin:12px 0;border:1px dashed var(--accent)">
         <div style="font-weight:800;font-size:12px;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:6px">📦 INITIAL STOCK ENTRY</div>
         <div class="grid-2">
-          <div class="field"><label>Batch Number</label><input class="input" id="ad-batch" placeholder="e.g. BT1234"></div>
-          <div class="field"><label>Expiry Date *</label><input class="input" type="month" id="ad-expiry"></div>
+          <div class="field"><label>Batch Number</label><input class="input" id="ad-batch" placeholder="e.g. BT1234" value="${prefill.batch || ''}"></div>
+          <div class="field"><label>Expiry Date *</label><input class="input" type="month" id="ad-expiry" value="${prefill.expiry || ''}"></div>
         </div>
         <div class="grid-2">
-          <div class="field"><label>Initial Qty (Strips)</label><input class="input" type="number" id="ad-qty" value="1"></div>
-          <div class="field"><label>MRP / Strip (₹)</label><input class="input" type="number" id="ad-mrps" value="0" step="0.5"></div>
+          <div class="field"><label>Initial Qty (Strips)</label><input class="input" type="number" id="ad-qty" value="${prefill.qty !== undefined ? prefill.qty : 1}"></div>
+          <div class="field"><label>MRP / Strip (₹)</label><input class="input" type="number" id="ad-mrps" value="${prefill.mrps || 0}" step="0.5"></div>
         </div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Packaging Type</label>
           <select class="select" id="ad-pack">
-            <option value="Strip">Strip</option>
-            <option value="Bottle">Bottle</option>
-            <option value="Tube">Tube</option>
-            <option value="Piece">Piece</option>
-            <option value="Box">Box</option>
+            <option value="Strip" ${prefill.pack_type === 'Strip' ? 'selected' : ''}>Strip</option>
+            <option value="Bottle" ${prefill.pack_type === 'Bottle' ? 'selected' : ''}>Bottle</option>
+            <option value="Tube" ${prefill.pack_type === 'Tube' ? 'selected' : ''}>Tube</option>
+            <option value="Piece" ${prefill.pack_type === 'Piece' ? 'selected' : ''}>Piece</option>
+            <option value="Box" ${prefill.pack_type === 'Box' ? 'selected' : ''}>Box</option>
           </select>
         </div>
-        <div class="field"><label>Items / Pack</label><input class="input" type="number" id="ad-tps" value="10"></div>
+        <div class="field"><label>Items / Pack</label><input class="input" type="number" id="ad-tps" value="${prefill.tps || 10}"></div>
       </div>
       <div class="field"><label>Schedule</label>
         <select class="select" id="ad-sched"><option value="OTC">OTC</option><option value="Rx">Rx</option><option value="H">H</option></select>
@@ -400,7 +400,7 @@ export async function renderInventory(c, APP) {
     const side_effects = document.getElementById('ad-side-effects')?.value?.trim() || '';
     const administration = document.getElementById('ad-administration')?.value?.trim() || '';
 
-    await POST('/drugs', {
+    const res = await POST('/drugs', {
       name, brand: document.getElementById('ad-brand')?.value || '',
       composition: document.getElementById('ad-comp')?.value || '',
       category: document.getElementById('ad-cat')?.value || '',
@@ -417,10 +417,26 @@ export async function renderInventory(c, APP) {
       side_effects,
       administration
     });
+
+    const newDrug = {
+      id: res.id,
+      name,
+      brand: document.getElementById('ad-brand')?.value || '',
+      composition: document.getElementById('ad-comp')?.value || '',
+      category: document.getElementById('ad-cat')?.value || '',
+      mrp_per_strip: mrps,
+      pack_type: document.getElementById('ad-pack')?.value || 'Strip',
+    };
+
     closeModal();
     toast('Drug added ✅', 'success');
-    drugs = await GET('/inventory');
-    c.innerHTML = html();
+    if (window._onDrugAdded) {
+      window._onDrugAdded(newDrug);
+      window._onDrugAdded = null;
+    } else {
+      drugs = await GET('/inventory');
+      c.innerHTML = html();
+    }
   };
 
   window.showEditDrug = async (id) => {
