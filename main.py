@@ -47,12 +47,13 @@ def _attach_chrome_client():
     def _set_client():
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
         activity = PythonActivity.mActivity
-        webView = PythonActivity.mWebView
-        if webView is not None:
-            Client = autoclass('org.pharmapro.CustomWebChromeClient')
-            webView.setWebChromeClient(Client(activity))
-            # Configure WebView settings for camera/mic/file access
-            Client.configureWebView(webView)
+        if activity is not None:
+            webView = activity.mWebView
+            if webView is not None:
+                Client = autoclass('org.pharmapro.CustomWebChromeClient')
+                webView.setWebChromeClient(Client(activity))
+                # Configure WebView settings for camera/mic/file access
+                Client.configureWebView(webView)
 
     _set_client()
 
@@ -67,7 +68,8 @@ if __name__ == "__main__":
             """Retry attaching chrome client until WebView is available."""
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            if PythonActivity.mWebView is not None:
+            activity = PythonActivity.mActivity
+            if activity is not None and activity.mWebView is not None:
                 _android_setup()
             elif attempts > 1:
                 threading.Timer(delay, _android_setup_with_retry, args=[attempts - 1, delay]).start()

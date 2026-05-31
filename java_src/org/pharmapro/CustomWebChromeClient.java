@@ -88,29 +88,27 @@ public class CustomWebChromeClient extends WebChromeClient {
 
         // 1. Build a camera capture intent using MediaStore content URI
         Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (cameraIntent.resolveActivity(mActivity.getPackageManager()) != null) {
-            try {
-                // Create a content URI via MediaStore (works on all Android versions)
-                String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
-                ContentValues values = new ContentValues();
-                values.put(MediaStore.Images.Media.DISPLAY_NAME, "SCAN_" + timeStamp + ".jpg");
-                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PharmaPro");
-                }
-
-                sCameraOutputUri = mActivity.getContentResolver().insert(
-                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-
-                if (sCameraOutputUri != null) {
-                    cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, sCameraOutputUri);
-                    cameraIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                    cameraIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                }
-            } catch (Exception e) {
-                android.util.Log.e("PharmaPro", "Failed to create camera URI", e);
-                sCameraOutputUri = null;
+        try {
+            // Create a content URI via MediaStore (works on all Android versions)
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, "SCAN_" + timeStamp + ".jpg");
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PharmaPro");
             }
+
+            sCameraOutputUri = mActivity.getContentResolver().insert(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+
+            if (sCameraOutputUri != null) {
+                cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, sCameraOutputUri);
+                cameraIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                cameraIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("PharmaPro", "Failed to create camera URI", e);
+            sCameraOutputUri = null;
         }
 
         // 2. Build the file/gallery chooser intent
@@ -160,16 +158,23 @@ public class CustomWebChromeClient extends WebChromeClient {
         Uri[] results = null;
 
         if (resultCode == Activity.RESULT_OK) {
-            if (data == null || data.getData() == null) {
-                // No data from gallery — camera must have captured the image
+            if (data == null) {
                 if (sCameraOutputUri != null) {
                     results = new Uri[]{sCameraOutputUri};
                 }
             } else {
-                // User selected a file from gallery/files
                 String dataString = data.getDataString();
-                if (dataString != null) {
+                android.content.ClipData clipData = data.getClipData();
+                if (clipData != null) {
+                    results = new Uri[clipData.getItemCount()];
+                    for (int i = 0; i < clipData.getItemCount(); i++) {
+                        results[i] = clipData.getItemAt(i).getUri();
+                    }
+                } else if (dataString != null) {
                     results = new Uri[]{Uri.parse(dataString)};
+                } else if (sCameraOutputUri != null) {
+                    // Fallback to camera output URI if intent is present but contains no data URIs
+                    results = new Uri[]{sCameraOutputUri};
                 }
             }
         } else {
