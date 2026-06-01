@@ -129,7 +129,7 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
             ]}],
             "generationConfig": {
                 "temperature": 0.1,
-                "maxOutputTokens": 1024,
+                "maxOutputTokens": 8192,
                 "responseMimeType": "application/json"
             }
         }).encode()
