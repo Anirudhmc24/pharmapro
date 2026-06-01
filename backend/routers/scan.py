@@ -38,6 +38,7 @@ def get_gemini_key() -> str:
 import ast
 import re
 import ssl
+import time
 import traceback
 import urllib.error
 
@@ -110,36 +111,73 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
     key = get_gemini_key()
     if not key:
         raise ValueError("no_key")
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{GEMINI_MODEL}:generateContent?key={key}")
-    payload = json.dumps({
-        "contents": [{"parts": [
-            {"text": prompt},
-            {"inline_data": {"mime_type": mime, "data": image_b64}}
-        ]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 1024,
-            "responseMimeType": "application/json"
-        }
-    }).encode()
-    req = urllib.request.Request(url, data=payload,
-          headers={"Content-Type": "application/json"}, method="POST")
-    
-    # Bypass SSL verification to support Android environments lacking standard certs
+        
+    models_to_try = [GEMINI_MODEL]
+    if GEMINI_MODEL != "gemini-1.5-flash":
+        models_to_try.append("gemini-1.5-flash")
+        
+    last_err = None
     context = ssl._create_unverified_context()
-    try:
-        with urllib.request.urlopen(req, timeout=30, context=context) as r:
-            resp = json.loads(r.read())
-        return resp["candidates"][0]["content"]["parts"][0]["text"]
-    except urllib.error.HTTPError as he:
+    
+    for model in models_to_try:
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"{model}:generateContent?key={key}")
+        payload = json.dumps({
+            "contents": [{"parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": mime, "data": image_b64}}
+            ]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 1024,
+                "responseMimeType": "application/json"
+            }
+        }).encode()
+        
+        # Retry up to 3 times per model for transient HTTP status codes (429, 500, 503, 504)
+        max_retries = 3
+        for attempt in range(max_retries):
+            req = urllib.request.Request(url, data=payload,
+                  headers={"Content-Type": "application/json"}, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=30, context=context) as r:
+                    resp = json.loads(r.read())
+                return resp["candidates"][0]["content"]["parts"][0]["text"]
+            except urllib.error.HTTPError as he:
+                last_err = he
+                status = he.code
+                if status not in (429, 500, 503, 504):
+                    # For non-transient errors (like invalid key, invalid prompt etc), fail early
+                    try:
+                        error_body = he.read().decode("utf-8")
+                        error_json = json.loads(error_body)
+                        msg = error_json.get("error", {}).get("message", he.reason)
+                        raise ValueError(msg)
+                    except ValueError:
+                        raise
+                    except Exception:
+                        raise he
+                
+                print(f"Gemini API returned {status} for model {model} (attempt {attempt + 1}/{max_retries}). Retrying...")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+            except Exception as e:
+                # Retry for network level issues or connection timeouts
+                last_err = e
+                print(f"Gemini API connection error for model {model} (attempt {attempt + 1}/{max_retries}): {e}. Retrying...")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    
+    # Re-raise the last exception if all retries and models failed
+    if isinstance(last_err, urllib.error.HTTPError):
         try:
-            error_body = he.read().decode("utf-8")
+            error_body = last_err.read().decode("utf-8")
             error_json = json.loads(error_body)
-            msg = error_json.get("error", {}).get("message", he.reason)
+            msg = error_json.get("error", {}).get("message", last_err.reason)
             raise ValueError(msg)
         except Exception:
-            raise he
+            raise last_err
+    raise last_err
 
 
 @router.post("/scan")
