@@ -1,6 +1,6 @@
 // trays.js + stock_entry.js combined
 import { GET, POST } from './api.js';
-import { tag, stripVis, fmtExp, expiryColor, monthsLeft, fmt, toast } from './utils.js';
+import { tag, stripVis, fmtExp, expiryColor, monthsLeft, fmt, toast, compressImage } from './utils.js';
 
 export async function renderTrays(c, APP) {
   const trays  = await GET('/trays?open_only=true');
@@ -483,11 +483,12 @@ export async function renderStockEntry(c, APP) {
         const eEl = document.querySelector('[name=expiry]');   if (eEl) eEl.value = expiry || '';
       }, 100);
     };
-    window.showAddDrug({ name, batch, expiry, mrps: mrp });
+    window.showAddDrug({ name, batch, expiry: window.normalizeExpiry ? window.normalizeExpiry(expiry) : expiry, mrps: mrp });
   };
 
   const handleScanResult = async (r, area) => {
     area.innerHTML = `<div class="alert-strip success">✅ Strip read successfully</div>`;
+    const normalizedExp = window.normalizeExpiry ? window.normalizeExpiry(r.expiry || '') : (r.expiry || '');
     const drugs = await GET('/drugs?q=' + encodeURIComponent((r.drug_name || '').split(' ')[0]));
     if (drugs[0]) {
       window._stockDrugs = window._stockDrugs || {};
@@ -495,24 +496,32 @@ export async function renderStockEntry(c, APP) {
       window.stockSelectDrug(drugs[0].id);
       setTimeout(() => {
         const bEl = document.querySelector('[name=batch_no]'); if (bEl) bEl.value = r.batch_no || '';
-        const eEl = document.querySelector('[name=expiry]');   if (eEl) eEl.value = r.expiry || '';
+        const eEl = document.querySelector('[name=expiry]');   if (eEl) eEl.value = normalizedExp;
       }, 100);
     } else {
       area.innerHTML += `
         <div class="alert-strip warn" style="margin-bottom:8px">⚠️ "${r.drug_name || 'Item'}" not found in catalogue</div>
         <div class="card" style="padding:12px;margin-top:8px;border:1px dashed var(--warn);background:var(--accent-dim)">
-          <div style="font-weight:800;font-size:12px;margin-bottom:4px;color:var(--text)">📋 SCANNED DETAILS:</div>
+          <div style="font-weight:800;font-size:12px;margin-bottom:4px;color:var(--text)">📋 SCANNED DETAILS (Edit if needed):</div>
           <div style="font-size:11px;color:var(--muted);line-height:1.4">
-            <b>Name:</b> ${r.drug_name || '—'}<br>
-            <b>Batch:</b> ${r.batch_no || '—'}<br>
-            <b>Expiry:</b> ${r.expiry || '—'}<br>
-            <b>MRP:</b> ₹${r.mrp || 0}
+            <b>Name:</b> <input class="input" id="sc-name" value="${(r.drug_name || '').replace(/"/g, '&quot;')}" style="font-weight:bold;margin:2px 0;height:26px;font-size:11px;padding:2px 6px"><br>
+            <b>Batch:</b> <input class="input" id="sc-batch" value="${(r.batch_no || '').replace(/"/g, '&quot;')}" style="margin:2px 0;height:26px;font-size:11px;padding:2px 6px"><br>
+            <b>Expiry:</b> <input class="input" id="sc-expiry" value="${normalizedExp}" style="margin:2px 0;height:26px;font-size:11px;padding:2px 6px" placeholder="YYYY-MM"><br>
+            <b>MRP:</b> <input class="input" type="number" id="sc-mrp" value="${r.mrp || 0}" style="margin:2px 0;height:26px;font-size:11px;padding:2px 6px">
           </div>
           <button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" 
-            onclick="quickAddMasterFromScan('${(r.drug_name || '').replace(/'/g,"\\'")}', '${(r.batch_no || '').replace(/'/g,"\\'")}', '${r.expiry || ''}', ${r.mrp || 0})">
+            onclick="quickAddMasterFromScanEdited()">
             ➕ Add to Master Directory & Stock
           </button>
         </div>`;
+      
+      window.quickAddMasterFromScanEdited = () => {
+        const name = document.getElementById('sc-name')?.value || '';
+        const batch = document.getElementById('sc-batch')?.value || '';
+        const expiry = document.getElementById('sc-expiry')?.value || '';
+        const mrp = parseFloat(document.getElementById('sc-mrp')?.value || 0);
+        window.quickAddMasterFromScan(name, batch, expiry, mrp);
+      };
     }
   };
 
@@ -521,8 +530,16 @@ export async function renderStockEntry(c, APP) {
     if (!file) return;
     const area = document.getElementById('camera-area');
     area.innerHTML = '<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Reading strip with Gemini…</span></div>';
-    const b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
-    const res = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'strip' }) }).then(r => r.json());
+    let b64;
+    let mime = 'image/jpeg';
+    try {
+      b64 = await compressImage(file);
+    } catch (err) {
+      console.error("Compression failed, falling back to raw upload:", err);
+      b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
+      mime = file.type || 'image/jpeg';
+    }
+    const res = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: mime, mode: 'strip' }) }).then(r => r.json());
     if (!res.ok) { area.innerHTML = `<div class="alert-strip ${res.error === 'no_key' ? 'warn' : 'danger'}">${res.error === 'no_key' ? '⚠️ No Gemini API key — set it in Settings' : '❌ ' + res.error}</div>`; return; }
     await handleScanResult(res.result, area);
   };
@@ -530,8 +547,17 @@ export async function renderStockEntry(c, APP) {
   window.captureStrip = async () => {
     const video = document.getElementById('cam-video');
     const canvas = document.getElementById('cam-canvas');
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    let w = video.videoWidth || 640;
+    let h = video.videoHeight || 480;
+    const maxW = 1600;
+    const maxH = 1600;
+    if (w > maxW || h > maxH) {
+      const ratio = Math.min(maxW / w, maxH / h);
+      w = Math.round(w * ratio);
+      h = Math.round(h * ratio);
+    }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
     video.srcObject?.getTracks().forEach(t => t.stop());
     const b64  = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
     const area = document.getElementById('camera-area');
@@ -546,67 +572,186 @@ export async function renderStockEntry(c, APP) {
     if (!file) return;
     const res = document.getElementById('challan-result');
     res.innerHTML = '<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Reading invoice…</span></div>';
-    const b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
-    const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'challan' }) }).then(r => r.json());
+    let b64;
+    let mime = 'image/jpeg';
+    try {
+      b64 = await compressImage(file);
+    } catch (err) {
+      console.error("Compression failed, falling back to raw upload:", err);
+      b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
+      mime = file.type || 'image/jpeg';
+    }
+    const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: mime, mode: 'challan' }) }).then(r => r.json());
     if (!scanRes.ok) { res.innerHTML = `<div class="alert-strip ${scanRes.error === 'no_key' ? 'warn' : 'danger'}">${scanRes.error === 'no_key' ? '⚠️ No Gemini key set in backend/routers/scan.py' : '❌ ' + scanRes.error}</div>`; return; }
-    const items = scanRes.result;
-    res.innerHTML = `<div class="gap-12"><div class="section-title">Gemini found ${items.length} items — verify each below</div>
-      ${items.map((it, i) => `<div class="card-sm" style="border-color:var(--info)33">
-        <div style="font-weight:700;color:var(--text);margin-bottom:8px">${it.drug_name || 'Unknown drug'}</div>
-        <div class="grid-2" style="gap:8px;margin-bottom:8px">
-          <div class="field"><label>Batch</label><input class="input" value="${it.batch_no || ''}" id="ch-batch-${i}"></div>
-          <div class="field"><label>Expiry</label><input class="input" type="month" value="${it.expiry || ''}" id="ch-exp-${i}"></div>
-        </div>
-        <div class="grid-3" style="gap:8px;margin-bottom:8px">
-          <div class="field"><label>Strips</label><input class="input" type="number" value="${it.strips || 1}" id="ch-strips-${i}" min="1"></div>
-          <div class="field"><label>Cost/Strip (₹)</label><input class="input" type="number" step="0.01" value="${it.cost || 0}" id="ch-cost-${i}" min="0"></div>
-          <div class="field"><label>MRP/Strip (₹)</label><input class="input" type="number" step="0.01" value="${it.mrp || 0}" id="ch-mrp-${i}" min="0"></div>
-        </div>
-        <button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" onclick="confirmChallItem(${i},'${(it.drug_name || '').replace(/'/g,"\\'")}')">✅ Add to Stock</button>
-      </div>`).join('')}
-    </div>`;
+    
+    window._scannedChallanItems = scanRes.result.map(it => ({
+      drug_id: null,
+      drug_name: it.drug_name || '',
+      batch_no: it.batch_no || '',
+      expiry: window.normalizeExpiry ? window.normalizeExpiry(it.expiry || '') : (it.expiry || ''),
+      strips: it.strips || 1,
+      cost: it.cost || 0,
+      mrp: it.mrp || 0
+    }));
+
+    await checkChallanMatches();
+    window.renderChallanItems();
   };
 
-  window.confirmChallItem = async (i, name) => {
-    const drugs = await GET('/drugs?q=' + encodeURIComponent(name.split(' ')[0]));
+  async function checkChallanMatches() {
+    const items = window._scannedChallanItems || [];
+    const checkPromises = items.map(async (it) => {
+      if (it.drug_id) return;
+      try {
+        const queryWord = (it.drug_name || '').split(' ')[0];
+        if (!queryWord) return;
+        const drugs = await GET('/drugs?q=' + encodeURIComponent(queryWord));
+        const cleanName = (it.drug_name || '').toLowerCase().trim();
+        const match = drugs.find(d => d.name.toLowerCase().trim() === cleanName || d.brand.toLowerCase().trim() === cleanName);
+        if (match) {
+          it.drug_id = match.id;
+          it.drug_name = match.name;
+        } else if (drugs.length === 1) {
+          it.drug_id = drugs[0].id;
+          it.drug_name = drugs[0].name;
+        }
+      } catch (err) {
+        console.error("Match error:", err);
+      }
+    });
+    await Promise.all(checkPromises);
+  }
+
+  window.triggerChallanRecheck = async (i) => {
+    const it = window._scannedChallanItems[i];
+    if (!it) return;
+    try {
+      const queryWord = (it.drug_name || '').split(' ')[0];
+      if (!queryWord) {
+        it.drug_id = null;
+        window.renderChallanItems();
+        return;
+      }
+      const drugs = await GET('/drugs?q=' + encodeURIComponent(queryWord));
+      const cleanName = (it.drug_name || '').toLowerCase().trim();
+      const match = drugs.find(d => d.name.toLowerCase().trim() === cleanName || d.brand.toLowerCase().trim() === cleanName);
+      if (match) {
+        it.drug_id = match.id;
+        it.drug_name = match.name;
+      } else if (drugs.length === 1) {
+        it.drug_id = drugs[0].id;
+        it.drug_name = drugs[0].name;
+      } else {
+        it.drug_id = null;
+      }
+    } catch (e) {
+      console.error(e);
+      it.drug_id = null;
+    }
+    window.renderChallanItems();
+  };
+
+  window.renderChallanItems = () => {
+    const res = document.getElementById('challan-result');
+    const items = window._scannedChallanItems || [];
+    if (!items.length) {
+      res.innerHTML = '<div class="alert-strip success" style="text-align:center;justify-content:center">🎉 All items added to stock successfully!</div>';
+      return;
+    }
+    
+    res.innerHTML = `
+      <div class="gap-12">
+        <div class="section-title">Gemini found ${items.length} items — verify each below</div>
+        ${items.map((it, i) => {
+          const hasMatch = !!it.drug_id;
+          return `
+          <div class="card-sm" style="border-color:${hasMatch ? 'var(--info)33' : 'var(--warn)66'};background:${hasMatch ? 'transparent' : 'var(--accent-dim)'}">
+            <div class="field" style="margin-bottom:8px">
+              <label style="font-size:9px;color:var(--muted)">Drug Name</label>
+              <input class="input" value="${it.drug_name || ''}" id="ch-name-${i}" style="font-weight:700"
+                onchange="window._scannedChallanItems[${i}].drug_name = this.value; window.triggerChallanRecheck(${i})">
+            </div>
+            
+            <div class="grid-2" style="gap:8px;margin-bottom:8px">
+              <div class="field"><label>Batch</label><input class="input" value="${it.batch_no || ''}" id="ch-batch-${i}" onchange="window._scannedChallanItems[${i}].batch_no = this.value"></div>
+              <div class="field"><label>Expiry</label><input class="input" type="month" value="${it.expiry || ''}" id="ch-exp-${i}" onchange="window._scannedChallanItems[${i}].expiry = this.value"></div>
+            </div>
+            
+            <div class="grid-3" style="gap:8px;margin-bottom:8px">
+              <div class="field"><label>Strips</label><input class="input" type="number" value="${it.strips || 1}" id="ch-strips-${i}" min="1" onchange="window._scannedChallanItems[${i}].strips = parseInt(this.value) || 0"></div>
+              <div class="field"><label>Cost/Strip (₹)</label><input class="input" type="number" step="0.01" value="${it.cost || 0}" id="ch-cost-${i}" min="0" onchange="window._scannedChallanItems[${i}].cost = parseFloat(this.value) || 0"></div>
+              <div class="field"><label>MRP/Strip (₹)</label><input class="input" type="number" step="0.01" value="${it.mrp || 0}" id="ch-mrp-${i}" min="0" onchange="window._scannedChallanItems[${i}].mrp = parseFloat(this.value) || 0"></div>
+            </div>
+            
+            <div style="margin-top:10px">
+              ${hasMatch ? 
+                `<button class="btn btn-primary btn-sm" style="width:100%" onclick="confirmChallItem(${i})">✅ Add to Stock</button>` :
+                `<div style="display:flex;gap:8px">
+                   <button class="btn btn-warn btn-sm" style="flex:1" onclick="addChallItemToCatalogue(${i})">➕ Add to Master Directory</button>
+                   <button class="btn btn-secondary btn-sm" onclick="window.triggerChallanRecheck(${i})">🔄 Re-check</button>
+                 </div>`
+              }
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  };
+
+  window.addChallItemToCatalogue = (i) => {
+    const it = window._scannedChallanItems[i];
+    window._onDrugAdded = async (newDrug) => {
+      it.drug_id = newDrug.id;
+      it.drug_name = newDrug.name;
+      toast(`${newDrug.name} added to master catalogue ✅`, 'success');
+      window.renderChallanItems();
+    };
+    window.showAddDrug({
+      name: it.drug_name,
+      batch: it.batch_no,
+      expiry: it.expiry,
+      mrps: it.mrp,
+      qty: it.strips
+    });
+  };
+
+  window.confirmChallItem = async (i) => {
+    const it = window._scannedChallanItems[i];
+    if (!it || !it.drug_id) {
+      toast("Please add the item to the master directory first.", "error");
+      return;
+    }
+    
+    // Read current form values from UI in case user edited them without triggering change
     const batch_no = document.getElementById('ch-batch-' + i)?.value || 'NA';
     const expiry   = document.getElementById('ch-exp-' + i)?.value || '';
     const strips   = parseInt(document.getElementById('ch-strips-' + i)?.value || 1);
     const cost_per_strip = parseFloat(document.getElementById('ch-cost-' + i)?.value || 0);
     const mrp_per_strip  = parseFloat(document.getElementById('ch-mrp-' + i)?.value || 0);
 
-    if (!drugs.length) {
-      if (confirm(`Drug "${name}" is not in the master directory. Would you like to add it now?`)) {
-        window._onDrugAdded = async (newDrug) => {
-          await POST('/batches', { 
-            drug_id: newDrug.id, 
-            batch_no, 
-            expiry, 
-            strips, 
-            cost_per_strip, 
-            mrp_per_strip 
-          });
-          added.push({ drug_name: newDrug.name, strips, expiry });
-          toast(`${newDrug.name} · ${strips} strips added ✅`, 'success');
-          c.innerHTML = html();
-        };
-        
-        window.showAddDrug({
-          name: name,
-          batch: batch_no,
-          expiry: expiry,
-          mrps: mrp_per_strip,
-          qty: strips
-        });
-      }
-      return;
-    }
-    
-    const drug = drugs[0];
     if (!expiry) { toast('Expiry required', 'warn'); return; }
-    await POST('/batches', { drug_id: drug.id, batch_no, expiry, strips, cost_per_strip, mrp_per_strip });
-    added.push({ drug_name: drug.name, strips, expiry });
-    toast(`${drug.name} · ${strips} strips added ✅`, 'success');
-    c.innerHTML = html();
+
+    try {
+      await POST('/batches', {
+        drug_id: it.drug_id,
+        batch_no: batch_no,
+        expiry: expiry,
+        strips: strips,
+        cost_per_strip: cost_per_strip,
+        mrp_per_strip: mrp_per_strip
+      });
+      
+      added.push({ drug_name: it.drug_name, strips, expiry });
+      toast(`${it.drug_name} · ${strips} strips added ✅`, 'success');
+      
+      // Remove from scanned items list since it's successfully placed/added to inventory
+      window._scannedChallanItems.splice(i, 1);
+      window.renderChallanItems();
+      
+      // Update the underlying page state rendering if visible
+      c.innerHTML = html();
+    } catch (err) {
+      console.error(err);
+      toast("Failed to add stock batch: " + err.message, "error");
+    }
   };
 }

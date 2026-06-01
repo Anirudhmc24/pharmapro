@@ -67,3 +67,42 @@ export function csvDownload(filename, rows, headers) {
   a.download = filename;
   a.click();
 }
+
+/**
+ * Compresses an image file by resizing it and converting to JPEG.
+ * @param {File} file - The raw input file (from input element or drag/drop)
+ * @param {number} maxW - Maximum width in pixels (default 1600)
+ * @param {number} maxH - Maximum height in pixels (default 1600)
+ * @param {number} quality - JPEG compression quality 0.0 to 1.0 (default 0.8)
+ * @returns {Promise<string>} - Resolves with base64 encoded string of compressed JPEG (no prefix)
+ */
+export function compressImage(file, maxW = 1600, maxH = 1600, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const b64 = dataUrl.split(',')[1];
+        resolve(b64);
+      };
+      img.onerror = (err) => reject(new Error("Failed to load image for compression."));
+      img.src = e.target.result;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+

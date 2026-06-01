@@ -1,0 +1,437 @@
+﻿--------- beginning of system
+05-29 23:07:08.644  1569  4203 I ActivityManager: START u0 {flg=0x10000000 cmp=org.pharmapro.pharmapro/org.kivy.android.PythonActivity} from uid 2000
+--------- beginning of main
+05-29 23:07:08.660  1569  1569 I Binder:1569_17: type=1400 audit(0.0:2168): avc: denied { read } for name="Applications" dev="sdcardfs" ino=1310722 scontext=u:r:system_server:s0 tcontext=u:object_r:sdcardfs:s0 tclass=lnk_file permissive=1
+05-29 23:07:08.660  2258  2258 I oid.coreservice: type=1400 audit(0.0:2169): avc: denied { ioctl } for path="/dev/fastpipe" dev="tmpfs" ino=85 ioctlcmd=6867 scontext=u:r:system_app:s0 tcontext=u:object_r:device:s0 tclass=chr_file permissive=1
+05-29 23:07:08.661  1569  1583 W SchedPolicy: add_tid_to_cgroup failed to write '2330' (No space left on device); fd=24
+05-29 23:07:08.663  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:45 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:08.667  6958  6958 I ldinit  : type=1400 audit(0.0:2170): avc: denied { execute } for name="sh" dev="sda2" ino=1685 scontext=u:r:ldinit:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+05-29 23:07:08.667  6958  6958 I ldinit  : type=1400 audit(0.0:2171): avc: denied { read open } for path="/system/bin/sh" dev="sda2" ino=1685 scontext=u:r:ldinit:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+05-29 23:07:08.667  6958  6958 I ldinit  : type=1400 audit(0.0:2172): avc: denied { execute_no_trans } for path="/system/bin/sh" dev="sda2" ino=1685 scontext=u:r:ldinit:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+05-29 23:07:08.671  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_FOREGROUND -p com.android.ld.appstore -f 32 --es package org.pharmapro.pharmapro --es pos pc
+05-29 23:07:08.671  1427  1427 D ldinit  : result:
+05-29 23:07:08.687  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_FOREGROUND flg=0x400020 pkg=com.android.ld.appstore (has extras) }
+05-29 23:07:08.706  1401  1401 D libnativeloader: CrashArm64 config not exist or not readable: /system/vendor/firmware_mnt/nadnd/CrashArm64
+05-29 23:07:08.707  1401  1401 I Zygote  : IsCopy  libcrashcatcher: 0
+05-29 23:07:08.711  1569  1585 I ActivityManager: Start proc 6962:org.pharmapro.pharmapro/u0a67 for activity org.pharmapro.pharmapro/org.kivy.android.PythonActivity
+05-29 23:07:08.712  6962  6962 D nativebridge: PreInitializeNativeBridge name=zygote64 instruction_set=arm64
+05-29 23:07:08.726  6962  6962 W nativebridge: Failed to bind-mount /data/local/cfg-nadnd/ as /proc/cpuinfo: Not a directory
+05-29 23:07:08.727  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:08.732  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_FOREGROUND -p com.ldmnq.launcher3 -f 32 --es package org.pharmapro.pharmapro --es pos pc
+05-29 23:07:08.732  1427  1427 D ldinit  : result:
+05-29 23:07:08.733  6962  6962 I Zygote  : seccomp disabled by setenforce 0
+05-29 23:07:08.737  6962  6962 I mapro.pharmapr: Late-enabling -Xcheck:jni
+05-29 23:07:08.738  1569  4203 W SchedPolicy: add_tid_to_cgroup failed to write '2164' (No space left on device); fd=24
+05-29 23:07:08.757  2164  2164 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.measurement.START pkg=com.google.android.gms }
+05-29 23:07:08.758  2164  2164 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.measurement.START pkg=com.google.android.gms }
+05-29 23:07:08.769  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_FOREGROUND flg=0x400020 pkg=com.ldmnq.launcher3 (has extras) }
+05-29 23:07:08.796  6962  6962 V libnb   : enter native_bridge2_initialize /data/user/0/org.pharmapro.pharmapro/code_cache arm64
+05-29 23:07:08.798  6962  6962 D houdini : [6962] Initialize library(version: 9.0.7a_z.38597 RELEASE)... successfully.
+05-29 23:07:08.798  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 2
+05-29 23:07:08.799  6962  6962 I chatty  : uid=10067(org.pharmapro.pharmapro) identical 63 lines
+05-29 23:07:08.799  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 2
+05-29 23:07:08.819  2330  6299 D AppStartReceiver: action = com.ldmnq.APP_FOREGROUND, packageName = org.pharmapro.pharmapro, pos = pc
+05-29 23:07:08.843  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:08.853  1569  4658 W SchedPolicy: add_tid_to_cgroup failed to write '6962' (No space left on device); fd=27
+05-29 23:07:08.937  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:08.937  1569  1576 I chatty  : uid=1000(system) FinalizerDaemon identical 42 lines
+05-29 23:07:08.937  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:09.011  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:54 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:09.030  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.030  6962  6962 V libnb   : enter native_bridge3_isPathSupported /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64:/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge3_initAnonymousNamespace libandroid.so:libaaudio.so:libc.so:libcamera2ndk.so:libdl.so:libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libicui18n.so:libicuuc.so:libjnigraphics.so:liblog.so:libmediandk.so:libm.so:libnativewindow.so:libneuralnetworks.so:libOpenMAXAL.so:libOpenSLES.so:libRS.so:libstdc++.so:libsync.so:libvulkan.so:libwebviewchromium_plat_support.so:libz.so, /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64:/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge3_isPathSupported /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64:/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge3_createNamespace classloader-namespace, (null), /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64:/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a, /data:/mnt/expand:/data/user/0/org.pharmapro.pharmapro
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 4
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.031  6962  6962 V libnb   : enter native_bridge3_linkNamespaces libandroid.so:libaaudio.so:libc.so:libcamera2ndk.so:libdl.so:libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libicui18n.so:libicuuc.so:libjnigraphics.so:liblog.so:libmediandk.so:libm.so:libnativewindow.so:libneuralnetworks.so:libOpenMAXAL.so:libOpenSLES.so:libRS.so:libstdc++.so:libsync.so:libvulkan.so:libwebviewchromium_plat_support.so:libz.so
+05-29 23:07:09.039  6962  6962 D libnativeloader: CrashArm64 config not exist or not readable: /system/vendor/firmware_mnt/nadnd/CrashArm64
+05-29 23:07:09.050  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_START -p com.android.ld.appstore -f 32 --es package org.pharmapro.pharmapro --es pos pc
+05-29 23:07:09.050  1427  1427 D ldinit  : result:
+05-29 23:07:09.051  1713  5788 W ziparchive: Unable to open '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk': No such file or directory
+05-29 23:07:09.051  1713  5788 E ndroid.systemu: Failed to open APK '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk' I/O error
+05-29 23:07:09.052  1713  5788 E ResourcesManager: failed to add asset path /data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk
+05-29 23:07:09.052  1713  5788 W PackageManager: Failure retrieving resources for org.pharmapro.pharmapro
+05-29 23:07:09.052  1713  5788 W ziparchive: Unable to open '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk': No such file or directory
+05-29 23:07:09.052  1713  5788 E ndroid.systemu: Failed to open APK '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk' I/O error
+05-29 23:07:09.052  1713  5788 E ResourcesManager: failed to add asset path /data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk
+05-29 23:07:09.052  1713  5788 W PackageManager: Failure retrieving resources for org.pharmapro.pharmapro
+05-29 23:07:09.052  1713  5788 W ziparchive: Unable to open '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk': No such file or directory
+05-29 23:07:09.052  1713  5788 E ndroid.systemu: Failed to open APK '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk' I/O error
+05-29 23:07:09.052  1713  5788 E ResourcesManager: failed to add asset path /data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk
+05-29 23:07:09.052  1713  5788 W PackageManager: Failure retrieving resources for org.pharmapro.pharmapro
+05-29 23:07:09.052  1713  5788 W ziparchive: Unable to open '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk': No such file or directory
+05-29 23:07:09.052  1713  5788 E ndroid.systemu: Failed to open APK '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk' I/O error
+05-29 23:07:09.053  1713  5788 E ResourcesManager: failed to add asset path /data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk
+05-29 23:07:09.053  1713  5788 W PackageManager: Failure retrieving resources for org.pharmapro.pharmapro
+05-29 23:07:09.053  1713  5788 W ziparchive: Unable to open '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk': No such file or directory
+05-29 23:07:09.053  1713  5788 E ndroid.systemu: Failed to open APK '/data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk' I/O error
+05-29 23:07:09.053  1713  5788 E ResourcesManager: failed to add asset path /data/app/org.pharmapro.pharmapro-ZFSwmPI6Mq_p2r9_ky4DWg==/base.apk
+05-29 23:07:09.053  1713  5788 W PackageManager: Failure retrieving resources for org.pharmapro.pharmapro
+05-29 23:07:09.068  2035  6515 W NetworkScheduler: Error inserting period=3063000 preferred_charging_state=1 preferred_network_type=1 target_class=com.google.android.gms.measurement.PackageMeasurementTaskService required_network_type=0 runtime=1780076229052 required_idleness_state=0 source=16 service_kind=0 target_package=com.google.android.gms persistence_level=1 source_version=220920000 last_runtime=0 user_id=0 job_id=-1 requires_charging=0 tag=Measurement.PackageMeasurementTaskService.UPLOAD_TASK_TAG flex_time=1531000 task_type=0 retry_strategy={"maximum_backoff_seconds":{"3600":0},"initial_backoff_seconds":{"30":0},"retry_policy":{"0":0}}, error message: UNIQUE constraint failed: pending_ops.tag, pending_ops.target_class, pending_ops.target_package, pending_ops.user_id (code 2067 SQLITE_CONSTRAINT_UNIQUE) [CONTEXT service_id=218 ]
+05-29 23:07:09.069  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_START flg=0x400020 pkg=com.android.ld.appstore (has extras) }
+05-29 23:07:09.089  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:09.090  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_START -p com.ldmnq.launcher3 -f 32 --es package org.pharmapro.pharmapro --es pos pc
+05-29 23:07:09.090  1427  1427 D ldinit  : result:
+05-29 23:07:09.104  6962  6962 V PythonActivity: PythonActivity onCreate running
+05-29 23:07:09.105  6962  6962 V PythonActivity: About to do super onCreate
+05-29 23:07:09.105  6962  6962 V SDL     : Device: gracelte
+05-29 23:07:09.105  6962  6962 V SDL     : Model: A208SH
+05-29 23:07:09.105  6962  6962 V SDL     : onCreate()
+05-29 23:07:09.105  6962  6962 V PythonActivity: Did super onCreate
+05-29 23:07:09.105  6962  6962 V SDL     : getting identifier
+05-29 23:07:09.105  6962  6962 V SDL     : kind is layout and name lottie
+05-29 23:07:09.105  6962  6962 V SDL     : result is 0
+05-29 23:07:09.105  6962  6962 E mapro.pharmapr: Invalid ID 0x00000000.
+05-29 23:07:09.105  6962  6962 V SDL     : couldn't find lottie layout or animation, trying static splash
+05-29 23:07:09.105  6962  6962 V SDL     : getting identifier
+05-29 23:07:09.105  6962  6962 V SDL     : kind is drawable and name presplash
+05-29 23:07:09.106  6962  6962 V SDL     : result is 2130771969
+05-29 23:07:09.107  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_START flg=0x400020 pkg=com.ldmnq.launcher3 (has extras) }
+05-29 23:07:09.109  2330  5522 D AppStartReceiver: action = com.ldmnq.APP_START, packageName = org.pharmapro.pharmapro, pos = pc
+05-29 23:07:09.110  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:09.114  6962  6962 V SDL     : asked to get string presplash_color
+05-29 23:07:09.114  6962  6962 V SDL     : getting identifier
+05-29 23:07:09.114  6962  6962 V SDL     : kind is string and name presplash_color
+05-29 23:07:09.114  6962  6962 V SDL     : result is 2131034113
+05-29 23:07:09.146  6962  6992 V PythonActivity: Ready to unpack
+05-29 23:07:09.147  6962  6992 V pythonutil: Unpacking private app
+05-29 23:07:09.147  6962  6992 V pythonutil: Data version is e250810d777e8303f5393fdcb7e0498b5edef31a
+05-29 23:07:09.148  6962  6992 V pythonutil: Unpacking /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libpybundle app
+05-29 23:07:09.148  6962  6992 V pythonutil: Data version is e250810d777e8303f5393fdcb7e0498b5edef31a
+05-29 23:07:09.149  6962  6962 V SDL     : onStart()
+05-29 23:07:09.149  6962  6962 V PythonActivity: onResume()
+05-29 23:07:09.149  6962  6962 V SDL     : onResume()
+05-29 23:07:09.151  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:54 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:09.151  6962  6962 D OpenGLRenderer: Skia GL Pipeline
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libpybundle.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libSDL2_image.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libpython3.11.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libmain.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libsqlite3.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Pattern libsqlite3\.so matched file libsqlite3.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libSDL2_ttf.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libSDL2_mixer.so
+05-29 23:07:09.190  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libcrypto1.1.so
+05-29 23:07:09.191  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libffi.so
+05-29 23:07:09.191  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libSDL2.so
+05-29 23:07:09.191  6962  6962 V pythonutil: Checking pattern libsqlite3\.so against libssl1.1.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libpybundle.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libSDL2_image.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libpython3.11.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libmain.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libsqlite3.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libSDL2_ttf.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libSDL2_mixer.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libcrypto1.1.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libffi.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Pattern libffi\.so matched file libffi.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libSDL2.so
+05-29 23:07:09.192  6962  6962 V pythonutil: Checking pattern libffi\.so against libssl1.1.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libpybundle.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libSDL2_image.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libpython3.11.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libmain.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libsqlite3.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libSDL2_ttf.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libSDL2_mixer.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libcrypto1.1.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libffi.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libSDL2.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libpng16\.so against libssl1.1.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libpybundle.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libSDL2_image.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libpython3.11.so
+05-29 23:07:09.193  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libmain.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libsqlite3.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libSDL2_ttf.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libSDL2_mixer.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libcrypto1.1.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libffi.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libSDL2.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libssl.*\.so against libssl1.1.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Pattern libssl.*\.so matched file libssl1.1.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libpybundle.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libSDL2_image.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libpython3.11.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libmain.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libsqlite3.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libSDL2_ttf.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libSDL2_mixer.so
+05-29 23:07:09.194  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libcrypto1.1.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Pattern libcrypto.*\.so matched file libcrypto1.1.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libffi.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libSDL2.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libcrypto.*\.so against libssl1.1.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libpybundle.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libSDL2_image.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libpython3.11.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libmain.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libsqlite3.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libSDL2_ttf.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libSDL2_mixer.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libcrypto1.1.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libffi.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libSDL2.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Pattern libSDL2\.so matched file libSDL2.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2\.so against libssl1.1.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libpybundle.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libSDL2_image.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Pattern libSDL2_image\.so matched file libSDL2_image.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libpython3.11.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libmain.so
+05-29 23:07:09.195  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libsqlite3.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libSDL2_ttf.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libSDL2_mixer.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libcrypto1.1.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libffi.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libSDL2.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_image\.so against libssl1.1.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libpybundle.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libSDL2_image.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libpython3.11.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libmain.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libsqlite3.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libSDL2_ttf.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libSDL2_mixer.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Pattern libSDL2_mixer\.so matched file libSDL2_mixer.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libcrypto1.1.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libffi.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libSDL2.so
+05-29 23:07:09.196  6962  6962 V pythonutil: Checking pattern libSDL2_mixer\.so against libssl1.1.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libpybundle.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libSDL2_image.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libpython3.11.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libmain.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libsqlite3.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libSDL2_ttf.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Pattern libSDL2_ttf\.so matched file libSDL2_ttf.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libSDL2_mixer.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libcrypto1.1.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libffi.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libSDL2.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Checking pattern libSDL2_ttf\.so against libssl1.1.so
+05-29 23:07:09.197  6962  6962 V pythonutil: Loading library: sqlite3
+05-29 23:07:09.197  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.197  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libsqlite3.so, 2, 0x3
+05-29 23:07:09.288  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc1dac0
+05-29 23:07:09.288  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x0
+05-29 23:07:09.288  6962  6962 V pythonutil: Loading library: ffi
+05-29 23:07:09.288  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.288  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libffi.so, 2, 0x3
+05-29 23:07:09.289  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc1f040
+05-29 23:07:09.289  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x0
+05-29 23:07:09.289  6962  6962 V pythonutil: Loading library: ssl1.1
+05-29 23:07:09.289  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.289  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libssl1.1.so, 2, 0x3
+05-29 23:07:09.305  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc1f5a0
+05-29 23:07:09.305  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x0
+05-29 23:07:09.305  6962  6962 V pythonutil: Loading library: crypto1.1
+05-29 23:07:09.305  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.305  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libcrypto1.1.so, 2, 0x3
+05-29 23:07:09.305  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc1fb00
+05-29 23:07:09.305  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x0
+05-29 23:07:09.305  6962  6962 V pythonutil: Loading library: SDL2
+05-29 23:07:09.305  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.305  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libSDL2.so, 2, 0x3
+05-29 23:07:09.393  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc20060
+05-29 23:07:09.393  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x7639136e9000
+05-29 23:07:09.393  6962  6962 V pythonutil: Loading library: SDL2_image
+05-29 23:07:09.393  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.393  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libSDL2_image.so, 2, 0x3
+05-29 23:07:09.397  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc2bc80
+05-29 23:07:09.397  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x7639136e9000
+05-29 23:07:09.397  6962  6962 V pythonutil: Loading library: SDL2_mixer
+05-29 23:07:09.397  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.397  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libSDL2_mixer.so, 2, 0x3
+05-29 23:07:09.399  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc2c1e0
+05-29 23:07:09.399  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x7639136e9000
+05-29 23:07:09.400  6962  6962 V pythonutil: Loading library: SDL2_ttf
+05-29 23:07:09.400  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.400  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libSDL2_ttf.so, 2, 0x3
+05-29 23:07:09.421  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc2c740
+05-29 23:07:09.422  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x7639136e9000
+05-29 23:07:09.422  6962  6962 V pythonutil: Loading library: python3.5m
+05-29 23:07:09.423  6962  6962 V pythonutil: Library loading error: dalvik.system.PathClassLoader[DexPathList[[zip file "/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk"],nativeLibraryDirectories=[/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64, /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a, /system/lib64, /system/vendor/lib64]]] couldn't find "libpython3.5m.so"
+05-29 23:07:09.423  6962  6962 V pythonutil: Loading library: python3.6m
+05-29 23:07:09.423  6962  6962 V pythonutil: Library loading error: dalvik.system.PathClassLoader[DexPathList[[zip file "/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk"],nativeLibraryDirectories=[/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64, /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a, /system/lib64, /system/vendor/lib64]]] couldn't find "libpython3.6m.so"
+05-29 23:07:09.423  6962  6962 V pythonutil: Loading library: python3.7m
+05-29 23:07:09.423  6962  6962 V pythonutil: Library loading error: dalvik.system.PathClassLoader[DexPathList[[zip file "/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk"],nativeLibraryDirectories=[/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64, /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a, /system/lib64, /system/vendor/lib64]]] couldn't find "libpython3.7m.so"
+05-29 23:07:09.423  6962  6962 V pythonutil: Loading library: python3.8
+05-29 23:07:09.423  6962  6962 V pythonutil: Library loading error: dalvik.system.PathClassLoader[DexPathList[[zip file "/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk"],nativeLibraryDirectories=[/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64, /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a, /system/lib64, /system/vendor/lib64]]] couldn't find "libpython3.8.so"
+05-29 23:07:09.423  6962  6962 V pythonutil: Loading library: python3.9
+05-29 23:07:09.423  6962  6962 V pythonutil: Library loading error: dalvik.system.PathClassLoader[DexPathList[[zip file "/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk"],nativeLibraryDirectories=[/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64, /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a, /system/lib64, /system/vendor/lib64]]] couldn't find "libpython3.9.so"
+05-29 23:07:09.424  6962  6962 V pythonutil: Loading library: python3.10
+05-29 23:07:09.424  6962  6962 V pythonutil: Library loading error: dalvik.system.PathClassLoader[DexPathList[[zip file "/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk"],nativeLibraryDirectories=[/data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64, /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk!/lib/arm64-v8a, /system/lib64, /system/vendor/lib64]]] couldn't find "libpython3.10.so"
+05-29 23:07:09.424  6962  6962 V pythonutil: Loading library: python3.11
+05-29 23:07:09.424  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.424  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libpython3.11.so, 2, 0x3
+05-29 23:07:09.443  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc2cca0
+05-29 23:07:09.443  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x0
+05-29 23:07:09.443  6962  6962 V pythonutil: Loading library: main
+05-29 23:07:09.443  6962  6962 V libnb   : enter native_bridge2_isCompatibleWith 3
+05-29 23:07:09.444  6962  6962 V libnb   : enter native_bridge3_loadLibraryExt /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libmain.so, 2, 0x3
+05-29 23:07:09.444  6962  6962 V libnb   : native_bridge3_loadLibraryExt: 0x76388bc2d200
+05-29 23:07:09.444  6962  6962 V libnb   : enter native_bridge2_getTrampoline JNI_OnLoad, trampoline_addr 0x7639136e9000
+05-29 23:07:09.445  6962  6962 V pythonutil: Loaded everything!
+05-29 23:07:09.445  6962  6962 V SDL     : nativeSetupJNI()
+05-29 23:07:09.446  6962  6962 V SDL     : AUDIO nativeSetupJNI()
+05-29 23:07:09.447  6962  6962 V SDL     : CONTROLLER nativeSetupJNI()
+05-29 23:07:09.461  6962  6962 V libnb   : enter native_bridge2_getTrampoline Java_org_libsdl_app_HIDDeviceManager_HIDDeviceRegisterCallback, trampoline_addr 0x7639136eaba0
+05-29 23:07:09.470  6962  6962 V PythonActivity: Setting env vars for start.c and Python to use
+05-29 23:07:09.470  6962  6962 V PythonActivity: Access to our meta-data...
+05-29 23:07:09.472  6962  6962 I PythonActivity: Surface will NOT be transparent
+05-29 23:07:09.496  6962  6993 I         : fastpipe: Connect success
+05-29 23:07:09.497  6962  6993 I         : fastpipe: Connect success
+05-29 23:07:09.498  6962  6993 D HostConnection: HostRPC::connect sucess: app=org.pharmapro.pharmapro, pid=6962, tid=6993, this=0x76388bec4400
+05-29 23:07:09.499  6962  6993 D HostConnection: queryAndSetGLESMaxVersion select gles-version: 3.1 hostGLVersion:46 process:org.pharmapro.pharmapro
+05-29 23:07:09.500  6962  6962 V SDL     : surfaceCreated()
+05-29 23:07:09.501  6962  6962 V SDL     : surfaceChanged()
+05-29 23:07:09.501  6962  6962 V SDL     : Window size: 1600x900
+05-29 23:07:09.501  6962  6962 V SDL     : Device size: 1600x900
+05-29 23:07:09.506  1423  1622 D sensor_hal: sensor_device_default_flush handle=0
+05-29 23:07:09.507  6962  6998 V SDL     : Running main function SDL_main from library /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/lib/arm64/libmain.so
+05-29 23:07:09.507  6962  6998 V PythonActivity: appConfirmedActive() -> preparing loading screen removal
+05-29 23:07:09.507  6962  6998 V SDL     : nativeRunMain()
+05-29 23:07:09.507  6962  6962 V SDL     : onWindowFocusChanged(): true
+05-29 23:07:09.508  6962  6998 I python  : Initializing Python for Android
+05-29 23:07:09.508  6962  6998 I python  : Setting additional env vars from p4a_env_vars.txt
+05-29 23:07:09.508  6962  6993 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasWideColorDisplay retrieved: 0
+05-29 23:07:09.508  6962  6998 I python  : Changing directory to the one provided by ANDROID_ARGUMENT
+05-29 23:07:09.508  6962  6993 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasHDRDisplay retrieved: 0
+05-29 23:07:09.508  6962  6998 I python  : /data/user/0/org.pharmapro.pharmapro/files/app
+05-29 23:07:09.508  6962  6993 I OpenGLRenderer: Initialized EGL, version 1.4
+05-29 23:07:09.508  6962  6993 D OpenGLRenderer: Swap behavior 1
+05-29 23:07:09.508  6962  6998 I python  : Preparing to initialize python
+05-29 23:07:09.508  6962  6998 I python  : _python_bundle dir exists
+05-29 23:07:09.508  6962  6998 I python  : calculated paths to be...
+05-29 23:07:09.508  6962  6998 I python  : /data/user/0/org.pharmapro.pharmapro/files/app/_python_bundle/stdlib.zip:/data/user/0/org.pharmapro.pharmapro/files/app/_python_bundle/modules
+05-29 23:07:09.509  6962  6998 I python  : set wchar paths...
+05-29 23:07:09.516  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:70 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:09.516  6962  6993 D EGL_emulation: eglCreateContext: 0x76388be5f6c0: maj 3 min 1 rcv 4
+05-29 23:07:09.520  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:70 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:09.571  6962  6993 E eglCodecCommon: glUtilsParamSize: unknow param 0x000082da
+05-29 23:07:09.571  6962  6993 E eglCodecCommon: glUtilsParamSize: unknow param 0x000082e5
+05-29 23:07:09.577  6962  6993 D HostConnection: ExtendedRCEncoderContext GL_VERSION return OpenGL ES 3.1 v1
+05-29 23:07:09.581  6962  6993 E eglCodecCommon: glUtilsParamSize: unknow param 0x00008c29
+05-29 23:07:09.581  6962  6993 E eglCodecCommon: glUtilsParamSize: unknow param 0x000087fe
+05-29 23:07:09.587  6962  6993 D vndksupport: Loading /vendor/lib64/hw/android.hardware.graphics.mapper@2.0-impl.so from current namespace instead of sphal namespace.
+05-29 23:07:09.589  6962  6993 D vndksupport: Loading /vendor/lib64/hw/gralloc.default.so from current namespace instead of sphal namespace.
+05-29 23:07:09.605  6962  6993 E EGL_emulation: tid 6993: eglSurfaceAttrib(1504): error 0x3009 (EGL_BAD_MATCH)
+05-29 23:07:09.605  6962  6993 W OpenGLRenderer: Failed to set EGL_SWAP_BEHAVIOR on surface 0x763870164080, error=EGL_BAD_MATCH
+05-29 23:07:09.620  6962  6998 I python  : Initialized python
+05-29 23:07:09.620  6962  6998 I python  : AND: Init threads
+05-29 23:07:09.622  6962  6998 I python  : testing python print redirection
+05-29 23:07:09.639  6962  6998 I python  : Android path ['.', '/data/user/0/org.pharmapro.pharmapro/files/app/_python_bundle/stdlib.zip', '/data/user/0/org.pharmapro.pharmapro/files/app/_python_bundle/modules', '/data/user/0/org.pharmapro.pharmapro/files/app/_python_bundle/site-packages']
+05-29 23:07:09.640  6962  6998 I python  : os.environ is environ({'PATH': '/sbin:/system/sbin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin', 'DOWNLOAD_CACHE': '/data/cache', 'OPENSSL_armcap': '0', 'ANDROID_BOOTLOGO': '1', 'ANDROID_ROOT': '/system', 'ANDROID_ASSETS': '/system/app', 'ANDROID_DATA': '/data', 'ANDROID_STORAGE': '/storage', 'EXTERNAL_STORAGE': '/sdcard', 'ASEC_MOUNTPOINT': '/mnt/asec', 'BOOTCLASSPATH': '/system/framework/core-oj.jar:/system/framework/core-libart.jar:/system/framework/conscrypt.jar:/system/framework/okhttp.jar:/system/framework/bouncycastle.jar:/system/framework/apache-xml.jar:/system/framework/ext.jar:/system/framework/framework.jar:/system/framework/telephony-common.jar:/system/framework/voip-common.jar:/system/framework/ims-common.jar:/system/framework/android.hidl.base-V1.0-java.jar:/system/framework/android.hidl.manager-V1.0-java.jar:/system/framework/framework-oahl-backward-compatibility.jar:/system/framework/android.test.base.jar', 'SYSTEMSERVERCLASSPATH': '/system/framework/services.jar:/system/framework/ethernet-service.jar:/system/framework/wifi-service.jar:/system/framework/com.android.location.provider.jar', 'ANDROID_SOCKET_zygote': '11', 'ANDROID_ENTRYPOINT': 'main.pyc', 'ANDROID_ARGUMENT': '/data/user/0/org.pharmapro.pharmapro/files/app', 'ANDROID_APP_PATH': '/data/user/0/org.pharmapro.pharmapro/files/app', 'ANDROID_PRIVATE': '/data/user/0/org.pharmapro.pharmapro/files', 'ANDROID_UNPACK': '/data/user/0/org.pharmapro.pharmapro/files/app', 'PYTHONHOME': '/data/user/0/org.pharmapro.pharmapro/files/app', 'PYTHONPATH': '/data/user/0/org.pharmapro.pharmapro/files/app:/data/user/0/org.pharmapro.pharmapro/files/app/lib', 'PYTHONOPTIMIZE': '2', 'P4A_BOOTSTRAP': 'SDL2', 'PYTHON_NAME': 'python', 'P4A_IS_WINDOWED': 'False', 'KIVY_ORIENTATION': 'LandscapeLeft Portrait LandscapeRight PortraitUpsideDown', 'P4A_NUMERIC_VERSION': 'None', 'P4A_MINSDK': '21', 'LC_CTYPE': 'C.UTF-8'})
+05-29 23:07:09.640  6962  6998 I python  : Android kivy bootstrap done. __name__ is __main__
+05-29 23:07:09.640  6962  6998 I python  : AND: Ran string
+05-29 23:07:09.640  6962  6998 I python  : Run user program, change dir and execute entrypoint
+05-29 23:07:09.651  6962  6962 V SDL     : surfaceChanged()
+05-29 23:07:09.651  6962  6962 V SDL     : Window size: 1600x864
+05-29 23:07:09.651  6962  6962 V SDL     : Device size: 1600x900
+05-29 23:07:09.699  1569  1582 W system_server: Failed to determine oat file name for dex location /data/app/org.pharmapro.pharmapro-R-GyL3cTFM5ElgV6ui5AMQ==/base.apk: Dalvik cache directory does not exist
+05-29 23:07:09.704  1569  1582 I ActivityManager: Displayed org.pharmapro.pharmapro/org.kivy.android.PythonActivity: +1s52ms
+05-29 23:07:09.716  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:09.718  1569  1576 I chatty  : uid=1000(system) FinalizerDaemon identical 28 lines
+05-29 23:07:09.718  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:09.728  1569  1845 W SchedPolicy: add_tid_to_cgroup failed to write '2330' (No space left on device); fd=25
+05-29 23:07:09.728  1569  1845 W SchedPolicy: add_tid_to_cgroup failed to write '2164' (No space left on device); fd=25
+05-29 23:07:09.750  1430  1430 I surfaceflinger: type=1400 audit(0.0:2220): avc: denied { read write } for path="/dev/fastpipe" dev="tmpfs" ino=85 scontext=u:r:hal_graphics_composer_default:s0 tcontext=u:object_r:device:s0 tclass=chr_file permissive=1
+05-29 23:07:09.772  1430  2387 W SurfaceFlinger: Attempting to set client state on removed layer: Splash Screen org.pharmapro.pharmapro#0
+05-29 23:07:09.772  1430  2387 W SurfaceFlinger: Attempting to destroy on removed layer: Splash Screen org.pharmapro.pharmapro#0
+05-29 23:07:10.217  1427  1427 I ldinit  : type=1400 audit(0.0:2221): avc: denied { read } for name="partitions" dev="proc" ino=4026532046 scontext=u:r:ldinit:s0 tcontext=u:object_r:proc:s0 tclass=file permissive=1
+05-29 23:07:10.217  1427  1427 I ldinit  : type=1400 audit(0.0:2222): avc: denied { open } for path="/proc/partitions" dev="proc" ino=4026532046 scontext=u:r:ldinit:s0 tcontext=u:object_r:proc:s0 tclass=file permissive=1
+05-29 23:07:10.217  1427  1427 I ldinit  : type=1400 audit(0.0:2223): avc: denied { getattr } for path="/proc/partitions" dev="proc" ino=4026532046 scontext=u:r:ldinit:s0 tcontext=u:object_r:proc:s0 tclass=file permissive=1
+05-29 23:07:10.779  2035  6752 W NetworkScheduler: Error inserting period=3060000 preferred_charging_state=1 preferred_network_type=1 target_class=com.google.android.gms.measurement.PackageMeasurementTaskService required_network_type=0 runtime=1780076230777 required_idleness_state=0 source=16 service_kind=0 target_package=com.google.android.gms persistence_level=1 source_version=220920000 last_runtime=0 user_id=0 job_id=-1 requires_charging=0 tag=Measurement.PackageMeasurementTaskService.UPLOAD_TASK_TAG flex_time=1529000 task_type=0 retry_strategy={"maximum_backoff_seconds":{"3600":0},"initial_backoff_seconds":{"30":0},"retry_policy":{"0":0}}, error message: UNIQUE constraint failed: pending_ops.tag, pending_ops.target_class, pending_ops.target_package, pending_ops.user_id (code 2067 SQLITE_CONSTRAINT_UNIQUE) [CONTEXT service_id=218 ]
+05-29 23:07:11.228  6962  6998 I python  : Traceback (most recent call last):
+05-29 23:07:11.229  6962  6998 I python  :   File "/home/runner/work/pharmapro/pharmapro/.buildozer/android/app/main.py", line 9, in <module>
+05-29 23:07:11.229  6962  6998 I python  :   File "/home/runner/work/pharmapro/pharmapro/.buildozer/android/app/backend/main.py", line 39, in <module>
+05-29 23:07:11.229  6962  6998 I python  :   File "/home/runner/work/pharmapro/pharmapro/.buildozer/android/app/backend/routers/auth.py", line 13, in <module>
+05-29 23:07:11.230  6962  6998 I python  :   File "/home/runner/work/pharmapro/pharmapro/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/build/python-installs/pharmapro/arm64-v8a/fastapi/routing.py", line 512, in __init__
+05-29 23:07:11.230  6962  6998 I python  : TypeError: Router.__init__() got an unexpected keyword argument 'on_startup'
+05-29 23:07:11.230  6962  6998 I python  : Python for android ended.
+05-29 23:07:11.349  6962  6998 I         : fastpipe: Connect success
+05-29 23:07:11.350  6962  6998 D HostConnection: HostRPC::connect sucess: app=org.pharmapro.pharmapro, pid=6962, tid=6998, this=0x76386fa2be80
+05-29 23:07:11.350  6962  6998 D HostConnection: queryAndSetGLESMaxVersion select gles-version: 3.1 hostGLVersion:46 process:org.pharmapro.pharmapro
+05-29 23:07:11.351  6962  6998 I         : fastpipe: close connect
+05-29 23:07:11.401  1569  1652 W InputDispatcher: channel 'd1b5014 org.pharmapro.pharmapro/org.kivy.android.PythonActivity (server)' ~ Consumer closed input channel or an error occurred.  events=0x9
+05-29 23:07:11.401  1569  1652 E InputDispatcher: channel 'd1b5014 org.pharmapro.pharmapro/org.kivy.android.PythonActivity (server)' ~ Channel is unrecoverably broken and will be disposed!
+05-29 23:07:11.402  1569  4658 I ActivityManager: Process org.pharmapro.pharmapro (pid 6962) has died: fore TOP 
+05-29 23:07:11.402  1423  1622 D sensor_hal: cb_setDelay handle=0 delay-ns=200000000
+05-29 23:07:11.402  1569  1586 W libprocessgroup: kill(-6962, 9) failed: No such process
+05-29 23:07:11.403  1569  3280 I WindowManager: WIN DEATH: Window{d1b5014 u0 org.pharmapro.pharmapro/org.kivy.android.PythonActivity}
+05-29 23:07:11.404  1569  3280 W InputDispatcher: Attempted to unregister already unregistered input channel 'd1b5014 org.pharmapro.pharmapro/org.kivy.android.PythonActivity (server)'
+05-29 23:07:11.405  1401  1401 I Zygote  : Process 6962 exited cleanly (255)
+05-29 23:07:11.406  1569  4658 W ActivityManager: Force removing ActivityRecord{eb41584 u0 org.pharmapro.pharmapro/org.kivy.android.PythonActivity t26}: app died, no saved state
+05-29 23:07:11.408  1430  1496 W SurfaceFlinger: Attempting to destroy on removed layer: AppWindowToken{63251a2 token=Token{953916d ActivityRecord{eb41584 u0 org.pharmapro.pharmapro/org.kivy.android.PythonActivity t26}}}#0
+05-29 23:07:11.411  1569  4658 W SchedPolicy: add_tid_to_cgroup failed to write '2330' (No space left on device); fd=27
+05-29 23:07:11.412  1569  4658 W SchedPolicy: add_tid_to_cgroup failed to write '2164' (No space left on device); fd=24
+05-29 23:07:11.414  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:45 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:11.417  1569  1592 W ActivityManager: setHasOverlayUi called on unknown pid: 6962
+05-29 23:07:11.419  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:70 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:11.420  7001  7001 I sh      : type=1400 audit(0.0:2224): avc: denied { execute_no_trans } for path="/system/bin/am" dev="sda2" ino=1704 scontext=u:r:ldinit:s0 tcontext=u:object_r:system_file:s0 tclass=file permissive=1
+05-29 23:07:11.420  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_FOREGROUND -p com.android.ld.appstore -f 32 --es package com.ldmnq.launcher3 --es pos pc
+05-29 23:07:11.420  1427  1427 D ldinit  : result:
+05-29 23:07:11.430  7002  7002 I cmd     : type=1400 audit(0.0:2225): avc: denied { call } for scontext=u:r:ldinit:s0 tcontext=u:r:servicemanager:s0 tclass=binder permissive=1
+05-29 23:07:11.430  1346  1346 I servicemanager: type=1400 audit(0.0:2226): avc: denied { getattr } for scontext=u:r:servicemanager:s0 tcontext=u:r:ldinit:s0 tclass=process permissive=1
+05-29 23:07:11.430  7002  7002 I cmd     : type=1400 audit(0.0:2227): avc: denied { call } for scontext=u:r:ldinit:s0 tcontext=u:r:system_server:s0 tclass=binder permissive=1
+05-29 23:07:11.430  7002  7002 I cmd     : type=1400 audit(0.0:2228): avc: denied { transfer } for scontext=u:r:ldinit:s0 tcontext=u:r:system_server:s0 tclass=binder permissive=1
+05-29 23:07:11.435  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_FOREGROUND flg=0x400020 pkg=com.android.ld.appstore (has extras) }
+05-29 23:07:11.446  1569  1586 W libprocessgroup: kill(-6962, 9) failed: No such process
+05-29 23:07:11.446  1569  1586 I libprocessgroup: Successfully killed process cgroup uid 10067 pid 6962 in 43ms
+05-29 23:07:11.490  2330  2330 I skExecuteThread: type=1400 audit(0.0:2229): avc: denied { open } for path="/data/local/cfg-nadnd/android7" dev="sdb2" ino=393377 scontext=u:r:untrusted_app:s0:c54,c256,c512,c768 tcontext=u:object_r:system_data_file:s0 tclass=file permissive=1
+05-29 23:07:11.494  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:11.495  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_FOREGROUND -p com.ldmnq.launcher3 -f 32 --es package com.ldmnq.launcher3 --es pos pc
+05-29 23:07:11.495  1427  1427 D ldinit  : result:
+05-29 23:07:11.512  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_FOREGROUND flg=0x400020 pkg=com.ldmnq.launcher3 (has extras) }
+05-29 23:07:11.589  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:11.590  1569  1576 I chatty  : uid=1000(system) FinalizerDaemon identical 25 lines
+05-29 23:07:11.590  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:11.633  2330  2603 E EGL_emulation: tid 2603: eglSurfaceAttrib(1504): error 0x3009 (EGL_BAD_MATCH)
+05-29 23:07:11.634  2330  2603 W OpenGLRenderer: Failed to set EGL_SWAP_BEHAVIOR on surface 0x763870342980, error=EGL_BAD_MATCH
+05-29 23:07:11.639  2330  5522 D AppStartReceiver: action = com.ldmnq.APP_FOREGROUND, packageName = com.ldmnq.launcher3, pos = pc
+05-29 23:07:11.641  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:11.641  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:54 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:11.649  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.sendBroadcast:1020 android.content.ContextWrapper.sendBroadcast:449 com.android.coreservice.TabManager.notifyClosing:413 com.android.coreservice.TabManager.updateInner:200 com.android.coreservice.TabManager.onUpdate:235 
+05-29 23:07:11.649  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_KILL -p com.android.ld.appstore -f 32 --es package org.pharmapro.pharmapro --es pos pc
+05-29 23:07:11.649  1427  1427 D ldinit  : result:
+05-29 23:07:11.649  2258  2258 I CoreService: notifyClosing notify tab closed taskPackageName:org.pharmapro.pharmapro
+05-29 23:07:11.649  2258  2258 W ContextImpl: Calling a method in the system process without a qualified user: android.app.ContextImpl.startService:1531 android.content.ContextWrapper.startService:664 android.content.ContextWrapper.startService:664 com.android.coreservice.CoreBroadcastReceiver.onReceive:70 android.app.ActivityThread.handleReceiver:3424 
+05-29 23:07:11.664  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_KILL flg=0x400020 pkg=com.android.ld.appstore (has extras) }
+05-29 23:07:11.665  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:11.669  1427  1427 D ldinit  : ld_exec_cmd am broadcast -a com.ldmnq.APP_KILL -p com.ldmnq.launcher3 -f 32 --es package org.pharmapro.pharmapro --es pos pc
+05-29 23:07:11.669  1427  1427 D ldinit  : result:
+05-29 23:07:11.681  1427  1427 D ldinit  : Broadcasting: Intent { act=com.ldmnq.APP_KILL flg=0x400020 pkg=com.ldmnq.launcher3 (has extras) }
+05-29 23:07:11.697  2330  6568 D AppStartReceiver: action = com.ldmnq.APP_KILL, packageName = org.pharmapro.pharmapro, pos = pc
+05-29 23:07:11.698  1427  1427 D ldinit  : Broadcast completed: result=0
+05-29 23:07:12.150  2330  2603 W OpenGLRenderer: Incorrectly called buildLayer on View: ShortcutAndWidgetContainer, destroying layer...
+05-29 23:07:12.610  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:12.611  1569  1576 I chatty  : uid=1000(system) FinalizerDaemon identical 29 lines
+05-29 23:07:12.611  1569  1576 W System  : A resource failed to call close. 
+05-29 23:07:14.000  6701  6734 I Finsky:background: [278] myo.run(353): Stats for Executor: bgExecutor ozi@4384cd6[Running, pool size = 4, active threads = 0, queued tasks = 0, completed tasks = 110]
+05-29 23:07:14.012  6701  6734 I Finsky:background: [278] myo.run(353): Stats for Executor: LightweightExecutor ozi@6e61b57[Running, pool size = 3, active threads = 0, queued tasks = 0, completed tasks = 35]
+05-29 23:07:14.415  6020  6120 D LdAnalyticsSDK: responseCode = 200
+05-29 23:07:17.372  2900  2941 I PlayCommon: [145] apvc.j(241): Preparing logs for uploading
+05-29 23:07:17.378  2900  2941 W PlayCommon: [145] apvc.l(11): No account for auth token provided
+05-29 23:07:17.379  2900  2941 I PlayCommon: [145] apvc.j(1862): Connecting to server: https://play.googleapis.com/play/log?format=raw&proto_v2=true
+05-29 23:07:17.545  2900  2941 I PlayCommon: [145] apvc.j(2096): Successfully uploaded logs.
+05-29 23:07:18.748  1569  1582 E memtrack: Couldn't load memtrack module
+05-29 23:07:18.748  1569  1582 W android.os.Debug: failed to get memory consumption info: -1
+05-29 23:07:18.758  1569  1582 E memtrack: Couldn't load memtrack module
+05-29 23:07:18.758  1569  1582 W android.os.Debug: failed to get memory consumption info: -1
+05-29 23:07:18.770  1569  1582 E memtrack: Couldn't load memtrack module
+05-29 23:07:18.770  1569  1582 W android.os.Debug: failed to get memory consumption info: -1
+05-29 23:07:18.780  2035  6752 E GmsTaskScheduler: sendWakeUpEvent called on SchedulerClientBroadcastStrategy
+05-29 23:07:18.780  1569  1582 E memtrack: Couldn't load memtrack module
+05-29 23:07:18.780  1569  1582 W android.os.Debug: failed to get memory consumption info: -1
+05-29 23:07:18.780  2035  6752 E WakeLock: GCM_HB_ALARM release without a matched acquire!
+05-29 23:07:18.801  2035  5913 V NativeCrypto: Read error: ssl=0x76388be8b948: I/O error during system call, Connection reset by peer
+05-29 23:07:18.815  2035  6752 V NativeCrypto: SSL shutdown failed: ssl=0x76388be8b948: I/O error during system call, Broken pipe
+05-29 23:07:18.815  2035  6752 E WakeLock: GCM_HB_ALARM release without a matched acquire!
+05-29 23:07:18.815  2035  6752 W WakeLock: GCM_HB_ALARM counter does not exist
+05-29 23:07:18.832  1569  1944 D NetworkMonitor/NetworkAgentInfo [WIFI () - 100]: Forcing reevaluation for UID 10014
+05-29 23:07:18.833  1569  1944 D NetworkMonitor/NetworkAgentInfo [WIFI () - 100]: Validation disabled.

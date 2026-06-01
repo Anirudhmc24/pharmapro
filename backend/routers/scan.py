@@ -140,7 +140,7 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
             req = urllib.request.Request(url, data=payload,
                   headers={"Content-Type": "application/json"}, method="POST")
             try:
-                with urllib.request.urlopen(req, timeout=30, context=context) as r:
+                with urllib.request.urlopen(req, timeout=60, context=context) as r:
                     resp = json.loads(r.read())
                 return resp["candidates"][0]["content"]["parts"][0]["text"]
             except urllib.error.HTTPError as he:

@@ -345,7 +345,7 @@ nav{padding:8px}
 
 <script type="module">
 import { setSession, clearSession, getUser, getToken, isLoggedIn } from '/js/api.js';
-import { toast, modal, closeModal } from '/js/utils.js';
+import { toast, modal, closeModal, compressImage } from '/js/utils.js';
 import { renderDashboard } from '/js/dashboard.js';
 import { renderBilling } from '/js/billing.js';
 import { renderInventory } from '/js/inventory.js';
@@ -555,8 +555,16 @@ async function renderPutaway(c, APP) {
     if (!file) return;
     const res = document.getElementById('pa-results');
     res.innerHTML = '<div class="row" style="justify-content:center;padding:20px"><div class="spinner"></div><span style="color:var(--muted)">Reading invoice with Gemini…</span></div>';
-    const b64  = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
-    const scan = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': getToken() }, body: JSON.stringify({ image_b64: b64, mime: file.type || 'image/jpeg', mode: 'challan' }) }).then(r => r.json());
+    let b64;
+    let mime = 'image/jpeg';
+    try {
+      b64 = await compressImage(file);
+    } catch (err) {
+      console.error("Compression failed, falling back to raw upload:", err);
+      b64  = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
+      mime = file.type || 'image/jpeg';
+    }
+    const scan = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': getToken() }, body: JSON.stringify({ image_b64: b64, mime: mime, mode: 'challan' }) }).then(r => r.json());
     if (!scan.ok) { res.innerHTML = `<div class="alert-strip warn">⚠️ ${scan.error === 'no_key' ? 'No Gemini key — set it in Settings' : scan.error}</div>`; return; }
     
     let scannedItems = scan.result.map(it => ({
