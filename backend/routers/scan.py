@@ -113,8 +113,8 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
         raise ValueError("no_key")
         
     models_to_try = [GEMINI_MODEL]
-    if GEMINI_MODEL != "gemini-1.5-flash":
-        models_to_try.append("gemini-1.5-flash")
+    if GEMINI_MODEL != "gemini-flash-latest":
+        models_to_try.append("gemini-flash-latest")
         
     last_err = None
     context = ssl._create_unverified_context()
