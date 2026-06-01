@@ -185,6 +185,9 @@ def scan_image(body: ScanIn):
     if not get_gemini_key():
         return {"ok": False, "error": "no_key",
                 "message": "Add your Gemini API key in Settings or set GEMINI_API_KEY environment variable."}
+    
+    raw = None
+    cleaned = None
     if body.mode == "strip":
         prompt = (
             "Look at this medicine strip/blister pack photo.\n"
@@ -202,7 +205,12 @@ def scan_image(body: ScanIn):
             return {"ok": True, "mode": "strip", "result": data}
         except Exception as e:
             traceback.print_exc()
-            return {"ok": False, "error": str(e)}
+            err_msg = f"{e}"
+            if raw is not None:
+                err_msg += f"\nRaw: {raw}"
+            if cleaned is not None:
+                err_msg += f"\nCleaned: {cleaned}"
+            return {"ok": False, "error": err_msg}
     elif body.mode == "challan":
         prompt = (
             "Look at this pharmacy invoice/challan photo.\n"
@@ -222,7 +230,12 @@ def scan_image(body: ScanIn):
             return {"ok": True, "mode": "challan", "result": data}
         except Exception as e:
             traceback.print_exc()
-            return {"ok": False, "error": str(e)}
+            err_msg = f"{e}"
+            if raw is not None:
+                err_msg += f"\nRaw: {raw}"
+            if cleaned is not None:
+                err_msg += f"\nCleaned: {cleaned}"
+            return {"ok": False, "error": err_msg}
     return {"ok": False, "error": "unknown mode"}
 
 
