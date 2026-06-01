@@ -160,7 +160,8 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
                 
                 print(f"Gemini API returned {status} for model {model} (attempt {attempt + 1}/{max_retries}). Retrying...")
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    sleep_time = (5 ** attempt) if status == 429 else (2 ** attempt)
+                    time.sleep(sleep_time)
             except Exception as e:
                 # Retry for network level issues or connection timeouts
                 last_err = e
@@ -170,13 +171,17 @@ def call_gemini(prompt: str, image_b64: str, mime: str = "image/jpeg") -> str:
                     
     # Re-raise the last exception if all retries and models failed
     if isinstance(last_err, urllib.error.HTTPError):
+        status = last_err.code
         try:
             error_body = last_err.read().decode("utf-8")
             error_json = json.loads(error_body)
             msg = error_json.get("error", {}).get("message", last_err.reason)
-            raise ValueError(msg)
         except Exception:
-            raise last_err
+            msg = last_err.reason
+        
+        if status == 429:
+            msg = "Rate limit exceeded (HTTP 429). Please wait 15-30 seconds before retrying or use a pay-as-you-go key."
+        raise ValueError(msg)
     raise last_err
 
 
