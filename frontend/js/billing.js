@@ -43,10 +43,15 @@ export async function renderBilling(c, APP) {
     return `
     <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;height:calc(100vh - 130px)" class="billing-layout">
       <div class="gap-12" style="overflow:hidden;display:flex;flex-direction:column">
-        <div class="search-wrap">
-          <span class="search-icon">🔍</span>
-          <input class="input" id="bill-search" placeholder="Search drug by name, brand or composition…" autocomplete="off" oninput="billSearch(this.value)">
-          <div class="search-drop" id="bill-drop" style="display:none"></div>
+        <div style="display:flex; gap:10px; align-items:center">
+          <div class="search-wrap" style="flex:1">
+            <span class="search-icon">🔍</span>
+            <input class="input" id="bill-search" placeholder="Search drug by name, brand or composition…" autocomplete="off" oninput="billSearch(this.value)">
+            <div class="search-drop" id="bill-drop" style="display:none"></div>
+          </div>
+          <button class="btn btn-outline" onclick="window.showCustomDrugModal('')" style="white-space:nowrap; padding:9px 14px; display:flex; align-items:center; gap:6px;">
+            <span>➕</span> <span>Custom Item</span>
+          </button>
         </div>
         ${interactions.length > 0 ? `
           <div style="padding:0 12px">
@@ -210,13 +215,213 @@ export async function renderBilling(c, APP) {
       }
     }
     
+    if (html) {
+      html += `
+        <div class="search-item" style="border-top:1px dashed var(--border); background:var(--accent-dim); justify-content:center; padding:10px;" onclick="window.showCustomDrugModal('${q.replace(/'/g,"\\'")}')">
+          <span style="color:var(--accent);font-weight:700">➕ Add "${q}" as Custom Medicine</span>
+        </div>`;
+    }
+
     if (!html) {
-      drop.innerHTML = `<div style="padding:10px 14px;font-size:12px;color:var(--muted)">"${q}" not found anywhere. <span style="color:var(--accent);cursor:pointer" onclick="window.showSubstitutes(0,'${q.replace(/'/g,'\\\'')}','${q.replace(/'/g,'\\\'')}');">🔄 Search for alternatives</span></div>`;
+      drop.innerHTML = `
+        <div style="padding:12px 14px; font-size:13px; color:var(--muted); line-height:1.6">
+          "${q}" not found anywhere.
+          <div style="margin-top:6px; display:flex; gap:12px; align-items:center">
+            <span style="color:var(--accent); cursor:pointer; font-weight:700" onclick="window.showCustomDrugModal('${q.replace(/'/g,"\\'")}')">➕ Add Custom Medicine</span>
+            <span style="color:var(--muted)">|</span>
+            <span style="color:var(--accent); cursor:pointer" onclick="window.showSubstitutes(0,'${q.replace(/'/g,"\\'")}', '${q.replace(/'/g,"\\'")}');">🔄 Search Alts</span>
+          </div>
+        </div>`;
     } else {
       drop.innerHTML = html;
     }
     drop.style.display = 'block';
   };
+
+  window.showCustomDrugModal = (initialName) => {
+    document.getElementById('bill-drop').style.display = 'none';
+    
+    window.onCustomPackTypeChange = (val) => {
+      const lbl = document.getElementById('custom-units-label');
+      const tps = document.getElementById('custom-tablets-per-strip');
+      const qtyType = document.getElementById('custom-qty-type');
+      if (val === 'Piece' || val === 'Bottle' || val === 'Tube') {
+        if (lbl) lbl.textContent = 'Units per Pack';
+        if (tps) { tps.value = 1; tps.disabled = true; }
+        if (qtyType) qtyType.value = 'unit';
+      } else {
+        if (lbl) lbl.textContent = val === 'Box' ? 'Strips per Box' : 'Tablets per Strip';
+        if (tps) { tps.disabled = false; tps.value = 10; }
+        if (qtyType) qtyType.value = 'pack';
+      }
+      window.calcCustomRates();
+    };
+
+    window.calcCustomRates = () => {
+      const mrpInput = document.getElementById('custom-mrp-strip');
+      const discInput = document.getElementById('custom-discount');
+      const billingInput = document.getElementById('custom-billing-rate-strip');
+      if (!mrpInput || !discInput || !billingInput) return;
+      const mrp = parseFloat(mrpInput.value) || 0;
+      const disc = parseFloat(discInput.value) || 0;
+      const billingRate = mrp * (1 - disc / 100);
+      billingInput.value = billingRate.toFixed(2);
+    };
+
+    window.saveCustomDrug = async () => {
+      const name = document.getElementById('custom-name')?.value?.trim();
+      if (!name) { toast('Medicine name is required', 'error'); return; }
+      
+      const mrpInput = document.getElementById('custom-mrp-strip');
+      const mrpVal = parseFloat(mrpInput?.value) || 0;
+      if (mrpVal <= 0) { toast('Rate / MRP must be greater than 0', 'error'); return; }
+
+      const discVal = parseFloat(document.getElementById('custom-discount')?.value) || 0;
+      const billingRate = mrpVal * (1 - discVal / 100);
+
+      const brand = document.getElementById('custom-brand')?.value?.trim() || 'Custom';
+      const composition = document.getElementById('custom-composition')?.value?.trim() || '';
+      const packType = document.getElementById('custom-pack-type')?.value || 'Strip';
+      const tabletsPerStrip = parseInt(document.getElementById('custom-tablets-per-strip')?.value) || 10;
+      const schedule = document.getElementById('custom-schedule')?.value || 'OTC';
+      const hsn = document.getElementById('custom-hsn')?.value || '30049099';
+      
+      const batchNo = document.getElementById('custom-batch')?.value?.trim();
+      const expiry = document.getElementById('custom-expiry')?.value;
+      const qtyVal = parseInt(document.getElementById('custom-qty')?.value) || 1;
+      const qtyType = document.getElementById('custom-qty-type')?.value || 'pack';
+
+      const qty = qtyType === 'pack' ? (qtyVal * tabletsPerStrip) : qtyVal;
+
+      const payload = {
+        name,
+        brand,
+        composition,
+        category: '',
+        schedule,
+        hsn,
+        tablets_per_strip: tabletsPerStrip,
+        strips_per_box: 10,
+        mrp_per_strip: billingRate,
+        mrp_per_tablet: billingRate / tabletsPerStrip,
+        reorder_level: 0,
+        pack_type: packType,
+        offer_type: '',
+        box_id: null,
+        zone: 'B'
+      };
+
+      if (batchNo || expiry) {
+        payload.batch_no = batchNo || 'NA';
+        payload.expiry = expiry ? (expiry + '-01') : '';
+        payload.initial_strips = qtyType === 'pack' ? qtyVal : Math.ceil(qtyVal / tabletsPerStrip);
+      }
+
+      try {
+        toast('Saving custom medicine...', 'info');
+        const res = await POST('/drugs', payload);
+        if (res && res.id) {
+          const drug = await GET('/drugs/' + res.id);
+          const existing = cart.findIndex(i => i.id === drug.id);
+          if (existing >= 0) cart[existing].qty += qty;
+          else cart.push({ ...drug, qty: qty });
+          
+          closeModal();
+          toast('✅ Added custom medicine to bill!', 'success');
+          c.innerHTML = billHTML();
+        } else {
+          toast('Failed to save custom medicine', 'error');
+        }
+      } catch (err) {
+        toast(err.message || 'Error saving custom medicine', 'error');
+      }
+    };
+
+    const modalHtml = `
+      <div class="modal-form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; max-height:60vh; overflow-y:auto; padding:4px;">
+        <div class="field" style="grid-column: span 2;">
+          <label style="font-weight:700">Medicine Name *</label>
+          <input class="input" id="custom-name" placeholder="Enter medicine name" value="${initialName || ''}" required>
+        </div>
+        <div class="field">
+          <label>Brand / Manufacturer</label>
+          <input class="input" id="custom-brand" placeholder="e.g. Abbott, Cipla" value="Custom">
+        </div>
+        <div class="field">
+          <label>Composition (Salt)</label>
+          <input class="input" id="custom-composition" placeholder="e.g. Paracetamol 500mg">
+        </div>
+        <div class="field">
+          <label>Pack Type</label>
+          <select class="input" id="custom-pack-type" onchange="window.onCustomPackTypeChange(this.value)">
+            <option value="Strip">Strip</option>
+            <option value="Piece">Piece / Tablet</option>
+            <option value="Bottle">Bottle</option>
+            <option value="Tube">Tube</option>
+            <option value="Box">Box</option>
+          </select>
+        </div>
+        <div class="field">
+          <label id="custom-units-label">Tablets per Strip</label>
+          <input class="input" type="number" id="custom-tablets-per-strip" value="10" min="1">
+        </div>
+        <div class="field">
+          <label>MRP per Pack/Strip (₹) *</label>
+          <input class="input" type="number" id="custom-mrp-strip" value="0.00" step="0.01" min="0" oninput="window.calcCustomRates()">
+        </div>
+        <div class="field">
+          <label>Discount on Item (%)</label>
+          <input class="input" type="number" id="custom-discount" value="0" min="0" max="100" oninput="window.calcCustomRates()">
+        </div>
+        <div class="field">
+          <label>Billing Rate per Pack (₹)</label>
+          <input class="input" type="number" id="custom-billing-rate-strip" value="0.00" step="0.01" readonly style="background:var(--surface-dim); font-weight:700; color:var(--accent);">
+        </div>
+        <div class="field">
+          <label>Schedule</label>
+          <select class="input" id="custom-schedule">
+            <option value="OTC">OTC</option>
+            <option value="Rx">Rx</option>
+            <option value="H">Schedule H</option>
+            <option value="X">Schedule X</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: span 2;">
+          <div style="border-top:1px dashed var(--border); margin:8px 0; padding-top:8px; font-weight:bold; color:var(--muted); font-size:12px;">INVENTORY & BILLING QUANTITY (OPTIONAL)</div>
+        </div>
+        <div class="field" style="grid-column: span 2;">
+          <label>Quantity to Add</label>
+          <div style="display:flex; gap:8px;">
+            <input class="input" type="number" id="custom-qty" value="1" min="1" style="flex:1">
+            <select class="input" id="custom-qty-type" style="width:130px">
+              <option value="pack">Packs/Strips</option>
+              <option value="unit">Units/Tablets</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Batch Number</label>
+          <input class="input" id="custom-batch" placeholder="e.g. B1234">
+        </div>
+        <div class="field">
+          <label>Expiry Date</label>
+          <input class="input" type="month" id="custom-expiry">
+        </div>
+        <div class="field">
+          <label>HSN Code</label>
+          <input class="input" id="custom-hsn" value="30049099">
+        </div>
+      </div>
+    `;
+
+    modal('➕ Add Custom Medicine to Bill', modalHtml, `
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:1.5" onclick="saveCustomDrug()">➕ Save & Add to Bill</button>
+    `);
+    
+    window.calcCustomRates();
+  };
+
   
   window.autoAddMasterDrug = async (m) => {
     document.getElementById('bill-drop').style.display = 'none';
