@@ -42,10 +42,24 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
         points_disc_amt = float(bill.points_redeemed) if bill.points_redeemed else 0.0
         disc_amt = pct_disc_amt + points_disc_amt
         
+        # Determine GST slab
         cfg_row  = conn.execute("SELECT value FROM shop_config WHERE key='gst_slab'").fetchone()
         gst_slab = float(cfg_row["value"] if cfg_row else 12)
-        gst_amt  = round(float((subtotal - disc_amt) * gst_slab) / 100.0, 2)
-        total    = round(float(subtotal - disc_amt + gst_amt), 2)
+        # If GST inclusive prices are provided, back-calculate base subtotal
+        if bill.gst_inclusive:
+            # Convert inclusive subtotal to exclusive base amount
+            base_subtotal = round(subtotal / (1 + gst_slab / 100), 2)
+            # Recalculate discount on base amount
+            pct_disc_amt = round(float(base_subtotal * bill.discount_pct) / 100.0, 2)
+            disc_amt = pct_disc_amt + points_disc_amt
+            taxable = base_subtotal - disc_amt
+            gst_amt = round(taxable * gst_slab / 100, 2)
+            total = round(base_subtotal - disc_amt + gst_amt, 2)
+        else:
+            pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
+            disc_amt = pct_disc_amt + points_disc_amt
+            gst_amt = round(float((subtotal - disc_amt) * gst_slab) / 100.0, 2)
+            total = round(float(subtotal - disc_amt + gst_amt), 2)
 
         cur = conn.execute("""
             INSERT INTO bills(bill_no,customer_id,patient_name,doctor,rx_no,

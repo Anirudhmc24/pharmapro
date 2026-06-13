@@ -4,10 +4,11 @@ import { fmt, fmtI, tag, stripVis, toast, modal, closeModal } from './utils.js';
 import { showSubstitutesModal } from './substitutes.js';
 
 export async function renderBilling(c, APP) {
-  let cart = [], customer = null, discount = 0, payMode = 'Cash', redeemPoints = false;
+  let cart = [], customer = null, discount = 0, payMode = 'Cash', redeemPoints = false, gstInclusive = false;
   let interactions = [];
 
   window.toggleRedeem = (checked) => { redeemPoints = checked; window.billApplyState(); };
+window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billApplyState(); };
   
   window.checkInteractionsAsync = async () => {
     if (cart.length < 2) {
@@ -135,7 +136,11 @@ export async function renderBilling(c, APP) {
             </div>
           </div>
           <div class="field" style="margin-top:14px"><label>Discount %</label>
-            <input class="input" type="number" min="0" max="30" value="${discount}" oninput="billDiscount(+this.value)">
+            <input class="input" type="number" min="0" max="30" value="${discount}" oninput="billDiscount(+this.value)"/>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="gst-inclusive-cb" ${gstInclusive ? 'checked' : ''} onchange="toggleGstInclusive(this.checked)" style="width:16px;height:16px;accent-color:var(--accent)"/>
+              <label for="gst-inclusive-cb" style="cursor:pointer;font-weight:700;color:var(--accent)">Prices include GST</label>
+            </div>
           </div>
           ${customer && customer.loyalty_points > 0 ? `
           <div style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:13px;padding:8px;background:var(--accent-dim);border-radius:6px;border:1px solid var(--accent)">
@@ -611,16 +616,10 @@ export async function renderBilling(c, APP) {
     const name = document.getElementById('wa-name')?.value?.trim();
     let phone = document.getElementById('wa-phone')?.value?.trim();
     
-    if (!name || !phone) {
-      toast('Name and Phone number are required', 'error');
-      return;
-    }
+    if (!name || !phone) { toast('Name and Phone number are required', 'error'); return; }
     
     phone = phone.replace(/[^0-9]/g, '');
-    if (phone.length < 10) {
-      toast('Please enter a valid mobile number', 'error');
-      return;
-    }
+    if (phone.length < 10) { toast('Please enter a valid mobile number', 'error'); return; }
     
     const waPhone = phone.length === 10 ? '91' + phone : phone;
     
@@ -635,22 +634,8 @@ export async function renderBilling(c, APP) {
         toast('Added new customer to database ✅', 'info');
       }
       
-      const config = window.APP?.config || {};
-      const shopName = config.name || "PharmaPro Retail";
-      const shopPhone = config.phone || "";
-      
-      let msgText = `Hello ${name},\n\n`;
-      msgText += `Thank you for shopping at *${shopName}*!\n`;
-      msgText += `Here are your bill details:\n`;
-      msgText += `• *Bill No:* ${billNo}\n`;
-      msgText += `• *Total Amount:* ₹${total.toFixed(2)}\n`;
-      msgText += `• *Payment Mode:* ${paymentMode}\n\n`;
-      if (shopPhone) {
-        msgText += `Contact us at: ${shopPhone}\n`;
-      }
-      msgText += `Get Well Soon! 💊`;
-      
-      const waUrl = `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(msgText)}`;
+      // Simply launch WhatsApp chat without pre-filled message
+      const waUrl = `https://api.whatsapp.com/send?phone=${waPhone}`;
       window.open(waUrl, '_blank');
       
       closeModal();

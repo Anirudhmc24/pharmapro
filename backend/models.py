@@ -8,6 +8,47 @@ from typing import Optional, List
 
 
 class ShopConfigIn(BaseModel):
+    name: str
+    owner: str = ""
+    phone: str = ""
+    email: str = ""
+    address: str = ""
+    gstin: str = ""
+    licence: str = ""
+    state: str = "KA"
+    gst_slab: str = "12"
+    strategy: str = "alpha"
+    alpha_by_brand: bool = False
+    alpha_within_zone: bool = True
+    auto_reoptimise: bool = True
+    fefo: bool = True
+    top_up_tray: bool = True
+    broken_strip_alert: int = 2
+    expiry_warn_months: int = 3
+    print_tray_label: bool = True
+    schedule_warning: bool = True
+    require_batch_on_sale: bool = True
+    low_stock_reorder: bool = True
+    counter_rack: str = "R1"
+    eye_level_shelf: str = "S5"
+    fast2sms_key: str = ""
+    gemini_api_key: str = ""
+    backup_enabled: bool = False
+    gdrive_folder_id: str = ""
+    whatsapp_number: Optional[str] = None
+
+    gstin: str = ""; licence: str = ""; state: str = "KA"; gst_slab: str = "12"
+    strategy: str = "alpha"; alpha_by_brand: bool = False
+    alpha_within_zone: bool = True; auto_reoptimise: bool = True
+    fefo: bool = True; top_up_tray: bool = True
+    broken_strip_alert: int = 2; expiry_warn_months: int = 3
+    print_tray_label: bool = True; schedule_warning: bool = True
+    require_batch_on_sale: bool = True; low_stock_reorder: bool = True
+    counter_rack: str = "R1"; eye_level_shelf: str = "S5"
+    fast2sms_key: str = ""
+    gemini_api_key: str = ""
+    backup_enabled: bool = False; gdrive_folder_id: str = ""
+    whatsapp_number: Optional[str] = None
     name: str; owner: str = ""; phone: str = ""; email: str = ""; address: str = ""
     gstin: str = ""; licence: str = ""; state: str = "KA"; gst_slab: str = "12"
     strategy: str = "alpha"; alpha_by_brand: bool = False
@@ -73,6 +114,13 @@ class BillIn(BaseModel):
     doctor: str = ""; rx_no: str = ""; rx_image_path: str = ""
     discount_pct: float = 0; payment_mode: str = "Cash"
     points_redeemed: int = 0
+    gst_inclusive: bool = False
+    items: List[BillItemIn]
+    customer_id: Optional[int] = None; patient_name: str = ""
+    doctor: str = ""; rx_no: str = ""; rx_image_path: str = ""
+    discount_pct: float = 0; payment_mode: str = "Cash"
+    points_redeemed: int = 0
+    gst_inclusive: bool = False
     items: List[BillItemIn]
 
 
