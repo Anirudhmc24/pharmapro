@@ -95,7 +95,6 @@ export async function renderBilling(c, APP) {
 
       <div class="gap-12">
         <div class="card">
-        <div class="card">
           <div class="section-title">Customer & Prescription</div>
           ${customer ? `<div class="flex-between">
             <div><div style="font-weight:700">${customer.name}</div><div style="font-size:11px;color:var(--muted)">${customer.phone || ''} · 🎯 ${customer.loyalty_points || 0} pts</div></div>
@@ -159,6 +158,7 @@ export async function renderBilling(c, APP) {
           </button>
         </div>
       </div>
+    </div>
     </div>`;
   }
 
@@ -566,7 +566,8 @@ export async function renderBilling(c, APP) {
         items: cart.map(i => ({ drug_id: i.id, tablets_qty: i.qty }))
       });
       
-      window._lastBillData = { res: b, items: [...cart], cust: customer, disc: discount, pay: payMode };
+      const fullBill = await GET('/bills/' + b.bill_id);
+      window._lastBillData = { res: fullBill, items: fullBill.items, cust: customer, disc: fullBill.discount_pct, pay: fullBill.payment_mode };
       
       modal(`✅ Transaction Complete: ${b.bill_no}`, `
         <div style="text-align:center;padding:24px 0">
@@ -615,42 +616,200 @@ export async function renderBilling(c, APP) {
   }
   window.addEventListener('keydown', handleBarcode);
 
-  function printBill(data) {
+  window.printBill = (data) => {
     const { res, items, cust, disc, pay } = data;
-    const subtotal = items.reduce((s, i) => s + i.qty * i.mrp_per_tablet, 0);
-    const discAmt  = subtotal * disc / 100;
-    const gst      = (subtotal - discAmt) * 0.12;
-    const w = window.open('', '_blank', 'width=400,height=600');
-    w.document.write(`<html><head><title>Bill ${res.bill_no}</title>
-    <style>body{font-family:monospace;padding:16px;color:#111;font-size:13px}
-    .row{display:flex;justify-content:space-between}hr{border:none;border-top:1px dashed #999;margin:8px 0}
-    .big{font-size:18px;font-weight:900}table{width:100%;border-collapse:collapse}
-    td,th{padding:3px 4px;text-align:left}th{border-bottom:1px solid #ccc;font-size:11px}</style>
-    </head><body>
-    <div style="text-align:center;margin-bottom:12px">
-      <div class="big">PharmaPro</div>
-      <div style="font-size:11px;color:#666">${new Date().toLocaleString('en-IN')}</div>
-      <div style="font-size:11px">Bill No: <b>${res.bill_no}</b></div>
-      ${cust ? `<div style="font-size:11px">Patient: ${cust.name}</div>` : ''}
+    const config = window.APP?.config || {};
+    const shopName = config.name || "PharmaPro Retail";
+    const shopAddress = config.address || "123 Main Street, Bangalore";
+    const shopPhone = config.phone || "+91 98765 43210";
+    const shopEmail = config.email || "contact@pharmapro.com";
+    const shopGSTIN = config.gstin || "29AAAAA0000A1Z5";
+    const shopLicence = config.licence || "DL-12345/2026";
+    const shopState = config.state || "KA";
+    const gstPct = parseFloat(config.gst_slab || 12);
+
+    let formattedDate = "";
+    try {
+      if (res.created_at) {
+        const dateStr = res.created_at.replace(' ', 'T') + (res.created_at.indexOf('Z') === -1 ? 'Z' : '');
+        formattedDate = new Date(dateStr).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      } else {
+        formattedDate = new Date().toLocaleString('en-IN');
+      }
+    } catch (e) {
+      formattedDate = res.created_at || new Date().toLocaleString('en-IN');
+    }
+
+    const fmtVal = n => '₹' + Number(n).toFixed(2);
+    
+    // Financial calculations
+    const subtotal = res.subtotal || items.reduce((s, i) => s + (i.tablets_qty || i.qty || 0) * (i.mrp_per_tab || i.mrp_per_tablet || 0), 0);
+    const discAmt = res.discount_amt || (subtotal * disc / 100);
+    const taxableVal = subtotal - discAmt;
+    const gstAmt = res.gst_amt || (taxableVal * (gstPct / 100));
+    const totalVal = res.total || (taxableVal + gstAmt);
+    const cgstAmt = gstAmt / 2;
+    const sgstAmt = gstAmt / 2;
+
+    const w = window.open('', '_blank', 'width=800,height=800');
+    w.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Tax Invoice - ${res.bill_no}</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 20px; color: #1e293b; background: #fff; font-size: 12px; line-height: 1.4; }
+    .invoice-card { max-width: 650px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .header { text-align: center; margin-bottom: 15px; }
+    .shop-name { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .shop-details { color: #64748b; font-size: 11px; margin-bottom: 2px; }
+    .invoice-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 10px 0; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 4px 0; text-transform: uppercase; letter-spacing: 1px; text-align: center; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+    .info-block { border: 1px solid #e2e8f0; padding: 8px 10px; border-radius: 6px; background-color: #f8fafc; }
+    .info-title { font-weight: 700; color: #475569; margin-bottom: 4px; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; }
+    .info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+    .info-label { color: #64748b; }
+    .info-value { font-weight: 600; color: #0f172a; }
+    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+    .items-table th { background-color: #f1f5f9; color: #475569; font-weight: 700; font-size: 10px; text-transform: uppercase; padding: 6px 8px; border-bottom: 2px solid #cbd5e1; text-align: left; }
+    .items-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; vertical-align: top; }
+    .item-name { font-weight: 700; color: #0f172a; }
+    .item-sub { font-size: 9px; color: #64748b; margin-top: 2px; }
+    .summary-container { display: flex; justify-content: flex-end; margin-bottom: 15px; }
+    .summary-table { width: 280px; border-collapse: collapse; }
+    .summary-table td { padding: 4px 6px; font-size: 11px; }
+    .summary-table tr.total-row { font-size: 14px; font-weight: 800; background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; }
+    .summary-table tr.total-row td { padding: 8px 6px; color: #0f172a; }
+    .footer { text-align: center; margin-top: 20px; padding-top: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 10px; line-height: 1.5; }
+    .warning-box { margin-top: 10px; padding: 6px 8px; background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; color: #b45309; font-size: 9px; text-align: left; line-height: 1.3; }
+    @media print {
+      body { padding: 0; }
+      .invoice-card { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+      .warning-box { background-color: #fff; border-color: #ccc; }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-card">
+    <div class="header">
+      <div class="shop-name">${shopName}</div>
+      <div class="shop-details">${shopAddress}</div>
+      <div class="shop-details">Phone: ${shopPhone} | Email: ${shopEmail}</div>
+      <div class="shop-details"><b>GSTIN:</b> ${shopGSTIN} | <b>D.L. No.:</b> ${shopLicence}</div>
     </div>
-    <hr>
-    <table><thead><tr><th>Medicine</th><th>Qty</th><th>Rate</th><th style="text-align:right">Amt</th></tr></thead>
-    <tbody>${items.map(i => {
-      let activeQty = i.qty;
-      let isBogo = i.offer_type === 'BOGO';
-      if (isBogo) activeQty = i.qty - Math.floor(i.qty / 2);
-      return `<tr><td>${i.name} ${isBogo ? '(BOGO)' : ''}<br><span style="font-size:10px;color:#666">${i.brand || ''}</span></td><td>${i.qty}</td><td>₹${i.mrp_per_tablet.toFixed(2)}</td><td style="text-align:right">₹${(activeQty * i.mrp_per_tablet).toFixed(2)}</td></tr>`;
-    }).join('')}
-    </tbody></table>
-    <hr>
-    <div class="row"><span>Subtotal</span><span>₹${subtotal.toFixed(2)}</span></div>
-    ${disc > 0 ? `<div class="row"><span>Discount (${disc}%)</span><span>-₹${discAmt.toFixed(2)}</span></div>` : ''}
-    <div class="row"><span>GST (12%)</span><span>₹${gst.toFixed(2)}</span></div>
-    <div class="row big" style="margin-top:6px"><span>TOTAL</span><span>₹${res.total.toFixed(2)}</span></div>
-    <div style="font-size:11px;color:#666;margin-top:4px">Payment: ${pay}</div>
-    <hr><div style="text-align:center;font-size:11px;color:#666;margin-top:8px">Thank you! Get well soon. 💊</div>
-    <script>window.print();window.close();<\/script></body></html>`);
-  }
+    
+    <div class="invoice-title">Tax Invoice</div>
+    
+    <div class="info-grid">
+      <div class="info-block">
+        <div class="info-title">Invoice Details</div>
+        <div class="info-row"><span class="info-label">Invoice No:</span><span class="info-value">${res.bill_no}</span></div>
+        <div class="info-row"><span class="info-label">Date:</span><span class="info-value">${formattedDate}</span></div>
+        <div class="info-row"><span class="info-label">Payment Mode:</span><span class="info-value">${pay}</span></div>
+        <div class="info-row"><span class="info-label">State Code:</span><span class="info-value">${shopState}</span></div>
+      </div>
+      <div class="info-block">
+        <div class="info-title">Customer / Patient</div>
+        <div class="info-row"><span class="info-label">Name:</span><span class="info-value">${cust ? cust.name : (res.patient_name || 'Walk-in Customer')}</span></div>
+        <div class="info-row"><span class="info-label">Contact:</span><span class="info-value">${cust?.phone || 'N/A'}</span></div>
+        <div class="info-row"><span class="info-label">Doctor:</span><span class="info-value">${res.doctor || 'Self / General'}</span></div>
+        ${res.rx_no ? `<div class="info-row"><span class="info-label">Rx No:</span><span class="info-value">${res.rx_no}</span></div>` : ''}
+      </div>
+    </div>
+    
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 5%">#</th>
+          <th style="width: 40%">Medicine / Description</th>
+          <th style="width: 12%">HSN</th>
+          <th style="width: 12%">Batch</th>
+          <th style="width: 10%">Expiry</th>
+          <th style="text-align: right; width: 8%">Qty</th>
+          <th style="text-align: right; width: 10%">Rate</th>
+          <th style="text-align: right; width: 13%">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((i, idx) => {
+          const qty = i.tablets_qty || i.qty || 0;
+          const rate = i.mrp_per_tab || i.mrp_per_tablet || 0;
+          const hsn = i.hsn || '30049099';
+          const batch = i.batch_no || 'N/A';
+          const expiry = i.expiry ? i.expiry.slice(0, 7) : 'N/A';
+          const amt = i.amount || (qty * rate);
+          return `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>
+                <div class="item-name">${i.name}</div>
+                <div class="item-sub">${i.brand || ''}</div>
+              </td>
+              <td>${hsn}</td>
+              <td>${batch}</td>
+              <td>${expiry}</td>
+              <td style="text-align: right">${qty}</td>
+              <td style="text-align: right">${rate.toFixed(2)}</td>
+              <td style="text-align: right">${amt.toFixed(2)}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+    
+    <div class="summary-container">
+      <table class="summary-table">
+        <tr>
+          <td class="info-label">Subtotal:</td>
+          <td style="text-align: right; font-weight: 600;">${fmtVal(subtotal)}</td>
+        </tr>
+        ${disc > 0 ? `
+        <tr>
+          <td class="info-label">Discount (${disc}%):</td>
+          <td style="text-align: right; font-weight: 600; color: #dc2626;">-${fmtVal(discAmt)}</td>
+        </tr>
+        ` : ''}
+        <tr>
+          <td class="info-label">Taxable Value:</td>
+          <td style="text-align: right; font-weight: 600;">${fmtVal(taxableVal)}</td>
+        </tr>
+        <tr>
+          <td class="info-label">CGST (${(gstPct/2)}%):</td>
+          <td style="text-align: right; font-weight: 600;">${fmtVal(cgstAmt)}</td>
+        </tr>
+        <tr>
+          <td class="info-label">SGST (${(gstPct/2)}%):</td>
+          <td style="text-align: right; font-weight: 600;">${fmtVal(sgstAmt)}</td>
+        </tr>
+        <tr class="total-row">
+          <td>Total Net Payable:</td>
+          <td style="text-align: right;">${fmtVal(totalVal)}</td>
+        </tr>
+      </table>
+    </div>
+
+    ${cust && cust.loyalty_points > 0 ? `
+      <div style="font-size: 10px; color: #475569; background: #f1f5f9; padding: 6px 10px; border-radius: 6px; margin-bottom: 10px;">
+        <b>Loyalty Points Summary:</b> Current Balance: <b>${cust.loyalty_points}</b> points. 
+        ${res.points_redeemed ? `Points redeemed in this transaction: <b>${res.points_redeemed}</b>.` : ''}
+      </div>
+    ` : ''}
+    
+    <div class="warning-box">
+      <b>Warning:</b> Consult your doctor/pharmacist before taking any medicine. Take prescription drugs only under supervision. Keep all medicines out of reach of children.
+    </div>
+    
+    <div class="footer">
+      <div>Thank you for choosing ${shopName}!</div>
+      <div style="font-weight: 600; margin-top: 4px;">Get Well Soon! 💊</div>
+    </div>
+  </div>
+  <script>
+    window.onload = function() { window.print(); window.close(); }
+  </script>
+</body>
+</html>
+    `);
+  };
 
   window.printChallan = (data) => {
     const { res, items, cust } = data;

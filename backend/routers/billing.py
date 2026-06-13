@@ -168,7 +168,7 @@ def get_bill(bill_id: int):
         if not bill:
             raise HTTPException(404)
         bill["items"] = rows_to_list(conn.execute("""
-            SELECT bi.*, d.name, d.brand, b.batch_no, b.expiry
+            SELECT bi.*, d.name, d.brand, d.hsn, b.batch_no, b.expiry
             FROM bill_items bi JOIN drugs d ON d.id=bi.drug_id
             LEFT JOIN batches b ON b.id=bi.batch_id
             WHERE bi.bill_id=?""", (bill_id,)).fetchall())
