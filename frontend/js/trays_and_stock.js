@@ -124,16 +124,16 @@ export async function renderStockEntry(c, APP) {
       <div id="camera-area" style="margin-top:16px"></div>
     </div>`;
     if (mode === 'challan') return `<div class="card">
-      <div style="color:var(--muted);font-size:13px;margin-bottom:14px">📌 Upload a photo of your supplier invoice. Gemini AI will read all medicines and show them as a <b style="color:var(--text)">list for you to verify one-by-one</b> before adding to stock.</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:14px">📌 Upload one or more photos of your supplier invoice. Gemini AI will read all medicines and show them as a <b style="color:var(--text)">list for you to verify one-by-one</b> before adding to stock.</div>
       <div style="border:2px dashed var(--border);border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:border-color .2s"
         onclick="var f=document.getElementById('challan-file');f.value='';f.click()"
         ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
         ondrop="handleChallaDrop(event)">
         <div style="font-size:36px;margin-bottom:10px">📄</div>
-        <div style="font-weight:800;color:var(--text);font-size:15px;margin-bottom:4px">Upload invoice photo</div>
-        <div style="color:var(--muted);font-size:12px;margin-bottom:16px">JPG · PNG · Printed or handwritten challan</div>
-        <div class="btn btn-primary" style="display:inline-flex">Select File</div>
-        <input type="file" id="challan-file" accept="image/*" capture="environment" class="file-input-hidden" onchange="handleChallaScan(this.files[0])">
+        <div style="font-weight:800;color:var(--text);font-size:15px;margin-bottom:4px">Upload invoice photos (Select multiple pages if needed)</div>
+        <div style="color:var(--muted);font-size:12px;margin-bottom:16px">JPG · PNG · Printed or handwritten invoices</div>
+        <div class="btn btn-primary" style="display:inline-flex">Select Files</div>
+        <input type="file" id="challan-file" accept="image/*" multiple class="file-input-hidden" onchange="handleChallaScan(this.files)">
       </div>
       <div id="challan-result" style="margin-top:16px"></div>
     </div>`;
@@ -567,35 +567,89 @@ export async function renderStockEntry(c, APP) {
     await handleScanResult(res.result, area);
   };
 
-  window.handleChallaDrop = (e) => { e.preventDefault(); handleChallaScan(e.dataTransfer.files[0]); };
-  window.handleChallaScan = async (file) => {
-    if (!file) return;
+  window.handleChallaDrop = (e) => { e.preventDefault(); handleChallaScan(e.dataTransfer.files); };
+  window.handleChallaScan = async (files) => {
+    if (!files || files.length === 0) return;
     const res = document.getElementById('challan-result');
-    res.innerHTML = '<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Reading invoice…</span></div>';
-    let b64;
-    let mime = 'image/jpeg';
-    try {
-      b64 = await compressImage(file);
-    } catch (err) {
-      console.error("Compression failed, falling back to raw upload:", err);
-      b64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.onerror = reject; r.readAsDataURL(file); });
-      mime = file.type || 'image/jpeg';
-    }
-    const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_b64: b64, mime: mime, mode: 'challan' }) }).then(r => r.json());
-    if (!scanRes.ok) { res.innerHTML = `<div class="alert-strip ${scanRes.error === 'no_key' ? 'warn' : 'danger'}">${scanRes.error === 'no_key' ? '⚠️ No Gemini key set in backend/routers/scan.py' : '❌ ' + scanRes.error}</div>`; return; }
+    const fileList = Array.from(files);
     
-    window._scannedChallanItems = scanRes.result.map(it => ({
-      drug_id: null,
-      drug_name: it.drug_name || '',
-      batch_no: it.batch_no || '',
-      expiry: window.normalizeExpiry ? window.normalizeExpiry(it.expiry || '') : (it.expiry || ''),
-      strips: it.strips || 1,
-      cost: it.cost || 0,
-      mrp: it.mrp || 0
-    }));
-
-    await checkChallanMatches();
-    window.renderChallanItems();
+    res.innerHTML = `<div class="row" style="justify-content:center;padding:16px"><div class="spinner"></div><span style="color:var(--muted)">Preparing files…</span></div>`;
+    
+    window._scannedChallanItems = [];
+    let processedCount = 0;
+    
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      res.innerHTML = `<div class="row" style="justify-content:center;padding:16px">
+        <div class="spinner"></div>
+        <span style="color:var(--muted)">Reading invoice page ${i + 1} of ${fileList.length}…</span>
+      </div>`;
+      
+      let b64;
+      let mime = 'image/jpeg';
+      try {
+        b64 = await compressImage(file);
+      } catch (err) {
+        console.error("Compression failed, falling back to raw upload:", err);
+        try {
+          b64 = await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result.split(',')[1]);
+            r.onerror = reject;
+            r.readAsDataURL(file);
+          });
+          mime = file.type || 'image/jpeg';
+        } catch (readErr) {
+          toast(`Failed to read page ${i + 1}: ${readErr.message}`, 'error');
+          continue;
+        }
+      }
+      
+      try {
+        const scanRes = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_b64: b64, mime: mime, mode: 'challan' })
+        }).then(r => r.json());
+        
+        if (!scanRes.ok) {
+          const errMsg = scanRes.error === 'no_key' 
+            ? 'No Gemini key set. Please set your key in Settings.' 
+            : (scanRes.error || 'Failed to scan');
+          toast(`Page ${i + 1} Scan Error: ${errMsg}`, 'error');
+          continue;
+        }
+        
+        const results = Array.isArray(scanRes.result) ? scanRes.result : [scanRes.result];
+        results.forEach(it => {
+          if (it) {
+            window._scannedChallanItems.push({
+              drug_id: null,
+              drug_name: it.drug_name || '',
+              batch_no: it.batch_no || '',
+              expiry: window.normalizeExpiry ? window.normalizeExpiry(it.expiry || '') : (it.expiry || ''),
+              strips: it.strips || 1,
+              cost: it.cost || 0,
+              mrp: it.mrp || 0
+            });
+          }
+        });
+        processedCount++;
+      } catch (e) {
+        console.error("API error for page:", i, e);
+        toast(`Network/Server error on page ${i + 1}: ${e.message}`, 'error');
+      }
+    }
+    
+    if (window._scannedChallanItems.length > 0) {
+      toast(`Successfully scanned ${processedCount} page(s) and found ${window._scannedChallanItems.length} items!`, 'success');
+      await checkChallanMatches();
+      window.renderChallanItems();
+    } else {
+      res.innerHTML = `<div class="alert-strip danger" style="text-align:center;justify-content:center">
+        ❌ Failed to scan invoice image(s). Please make sure a valid Gemini API Key is configured in Settings and try again.
+      </div>`;
+    }
   };
 
   async function checkChallanMatches() {
