@@ -105,3 +105,36 @@ Go to **Reports > GSTR-1**. This report groups your sales by HSN code and calcul
 
 **Need Help?**
 Contact your system administrator or refer to the technical documentation in the `docs/` folder.
+
+## 🌟 Why Choose PharmaPro?
+PharmaPro combines a powerful **inventory engine**, **intelligent billing**, and **automation** to save time, reduce errors, and improve patient care.
+
+### Key Benefits
+- **Rapid Invoice Scanning** – Upload multiple invoice images at once; the system extracts batch numbers, expiry dates, and auto‑adds new medicines.
+- **One‑Click WhatsApp Sharing** – After billing, send the bill instantly via WhatsApp and automatically store customer contact details.
+- **Smart Stock Management** – FEFO batch handling, low‑stock alerts, and expiry warnings keep your pharmacy compliant.
+- **Master Database Auto‑Fill** – Access a catalog of >250 k medicines to auto‑populate composition, manufacturer, and pricing.
+- **Dynamic Layout Mapping** – Map physical shelves, boxes, and fixtures for fast item retrieval.
+- **Regulatory Compliance** – Built‑in GSTR‑1 reports, batch traceability, and drug‑interaction warnings.
+- **Portable Executable** – A single‑file Windows `.exe` for easy distribution, no Python installation required.
+
+### Who Benefits?
+- Small independent pharmacies looking for an affordable, all‑in‑one solution.
+- Chain stores that need centralized inventory with per‑store POS.
+- Pharmacists who want to reduce manual entry and focus on patient counseling.
+
+## 🚀 Getting Started
+1. Download the latest `PharmaPro.exe` from the `dist/` folder.
+2. Run the installer (no admin rights needed).
+3. Follow the **Initial Setup** steps in this manual to configure your shop.
+
+For a full technical walk‑through, see `MASTER_WALKTHROUGH.md`.
+
+## 🏗️ Build & Feature Overview
+PharmaPro is built using a modern Electron‑based Windows executable packaged with PyInstaller. The source code resides in the `src/` directory and includes:
+- **Backend**: FastAPI services handling inventory, billing, and customer data.
+- **Frontend**: HTML/CSS/JS UI with dynamic React‑like components.
+- **CI/CD**: GitHub Actions workflow targeting Node.js 24 for reliable builds.
+- **Key Features**: Multi‑image invoice scanning, WhatsApp bill sharing, automated PO generation, FEVO stock handling, and more.
+
+These features empower pharmacies to streamline operations, reduce manual entry errors, and improve patient service. The single‑file `PharmaPro.exe` can be distributed to any Windows machine without additional dependencies.
