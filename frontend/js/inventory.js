@@ -59,9 +59,18 @@ export async function renderInventory(c, APP) {
       </div>`;
     } else {
       return `<div class="gap-16">
-        <div style="color:var(--muted);font-size:13px;margin-bottom:8px">
-          Search symptoms, problems, or indications (e.g. "cough", "headache", "fever", "hypertension") to find suitable medicines in your stock.
+        <div class="flex-between" style="align-items: center; margin-bottom: 8px;">
+          <div style="color:var(--muted);font-size:13px;">
+            Search symptoms, problems, or indications (e.g. "cough", "headache", "fever") to find suitable medicines in your stock.
+          </div>
+          <button class="btn btn-outline btn-sm" id="enrich-btn" onclick="triggerEnrichment()" style="white-space: nowrap;">🪄 Enrich Inventory with AI</button>
         </div>
+        
+        <div id="enrichment-status-area" class="card-sm" style="display:none; background:var(--accent-dim); border: 1px solid var(--accent); margin-bottom: 16px; padding: 12px 16px;">
+          <div id="enrichment-progress-text" style="font-weight:700; font-size:12px; color:var(--accent); margin-bottom: 8px;">Progress: Checking...</div>
+          <div class="progress"><div id="enrichment-progress-bar" class="progress-bar" style="width: 0%"></div></div>
+        </div>
+
         <div class="search-wrap" style="margin-bottom:16px">
           <span class="search-icon">🔍</span>
           <input class="input" id="prob-search-input" placeholder="Type problem/symptom (e.g. fever, headache)…" value="${problemQuery}" oninput="probSearch(this.value)" autofocus>
@@ -87,75 +96,183 @@ export async function renderInventory(c, APP) {
       </div>`;
     }
     
-    return `<div style="display:grid;grid-template-columns:1fr;gap:14px">
-      ${problemResults.map(d => {
-        const { full, broken } = breakdown(d);
-        const inStock = (d.stock_tablets || 0) > 0;
-        const exp = d.nearest_expiry;
+    const childGroup = [];
+    const adultGroup = [];
+    const elderlyGroup = [];
+    const unclassified = [];
+
+    problemResults.forEach(d => {
+      let suitability = null;
+      try {
+        if (d.age_suitability) {
+          suitability = JSON.parse(d.age_suitability);
+        }
+      } catch (e) {}
+
+      if (suitability) {
+        if (suitability.child && suitability.child.ok) childGroup.push({ drug: d, dose: suitability.child.dose });
+        if (suitability.adult && suitability.adult.ok) adultGroup.push({ drug: d, dose: suitability.adult.dose });
+        if (suitability.elderly && suitability.elderly.ok) elderlyGroup.push({ drug: d, dose: suitability.elderly.dose });
         
-        let shelfText = "No location assigned";
-        if (d.box_id && window._layout) {
-          for (let f of window._layout) {
-            for (let c of (f.compartments || [])) {
-              for (let b of (c.boxes || [])) {
-                if (b.id === d.box_id) {
-                  shelfText = `${f.name} › ${c.name} › ${b.name}`;
-                  break;
-                }
+        if (!suitability.child?.ok && !suitability.adult?.ok && !suitability.elderly?.ok) {
+          unclassified.push(d);
+        }
+      } else {
+        adultGroup.push({ drug: d, dose: d.administration || "Standard adult dose" });
+        unclassified.push(d);
+      }
+    });
+
+    const hasUnclassified = unclassified.length > 0;
+
+    function drugCard(d, doseText) {
+      const { full, broken } = breakdown(d);
+      const inStock = (d.stock_tablets || 0) > 0;
+      const exp = d.nearest_expiry;
+      
+      let shelfText = "No location assigned";
+      if (d.box_id && window._layout) {
+        for (let f of window._layout) {
+          for (let c of (f.compartments || [])) {
+            for (let b of (c.boxes || [])) {
+              if (b.id === d.box_id) {
+                shelfText = `${f.name} › ${c.name} › ${b.name}`;
+                break;
               }
             }
           }
         }
+      }
+
+      return `
+        <div class="card-sm" style="border-left: 4px solid ${inStock ? 'var(--accent)' : 'var(--danger)'}; background: var(--surface); padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <div class="flex-between" style="align-items: flex-start; gap: 8px;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 800; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.name}">${d.name}</div>
+              <div style="font-size: 9px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${d.brand || ''}</div>
+            </div>
+            <div style="text-align: right; flex-shrink: 0;">
+              <span class="tag ${inStock ? 'tag-green' : 'tag-red'}" style="font-size: 9px; padding: 1px 5px;">
+                ${d.stock_tablets || 0} tabs
+              </span>
+            </div>
+          </div>
+          <div style="font-size: 10px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 6px;">
+            <b>Dose Instruction:</b>
+            <div style="color: var(--text); margin-top: 2px; line-height: 1.3;">${doseText || 'Not specified'}</div>
+          </div>
+          <div class="flex-between" style="font-size: 9px; color: var(--muted); margin-top: 4px; border-top: 1px solid #1e2d4222; padding-top: 4px;">
+            <span>📍 ${shelfText.split(' › ').slice(-1)[0]}</span>
+            <span style="color: var(--accent); cursor: pointer;" onclick="showEditDrug(${d.id})">Edit ✏️</span>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      ${hasUnclassified ? `
+        <div class="alert-strip info" style="margin-bottom: 14px; font-size: 11px; padding: 8px 12px;">
+          ℹ️ Some medicines are missing age suitability data. Click "Enrich Inventory with AI" above to enrich all medicines.
+        </div>
+      ` : ''}
+      <div class="grid-3">
+        <!-- CHILDREN -->
+        <div class="card" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px;">
+          <div style="font-weight: 800; font-size: 13px; color: var(--accent); display: flex; align-items: center; gap: 6px; border-bottom: 2px solid var(--accent-dim); padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <span>👶</span> <span>Children Care</span>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; margin-top: 8px;">
+            ${childGroup.length === 0 
+              ? `<div style="text-align:center; padding: 40px 10px; color:var(--muted); font-size: 11px; margin: auto;">No specific child care options</div>`
+              : childGroup.map(item => drugCard(item.drug, item.dose)).join('')}
+          </div>
+        </div>
         
-        return `<div class="card" style="border-left: 5px solid ${inStock ? 'var(--accent)' : 'var(--danger)'}; padding: 18px">
-          <div class="flex-between" style="margin-bottom:10px; align-items: flex-start">
-            <div>
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-weight:900;font-size:16px;color:var(--text)">${d.name}</span>
-                <span style="color:var(--muted);font-size:12px">${d.brand || ''}</span>
-                <span class="tag ${d.schedule === 'OTC' ? 'tag-green' : 'tag-red'}" style="font-size:10px">${d.schedule}</span>
-              </div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">${d.composition || 'No chemical composition recorded'}</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px">Category: <span style="color:var(--text)">${d.category || 'General'}</span></div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-weight:900;font-size:16px;color:${inStock ? 'var(--accent)' : 'var(--danger)'}">
-                ${d.stock_tablets || 0} tablets
-              </div>
-              <div style="font-size:10px;color:var(--muted)">
-                ${full} ${(d.pack_type || 'Strip').toLowerCase()}s${broken > 0 ? ' + ' + broken + ' loose' : ''}
-              </div>
-              ${d.nearest_expiry ? `<div style="font-size:11px;margin-top:4px;color:${expiryColor(exp)}">Exp: ${fmtExp(exp)}</div>` : ''}
-            </div>
+        <!-- ADULTS -->
+        <div class="card" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px;">
+          <div style="font-weight: 800; font-size: 13px; color: var(--info); display: flex; align-items: center; gap: 6px; border-bottom: 2px solid var(--info-dim); padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <span>🧑</span> <span>Adult Care</span>
           </div>
+          <div style="flex: 1; display: flex; flex-direction: column; margin-top: 8px;">
+            ${adultGroup.length === 0 
+              ? `<div style="text-align:center; padding: 40px 10px; color:var(--muted); font-size: 11px; margin: auto;">No adult care options</div>`
+              : adultGroup.map(item => drugCard(item.drug, item.dose)).join('')}
+          </div>
+        </div>
+        
+        <!-- ELDERLY -->
+        <div class="card" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px;">
+          <div style="font-weight: 800; font-size: 13px; color: var(--warn); display: flex; align-items: center; gap: 6px; border-bottom: 2px solid var(--warn-dim); padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+            <span>👵</span> <span>Senior Care</span>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; margin-top: 8px;">
+            ${elderlyGroup.length === 0 
+              ? `<div style="text-align:center; padding: 40px 10px; color:var(--muted); font-size: 11px; margin: auto;">No senior care options</div>`
+              : elderlyGroup.map(item => drugCard(item.drug, item.dose)).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Polling for AI enrichment
+  let enrichmentInterval = null;
+  window.triggerEnrichment = async () => {
+    const btn = document.getElementById('enrich-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enriching...'; }
+    try {
+      const res = await POST('/drugs/enrich_inventory');
+      if (res.ok) {
+        toast('AI Enrichment started in background', 'success');
+        startEnrichmentPolling();
+      } else {
+        toast(res.message || 'Failed to start enrichment', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
+      }
+    } catch(e) {
+      toast('Error: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
+    }
+  };
+
+  function startEnrichmentPolling() {
+    if (enrichmentInterval) clearInterval(enrichmentInterval);
+    const statusArea = document.getElementById('enrichment-status-area');
+    if (statusArea) statusArea.style.display = 'block';
+    
+    enrichmentInterval = setInterval(async () => {
+      try {
+        const status = await GET('/drugs/enrich_status');
+        const progressPct = status.total > 0 ? Math.round((status.current / status.total) * 100) : 0;
+        const progBar = document.getElementById('enrichment-progress-bar');
+        const progText = document.getElementById('enrichment-progress-text');
+        
+        if (progBar) progBar.style.width = progressPct + '%';
+        if (progText) progText.textContent = `Progress: ${status.current} / ${status.total} medicines enriched (${progressPct}%)`;
+        
+        if (!status.running) {
+          clearInterval(enrichmentInterval);
+          enrichmentInterval = null;
+          toast('✅ AI Enrichment completed!', 'success');
           
-          <div style="display:grid;grid-template-columns:1fr;gap:8px;background:var(--accent-dim);padding:12px;border-radius:8px;margin:12px 0;font-size:13px">
-            <div>
-              <span style="font-weight:700;color:var(--accent);display:inline-block;width:130px">💡 Indications:</span>
-              <span style="color:var(--text)">${d.indications || '<span style="color:var(--muted)">None recorded</span>'}</span>
-            </div>
-            <div>
-              <span style="font-weight:700;color:var(--danger);display:inline-block;width:130px">⚠️ Side Effects:</span>
-              <span style="color:var(--text)">${d.side_effects || '<span style="color:var(--muted)">None recorded</span>'}</span>
-            </div>
-            <div>
-              <span style="font-weight:700;color:var(--text);display:inline-block;width:130px">🥄 Consumed/Admin:</span>
-              <span style="color:var(--text)">${d.administration || '<span style="color:var(--muted)">No instructions recorded</span>'}</span>
-            </div>
-          </div>
+          drugs = await GET('/inventory');
+          if (problemQuery.length >= 2) {
+            window.probSearch(problemQuery);
+          }
           
-          <div class="flex-between" style="font-size:12px;color:var(--muted);margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-            <div>
-              <span>📍 Location: <b style="color:var(--accent)">${shelfText}</b></span>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-outline btn-sm" onclick="locateDrug(${d.id})">📍 Map Location</button>
-              <button class="btn btn-outline btn-sm" onclick="showEditDrug(${d.id})">✏️ Edit Details</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
+          setTimeout(() => {
+            if (statusArea) statusArea.style.display = 'none';
+            const btn = document.getElementById('enrich-btn');
+            if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
+          }, 3000);
+        }
+      } catch(e) {
+        clearInterval(enrichmentInterval);
+        enrichmentInterval = null;
+        const btn = document.getElementById('enrich-btn');
+        if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
+      }
+    }, 1500);
   }
 
   function invRow(d) {
@@ -296,7 +413,21 @@ export async function renderInventory(c, APP) {
       </div>
       <div class="field"><label>What it can be given for (Indications / Symptoms)</label><input class="input" id="ad-indications" placeholder="e.g. fever, headache, body pain"></div>
       <div class="field"><label>Side Effects</label><input class="input" id="ad-side-effects" placeholder="e.g. nausea, drowsiness, dizziness"></div>
-      <div class="field"><label>How it should be administered / consumed</label><input class="input" id="ad-administration" placeholder="e.g. Take with food, twice daily after meals"></div>`,
+      <div class="field"><label>How it should be administered / consumed</label><input class="input" id="ad-administration" placeholder="e.g. Take with food, twice daily after meals"></div>
+      <div style="margin-top:12px; padding: 10px; background:var(--faint); border-radius: 8px; border: 1px solid var(--border)">
+        <div style="font-weight:700; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px">Age suitability guidelines</div>
+        <div style="display:flex; gap:16px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; color:var(--text)">
+            <input type="checkbox" id="ad-child-ok" style="width:16px;height:16px;accent-color:var(--accent)"> Children
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; color:var(--text)">
+            <input type="checkbox" id="ad-adult-ok" checked style="width:16px;height:16px;accent-color:var(--accent)"> Adults
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; color:var(--text)">
+            <input type="checkbox" id="ad-elderly-ok" checked style="width:16px;height:16px;accent-color:var(--accent)"> Seniors / Elderly
+          </label>
+        </div>
+      </div>`,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" style="flex:1" onclick="saveDrug()">Add Drug</button>`
     );
@@ -400,6 +531,16 @@ export async function renderInventory(c, APP) {
     const side_effects = document.getElementById('ad-side-effects')?.value?.trim() || '';
     const administration = document.getElementById('ad-administration')?.value?.trim() || '';
 
+    const childOk = document.getElementById('ad-child-ok')?.checked || false;
+    const adultOk = document.getElementById('ad-adult-ok')?.checked || false;
+    const elderlyOk = document.getElementById('ad-elderly-ok')?.checked || false;
+
+    const suitabilityObj = {
+      child: { ok: childOk, dose: childOk ? (indications ? `Pediatric dosage for ${indications}` : "Pediatric dose") : "Not recommended" },
+      adult: { ok: adultOk, dose: adultOk ? (administration || "Standard adult dose") : "" },
+      elderly: { ok: elderlyOk, dose: elderlyOk ? (administration || "Standard elderly dose") : "" }
+    };
+
     const res = await POST('/drugs', {
       name, brand: document.getElementById('ad-brand')?.value || '',
       composition: document.getElementById('ad-comp')?.value || '',
@@ -415,7 +556,8 @@ export async function renderInventory(c, APP) {
       initial_strips: qty,
       indications,
       side_effects,
-      administration
+      administration,
+      age_suitability: JSON.stringify(suitabilityObj)
     });
 
     const newDrug = {
@@ -453,6 +595,21 @@ export async function renderInventory(c, APP) {
         });
       });
     });
+
+    let childChecked = '';
+    let adultChecked = 'checked';
+    let elderlyChecked = 'checked';
+
+    if (d.age_suitability) {
+      try {
+        const suitability = JSON.parse(d.age_suitability);
+        childChecked = suitability.child?.ok ? 'checked' : '';
+        adultChecked = suitability.adult?.ok ? 'checked' : '';
+        elderlyChecked = suitability.elderly?.ok ? 'checked' : '';
+      } catch (e) {
+        console.error("Failed to parse age suitability in edit modal:", e);
+      }
+    }
 
     modal('✏️ Edit Drug', `
       <div class="grid-2">
@@ -494,6 +651,20 @@ export async function renderInventory(c, APP) {
       <div class="field"><label>What it can be given for (Indications / Symptoms)</label><input class="input" id="ed-indications" value="${d.indications || ''}" placeholder="e.g. fever, headache, body pain"></div>
       <div class="field"><label>Side Effects</label><input class="input" id="ed-side-effects" value="${d.side_effects || ''}" placeholder="e.g. nausea, drowsiness, dizziness"></div>
       <div class="field"><label>How it should be administered / consumed</label><input class="input" id="ed-administration" value="${d.administration || ''}" placeholder="e.g. Take with food, twice daily after meals"></div>
+      <div style="margin-top:12px; padding: 10px; background:var(--faint); border-radius: 8px; border: 1px solid var(--border)">
+        <div style="font-weight:700; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px">Age suitability guidelines</div>
+        <div style="display:flex; gap:16px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; color:var(--text)">
+            <input type="checkbox" id="ed-child-ok" ${childChecked} style="width:16px;height:16px;accent-color:var(--accent)"> Children
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; color:var(--text)">
+            <input type="checkbox" id="ed-adult-ok" ${adultChecked} style="width:16px;height:16px;accent-color:var(--accent)"> Adults
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; color:var(--text)">
+            <input type="checkbox" id="ed-elderly-ok" ${elderlyChecked} style="width:16px;height:16px;accent-color:var(--accent)"> Seniors / Elderly
+          </label>
+        </div>
+      </div>
       `,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
        <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger)44;flex:0.5" onclick="deleteDrug(${id})">🗑️ Delete</button>
@@ -537,6 +708,43 @@ export async function renderInventory(c, APP) {
       const boxEl = document.getElementById('ed-box');
       const box_id = (boxEl && boxEl.value !== '') ? parseInt(boxEl.value) : null;
 
+      // Fetch existing drug data to preserve any specific age suitability dosage details
+      const existingDrug = await GET('/drugs/' + id);
+      let existingSuitability = null;
+      if (existingDrug && existingDrug.age_suitability) {
+        try {
+          existingSuitability = JSON.parse(existingDrug.age_suitability);
+        } catch (e) {}
+      }
+
+      const childOk = document.getElementById('ed-child-ok')?.checked || false;
+      const adultOk = document.getElementById('ed-adult-ok')?.checked || false;
+      const elderlyOk = document.getElementById('ed-elderly-ok')?.checked || false;
+
+      const indications = getValue('ed-indications') || '';
+      const administration = getValue('ed-administration') || '';
+
+      const suitabilityObj = {
+        child: {
+          ok: childOk,
+          dose: childOk
+            ? (existingSuitability?.child?.dose || (indications ? `Pediatric dosage for ${indications}` : "Pediatric dose"))
+            : "Not recommended"
+        },
+        adult: {
+          ok: adultOk,
+          dose: adultOk
+            ? (existingSuitability?.adult?.dose || administration || "Standard adult dose")
+            : ""
+        },
+        elderly: {
+          ok: elderlyOk,
+          dose: elderlyOk
+            ? (existingSuitability?.elderly?.dose || administration || "Standard elderly dose")
+            : ""
+        }
+      };
+
       await PUT('/drugs/' + id, {
         name: getValue('ed-name'),
         brand: getValue('ed-brand'),
@@ -550,7 +758,8 @@ export async function renderInventory(c, APP) {
         pack_type: getValue('ed-pack'),
         indications: getValue('ed-indications'),
         side_effects: getValue('ed-side-effects'),
-        administration: getValue('ed-administration')
+        administration: getValue('ed-administration'),
+        age_suitability: JSON.stringify(suitabilityObj)
       });
       closeModal();
       toast('Drug updated ✅', 'success');

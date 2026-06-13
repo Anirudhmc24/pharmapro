@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS drugs (
     indications       TEXT,
     side_effects      TEXT,
     administration    TEXT,
+    age_suitability   TEXT,
     created_at        TEXT DEFAULT (datetime('now'))
 );
 
@@ -124,6 +125,7 @@ CREATE TABLE IF NOT EXISTS customers (
     phone          TEXT UNIQUE,
     dob            TEXT,
     loyalty_points INTEGER DEFAULT 0,
+    credit_balance REAL DEFAULT 0,
     created_at     TEXT DEFAULT (datetime('now'))
 );
 
@@ -352,6 +354,12 @@ def init_db():
         except sqlite3.OperationalError: pass
         
         try: conn.execute("ALTER TABLE drugs ADD COLUMN administration TEXT")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE drugs ADD COLUMN age_suitability TEXT")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE customers ADD COLUMN credit_balance REAL DEFAULT 0")
         except sqlite3.OperationalError: pass
 
         # Seed default admin user

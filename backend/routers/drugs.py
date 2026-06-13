@@ -203,11 +203,11 @@ def add_drug(drug: DrugIn, background_tasks: BackgroundTasks, x_token: Optional[
             INSERT INTO drugs(name,brand,composition,category,schedule,hsn,
             tablets_per_strip,strips_per_box,mrp_per_strip,mrp_per_tablet,
             reorder_level,box_id,offer_type,pack_type,indications,side_effects,
-            administration) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            administration,age_suitability) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (drug.name, drug.brand, drug.composition, drug.category, drug.schedule, drug.hsn,
              drug.tablets_per_strip, drug.strips_per_box, drug.mrp_per_strip, drug.mrp_per_tablet,
              drug.reorder_level, drug.box_id, drug.offer_type, drug.pack_type,
-             drug.indications, drug.side_effects, drug.administration))
+             drug.indications, drug.side_effects, drug.administration, drug.age_suitability))
         drug_id = cur.lastrowid
         
         # 2. Sync / Update Master Catalogue (Ensuring every new entry is in master_drugs)
@@ -491,3 +491,50 @@ def get_global_substitutes(q: str = ""):
         }
 
 # master_search and master_all moved above /{drug_id} to fix routing conflict
+
+ENRICHMENT_STATUS = {
+    "running": False,
+    "current": 0,
+    "total": 0,
+    "last_error": None
+}
+
+def enrich_inventory_task():
+    global ENRICHMENT_STATUS
+    ENRICHMENT_STATUS["running"] = True
+    ENRICHMENT_STATUS["last_error"] = None
+    try:
+        from scripts.populate_indications import run as run_enrichment
+        run_enrichment()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        ENRICHMENT_STATUS["last_error"] = str(e)
+    finally:
+        ENRICHMENT_STATUS["running"] = False
+
+@router.post("/enrich_inventory")
+def trigger_enrichment(background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    global ENRICHMENT_STATUS
+    if ENRICHMENT_STATUS["running"]:
+        return {"ok": False, "message": "Enrichment already running"}
+    
+    background_tasks.add_task(enrich_inventory_task)
+    return {"ok": True, "message": "Enrichment started in the background"}
+
+@router.get("/enrich_status")
+def get_enrichment_status(x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    global ENRICHMENT_STATUS
+    with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM drugs").fetchone()[0]
+        missing = conn.execute("""
+            SELECT COUNT(*) FROM drugs 
+            WHERE indications IS NULL OR indications = '' 
+               OR age_suitability IS NULL OR age_suitability = ''
+        """).fetchone()[0]
+    
+    ENRICHMENT_STATUS["total"] = total
+    ENRICHMENT_STATUS["current"] = total - missing
+    return ENRICHMENT_STATUS

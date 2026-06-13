@@ -32,6 +32,7 @@ class DrugIn(BaseModel):
     indications: Optional[str] = None
     side_effects: Optional[str] = None
     administration: Optional[str] = None
+    age_suitability: Optional[str] = None
     # Fields for initial stock entry
     batch_no: Optional[str] = None
     expiry: Optional[str] = None
@@ -48,6 +49,7 @@ class DrugUpdateIn(BaseModel):
     indications: Optional[str] = None
     side_effects: Optional[str] = None
     administration: Optional[str] = None
+    age_suitability: Optional[str] = None
 
 
 class BatchIn(BaseModel):
