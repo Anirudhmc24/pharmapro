@@ -577,6 +577,7 @@ export async function renderBilling(c, APP) {
         </div>
       `, `
         <button class="btn btn-outline" style="flex:0.8" onclick="closeModal(); APP.navigate('dashboard')">Skip Print</button>
+        <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="showWhatsappModal(window._lastBillData)">💬 WhatsApp</button>
         <button class="btn btn-outline" style="flex:1" onclick="printChallan(window._lastBillData); closeModal(); APP.navigate('dashboard')">🚗 Print Challan</button>
         <button class="btn btn-primary" style="flex:1.2" onclick="printBill(window._lastBillData); closeModal(); APP.navigate('dashboard')">🖨️ Print Bill</button>
       `);
@@ -584,6 +585,79 @@ export async function renderBilling(c, APP) {
       toast(e.message, 'error');
       document.getElementById('bill-gen-btn').textContent = 'Generate Bill';
       document.getElementById('bill-gen-btn').disabled = false;
+    }
+  };
+
+  window.showWhatsappModal = (data) => {
+    const prefillName = data.cust?.name || data.res?.patient_name || '';
+    const prefillPhone = data.cust?.phone || '';
+    
+    modal(`💬 Send Bill via WhatsApp`, `
+      <div class="field">
+        <label>Customer/Patient Name *</label>
+        <input class="input" id="wa-name" value="${prefillName}" placeholder="Enter name">
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label>WhatsApp / Mobile Number *</label>
+        <input class="input" id="wa-phone" value="${prefillPhone}" placeholder="10-digit mobile number, e.g. 9876543210" type="tel">
+      </div>
+    `, `
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:1.5; background:#25d366; border-color:#25d366; color:#fff" onclick="sendBillWhatsapp('${data.res.bill_no}', ${data.res.total}, '${data.res.payment_mode}')">🟢 Send Bill</button>
+    `);
+  };
+
+  window.sendBillWhatsapp = async (billNo, total, paymentMode) => {
+    const name = document.getElementById('wa-name')?.value?.trim();
+    let phone = document.getElementById('wa-phone')?.value?.trim();
+    
+    if (!name || !phone) {
+      toast('Name and Phone number are required', 'error');
+      return;
+    }
+    
+    phone = phone.replace(/[^0-9]/g, '');
+    if (phone.length < 10) {
+      toast('Please enter a valid mobile number', 'error');
+      return;
+    }
+    
+    const waPhone = phone.length === 10 ? '91' + phone : phone;
+    
+    try {
+      // Check if this phone number already exists in customers
+      const existing = await GET('/customers?q=' + encodeURIComponent(phone));
+      const match = existing.find(c => c.phone && c.phone.replace(/[^0-9]/g, '') === phone);
+      
+      if (!match) {
+        // Create new customer in the database
+        await POST('/customers', { name: name, phone: phone, dob: '' });
+        toast('Added new customer to database ✅', 'info');
+      }
+      
+      const config = window.APP?.config || {};
+      const shopName = config.name || "PharmaPro Retail";
+      const shopPhone = config.phone || "";
+      
+      let msgText = `Hello ${name},\n\n`;
+      msgText += `Thank you for shopping at *${shopName}*!\n`;
+      msgText += `Here are your bill details:\n`;
+      msgText += `• *Bill No:* ${billNo}\n`;
+      msgText += `• *Total Amount:* ₹${total.toFixed(2)}\n`;
+      msgText += `• *Payment Mode:* ${paymentMode}\n\n`;
+      if (shopPhone) {
+        msgText += `Contact us at: ${shopPhone}\n`;
+      }
+      msgText += `Get Well Soon! 💊`;
+      
+      const waUrl = `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(msgText)}`;
+      window.open(waUrl, '_blank');
+      
+      closeModal();
+      APP.navigate('dashboard');
+    } catch (err) {
+      console.error(err);
+      toast('Error: ' + err.message, 'error');
     }
   };
   
