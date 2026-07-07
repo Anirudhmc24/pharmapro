@@ -101,10 +101,14 @@ You must respond with ONLY a valid JSON object matching the following structure:
   "administration": "Plain text string containing general dosage/consumption instructions (e.g. 'Take with or after food. Do not exceed recommended dosage.')",
   "child_ok": true or false,
   "child_dose": "Pediatric dosage instructions, or 'Not recommended / Consult pediatrician'",
-  "adult_ok": true or false,
-  "adult_dose": "Standard adult dosage instructions",
-  "elderly_ok": true or false,
-  "elderly_dose": "Geriatric dosage instructions or precautions (e.g. 'Use with caution. Monitor renal/hepatic function.')"
+  "middle_aged_men_ok": true or false,
+  "middle_aged_men_dose": "Dosage instructions or precautions for adult/middle-aged men",
+  "middle_aged_women_ok": true or false,
+  "middle_aged_women_dose": "Dosage instructions, pregnancy/lactation warnings, or precautions for adult/middle-aged women",
+  "elderly_men_ok": true or false,
+  "elderly_men_dose": "Geriatric dosage instructions or precautions for elderly men (e.g. 'Monitor renal function. Lower starting dose.')",
+  "elderly_women_ok": true or false,
+  "elderly_women_dose": "Geriatric dosage instructions or precautions for elderly women (e.g. 'Use with caution. Monitor bone density.')"
 }}
 
 Respond ONLY with the JSON object. Do not include any conversational text or markdown blocks outside the JSON.
@@ -155,8 +159,10 @@ def run(force=False):
             # Prepare age suitability JSON
             age_suitability = json.dumps({
                 "child": {"ok": bool(data.get("child_ok", False)), "dose": data.get("child_dose", "Not recommended")},
-                "adult": {"ok": bool(data.get("adult_ok", True)), "dose": data.get("adult_dose", "")},
-                "elderly": {"ok": bool(data.get("elderly_ok", True)), "dose": data.get("elderly_dose", "")}
+                "middle_aged_men": {"ok": bool(data.get("middle_aged_men_ok", True)), "dose": data.get("middle_aged_men_dose", "")},
+                "middle_aged_women": {"ok": bool(data.get("middle_aged_women_ok", True)), "dose": data.get("middle_aged_women_dose", "")},
+                "elderly_men": {"ok": bool(data.get("elderly_men_ok", True)), "dose": data.get("elderly_men_dose", "")},
+                "elderly_women": {"ok": bool(data.get("elderly_women_ok", True)), "dose": data.get("elderly_women_dose", "")}
             })
             
             conn.execute("""

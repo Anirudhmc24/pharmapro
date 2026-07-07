@@ -39,6 +39,13 @@ public class CustomWebChromeClient extends WebChromeClient {
         this.mActivity = activity;
     }
 
+    private boolean mCanGoBack = false;
+
+    @android.webkit.JavascriptInterface
+    public void setCanGoBack(boolean canGoBack) {
+        this.mCanGoBack = canGoBack;
+    }
+
     /**
      * Configure WebView settings for camera/mic access via getUserMedia.
      * Call this once right after setting the WebChromeClient on the WebView.
@@ -56,6 +63,38 @@ public class CustomWebChromeClient extends WebChromeClient {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
     }
+
+    /**
+     * Configure WebView instance settings, register JavascriptInterface,
+     * and set OnKeyListener for Back Key events.
+     */
+    public void configureWebViewInstance(final WebView webView) {
+        if (webView == null) return;
+        configureWebView(webView);
+
+        // Register the JS interface for back key state updates
+        webView.addJavascriptInterface(this, "AndroidBridge");
+
+        // Set on key listener to intercept Back Key presses
+        webView.setOnKeyListener(new android.view.View.OnKeyListener() {
+            @Override
+            public boolean onKey(android.view.View v, int keyCode, android.view.KeyEvent event) {
+                if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                    if (mCanGoBack) {
+                        webView.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                webView.evaluateJavascript("if (window.handleAndroidBack) window.handleAndroidBack();", null);
+                            }
+                        });
+                        return true; // Consume the event
+                    }
+                }
+                return false; // Propagate event
+            }
+        });
+    }
+
 
     /**
      * Auto-grant camera/microphone permission requests from the web page

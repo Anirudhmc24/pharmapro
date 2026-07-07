@@ -41,14 +41,22 @@ export function modal(titleHTML, bodyHTML, footerHTML = '') {
     <div class="gap-12">${bodyHTML}</div>
     ${footerHTML ? `<div style="display:flex;gap:10px;margin-top:16px">${footerHTML}</div>` : ''}
   </div>`;
-  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  m.addEventListener('click', e => { 
+    if (e.target === m) {
+      m.remove();
+      if (window.updateAndroidBackState) window.updateAndroidBackState();
+    }
+  });
   document.body.appendChild(m);
+  if (window.updateAndroidBackState) window.updateAndroidBackState();
   return m;
 }
 
 export function closeModal() {
   document.querySelector('.modal-overlay')?.remove();
+  if (window.updateAndroidBackState) window.updateAndroidBackState();
 }
+
 
 export function spinner() {
   return '<div style="display:flex;justify-content:center;padding:60px"><div class="spinner"></div></div>';

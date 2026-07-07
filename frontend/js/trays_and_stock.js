@@ -630,7 +630,9 @@ export async function renderStockEntry(c, APP) {
               expiry: window.normalizeExpiry ? window.normalizeExpiry(it.expiry || '') : (it.expiry || ''),
               strips: it.strips || 1,
               cost: it.cost || 0,
-              mrp: it.mrp || 0
+              mrp: it.mrp || 0,
+              composition: it.composition || '',
+              hsn: it.hsn || ''
             });
           }
         });
@@ -764,7 +766,9 @@ export async function renderStockEntry(c, APP) {
       batch: it.batch_no,
       expiry: it.expiry,
       mrps: it.mrp,
-      qty: it.strips
+      qty: it.strips,
+      composition: it.composition || '',
+      hsn: it.hsn || ''
     });
   };
 

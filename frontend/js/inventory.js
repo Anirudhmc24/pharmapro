@@ -13,6 +13,7 @@ export async function renderInventory(c, APP) {
   let activeTab = 'stock';
   let problemQuery = '';
   let problemResults = [];
+  let activeSegment = 'middle_aged_men';
 
   function filteredDrugs() {
     if (!filter) return drugs;
@@ -82,6 +83,14 @@ export async function renderInventory(c, APP) {
     }
   }
 
+  window.setProblemSegment = (seg) => {
+    activeSegment = seg;
+    const resultsArea = document.getElementById('problem-results-area');
+    if (resultsArea) {
+      resultsArea.innerHTML = renderProblemResults();
+    }
+  };
+
   function renderProblemResults() {
     if (problemQuery.length < 2) {
       return `<div style="text-align:center;padding:48px;color:var(--muted)">
@@ -95,12 +104,29 @@ export async function renderInventory(c, APP) {
         <div>No matching medicines found for "${problemQuery}" in your inventory.</div>
       </div>`;
     }
-    
-    const childGroup = [];
-    const adultGroup = [];
-    const elderlyGroup = [];
-    const unclassified = [];
 
+    const segments = [
+      { id: 'child', label: '👶 Kids / Children' },
+      { id: 'middle_aged_men', label: '👨 Adult Men' },
+      { id: 'middle_aged_women', label: '👩 Adult Women' },
+      { id: 'elderly_men', label: '👴 Senior Men' },
+      { id: 'elderly_women', label: '👵 Senior Women' }
+    ];
+
+    const segmentButtons = `
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        ${segments.map(seg => `
+          <button onclick="setProblemSegment('${seg.id}')" class="btn ${activeSegment === seg.id ? 'btn-primary' : 'btn-outline'}" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:700">
+            ${seg.label}
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    // Filter results for the active segment
+    const filtered = [];
+    let unclassifiedCount = 0;
+    
     problemResults.forEach(d => {
       let suitability = null;
       try {
@@ -110,25 +136,50 @@ export async function renderInventory(c, APP) {
       } catch (e) {}
 
       if (suitability) {
-        if (suitability.child && suitability.child.ok) childGroup.push({ drug: d, dose: suitability.child.dose });
-        if (suitability.adult && suitability.adult.ok) adultGroup.push({ drug: d, dose: suitability.adult.dose });
-        if (suitability.elderly && suitability.elderly.ok) elderlyGroup.push({ drug: d, dose: suitability.elderly.dose });
+        let segData = suitability[activeSegment];
+        if (!segData) {
+          // Map to legacy categories if the new categories don't exist yet in the JSON
+          if (activeSegment === 'child' && suitability.child) {
+            segData = suitability.child;
+          } else if ((activeSegment === 'middle_aged_men' || activeSegment === 'middle_aged_women') && suitability.adult) {
+            segData = suitability.adult;
+          } else if ((activeSegment === 'elderly_men' || activeSegment === 'elderly_women') && suitability.elderly) {
+            segData = suitability.elderly;
+          }
+        }
+
+        if (segData && segData.ok) {
+          filtered.push({ drug: d, dose: segData.dose });
+        }
         
-        if (!suitability.child?.ok && !suitability.adult?.ok && !suitability.elderly?.ok) {
-          unclassified.push(d);
+        if (!suitability.child?.ok && !suitability.middle_aged_men?.ok && !suitability.middle_aged_women?.ok && !suitability.elderly_men?.ok && !suitability.elderly_women?.ok && !suitability.adult?.ok && !suitability.elderly?.ok) {
+          unclassifiedCount++;
         }
       } else {
-        adultGroup.push({ drug: d, dose: d.administration || "Standard adult dose" });
-        unclassified.push(d);
+        // If suitability is not set, default to allowing adults/seniors
+        unclassifiedCount++;
+        if (activeSegment !== 'child') {
+          filtered.push({ drug: d, dose: d.administration || "Standard dose" });
+        }
       }
     });
 
-    const hasUnclassified = unclassified.length > 0;
+    if (filtered.length === 0) {
+      return `
+        ${segmentButtons}
+        ${unclassifiedCount > 0 ? `
+          <div class="alert-strip info" style="margin-bottom: 14px; font-size: 11px; padding: 8px 12px;">
+            ℹ️ Some medicines are missing detailed age suitability data. Click "Enrich Inventory with AI" above to enrich your stock.
+          </div>
+        ` : ''}
+        <div style="text-align:center;padding:32px;color:var(--muted);background:var(--faint);border-radius:12px;border:1px solid var(--border)">
+          No matching medicines in stock found suitable for this category.
+        </div>
+      `;
+    }
 
-    function drugCard(d, doseText) {
-      const { full, broken } = breakdown(d);
+    const cardsHtml = filtered.map(({ drug: d, dose }) => {
       const inStock = (d.stock_tablets || 0) > 0;
-      const exp = d.nearest_expiry;
       
       let shelfText = "No location assigned";
       if (d.box_id && window._layout) {
@@ -145,72 +196,60 @@ export async function renderInventory(c, APP) {
       }
 
       return `
-        <div class="card-sm" style="border-left: 4px solid ${inStock ? 'var(--accent)' : 'var(--danger)'}; background: var(--surface); padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
-          <div class="flex-between" style="align-items: flex-start; gap: 8px;">
-            <div style="flex: 1; min-width: 0;">
-              <div style="font-weight: 800; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.name}">${d.name}</div>
-              <div style="font-size: 9px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${d.brand || ''}</div>
+        <div class="card" style="border-left: 5px solid ${inStock ? 'var(--accent)' : 'var(--danger)'}; background: var(--surface); padding: 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow-sm);">
+          <div class="flex-between">
+            <div>
+              <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--text)">${d.name}</h3>
+              <div style="font-size:11px;color:var(--muted)">Brand: ${d.brand || '—'} · Category: ${d.category || '—'}</div>
             </div>
-            <div style="text-align: right; flex-shrink: 0;">
-              <span class="tag ${inStock ? 'tag-green' : 'tag-red'}" style="font-size: 9px; padding: 1px 5px;">
-                ${d.stock_tablets || 0} tabs
+            <div style="text-align:right">
+              <span class="tag ${inStock ? 'tag-green' : 'tag-red'}" style="font-size:11px;font-weight:800;padding:2px 8px">
+                ${d.stock_tablets || 0} tabs in stock
               </span>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">MRP: ₹${d.mrp_per_tablet?.toFixed(2) || '0.00'}/tab</div>
             </div>
           </div>
-          <div style="font-size: 10px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 6px;">
-            <b>Dose Instruction:</b>
-            <div style="color: var(--text); margin-top: 2px; line-height: 1.3;">${doseText || 'Not specified'}</div>
+          
+          ${d.composition ? `
+            <div style="font-size:12px;background:var(--faint);padding:6px 10px;border-radius:6px;color:var(--text);margin-top:4px">
+              <b>Composition:</b> ${d.composition}
+            </div>
+          ` : ''}
+
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+            <div style="font-size:12px;color:var(--text)">
+              <b>📍 Location:</b> <strong style="color:var(--accent)">${shelfText}</strong>
+            </div>
+            
+            <div style="font-size:12px;color:var(--text)">
+              <b>📋 Target Symptoms / Indications:</b> ${d.indications || '—'}
+            </div>
+
+            <div style="font-size:12px;color:var(--text);border-top:1px dashed var(--border);padding-top:6px;margin-top:4px">
+              <b>Directions of Usage (General):</b> ${d.administration || '—'}
+            </div>
+
+            <div style="font-size:12px;color:var(--text);background:var(--accent-dim);padding:8px 10px;border-radius:6px;border:1px solid rgba(59,130,246,0.1)">
+              <b>🎯 Specific Category Dose:</b> <strong style="color:var(--accent)">${dose || 'Refer to doctor / pharmacist'}</strong>
+            </div>
           </div>
-          <div class="flex-between" style="font-size: 9px; color: var(--muted); margin-top: 4px; border-top: 1px solid #1e2d4222; padding-top: 4px;">
-            <span>📍 ${shelfText.split(' › ').slice(-1)[0]}</span>
-            <span style="color: var(--accent); cursor: pointer;" onclick="showEditDrug(${d.id})">Edit ✏️</span>
+          
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;font-size:11px;color:var(--muted);border-top:1px solid #1e2d4222;padding-top:8px">
+            <span style="color:var(--accent);cursor:pointer;font-weight:700" onclick="showEditDrug(${d.id})">✏️ Edit Details</span>
           </div>
         </div>
       `;
-    }
+    }).join('');
 
     return `
-      ${hasUnclassified ? `
+      ${segmentButtons}
+      ${unclassifiedCount > 0 ? `
         <div class="alert-strip info" style="margin-bottom: 14px; font-size: 11px; padding: 8px 12px;">
-          ℹ️ Some medicines are missing age suitability data. Click "Enrich Inventory with AI" above to enrich all medicines.
+          ℹ️ Some medicines are missing detailed age suitability data. Click "Enrich Inventory with AI" above to enrich your stock.
         </div>
       ` : ''}
-      <div class="grid-3">
-        <!-- CHILDREN -->
-        <div class="card" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px;">
-          <div style="font-weight: 800; font-size: 13px; color: var(--accent); display: flex; align-items: center; gap: 6px; border-bottom: 2px solid var(--accent-dim); padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-            <span>👶</span> <span>Children Care</span>
-          </div>
-          <div style="flex: 1; display: flex; flex-direction: column; margin-top: 8px;">
-            ${childGroup.length === 0 
-              ? `<div style="text-align:center; padding: 40px 10px; color:var(--muted); font-size: 11px; margin: auto;">No specific child care options</div>`
-              : childGroup.map(item => drugCard(item.drug, item.dose)).join('')}
-          </div>
-        </div>
-        
-        <!-- ADULTS -->
-        <div class="card" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px;">
-          <div style="font-weight: 800; font-size: 13px; color: var(--info); display: flex; align-items: center; gap: 6px; border-bottom: 2px solid var(--info-dim); padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-            <span>🧑</span> <span>Adult Care</span>
-          </div>
-          <div style="flex: 1; display: flex; flex-direction: column; margin-top: 8px;">
-            ${adultGroup.length === 0 
-              ? `<div style="text-align:center; padding: 40px 10px; color:var(--muted); font-size: 11px; margin: auto;">No adult care options</div>`
-              : adultGroup.map(item => drugCard(item.drug, item.dose)).join('')}
-          </div>
-        </div>
-        
-        <!-- ELDERLY -->
-        <div class="card" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px;">
-          <div style="font-weight: 800; font-size: 13px; color: var(--warn); display: flex; align-items: center; gap: 6px; border-bottom: 2px solid var(--warn-dim); padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-            <span>👵</span> <span>Senior Care</span>
-          </div>
-          <div style="flex: 1; display: flex; flex-direction: column; margin-top: 8px;">
-            ${elderlyGroup.length === 0 
-              ? `<div style="text-align:center; padding: 40px 10px; color:var(--muted); font-size: 11px; margin: auto;">No senior care options</div>`
-              : elderlyGroup.map(item => drugCard(item.drug, item.dose)).join('')}
-          </div>
-        </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${cardsHtml}
       </div>
     `;
   }
@@ -218,10 +257,11 @@ export async function renderInventory(c, APP) {
   // Polling for AI enrichment
   let enrichmentInterval = null;
   window.triggerEnrichment = async () => {
+    const force = confirm("Do you want to re-enrich ALL medicines in the database (including already enriched ones)?\n\nClick OK to enrich all items.\nClick Cancel to only enrich new/missing items.");
     const btn = document.getElementById('enrich-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Enriching...'; }
     try {
-      const res = await POST('/drugs/enrich_inventory');
+      const res = await POST('/drugs/enrich_inventory?force=' + force);
       if (res.ok) {
         toast('AI Enrichment started in background', 'success');
         startEnrichmentPolling();

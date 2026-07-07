@@ -415,7 +415,7 @@ export async function renderBackorders(c, APP) {
 
 // ── Bill History with Returns ─────────────────────────────────────────────────
 export async function renderBillHistory(c, APP) {
-  const { GET: _GET, POST: _POST } = await import('./api.js');
+  const { GET: _GET, POST: _POST, PUT: _PUT } = await import('./api.js');
   const { toast: _toast, fmt: _fmt, fmtI: _fmtI, modal: _modal, closeModal: _close } = await import('./utils.js');
 
   const bills = await _GET('/bills?limit=100');
@@ -440,12 +440,333 @@ export async function renderBillHistory(c, APP) {
           <td>${statusTag(b.payment_mode)}</td>
           <td style="color:var(--muted);font-size:12px">${b.cashier || '—'}</td>
           <td style="font-size:11px;color:var(--muted)">${b.created_at?.slice(0,16) || ''}</td>
-          <td><button class="btn btn-outline btn-sm" onclick="openReturnModal(${b.id},'${b.bill_no}')">↩ Return</button></td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-outline btn-sm" onclick="openViewBillModal(${b.id},'${b.bill_no}')">👁️ View</button>
+              <button class="btn btn-outline btn-sm" onclick="openEditBillModal(${b.id},'${b.bill_no}')">✏️ Edit</button>
+              <button class="btn btn-outline btn-sm" onclick="openReturnModal(${b.id},'${b.bill_no}')">↩ Return</button>
+            </div>
+          </td>
         </tr>`).join('')}
         </tbody>
       </table>
     </div>
   </div>`;
+
+  window.openViewBillModal = async (billId, billNo) => {
+    const bill = await _GET('/bills/' + billId);
+    
+    const itemsHtml = bill.items.map(item => `
+      <tr>
+        <td>
+          <div style="font-weight:700">${item.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${item.brand || ''}</div>
+        </td>
+        <td>${item.batch_no || '—'}</td>
+        <td>${item.expiry || '—'}</td>
+        <td style="text-align:right">${item.tablets_qty}</td>
+        <td style="text-align:right">₹${item.mrp_per_tab.toFixed(2)}</td>
+        <td style="text-align:right;font-weight:700">₹${item.amount.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const bodyHtml = `
+      <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;max-height: 70vh;overflow-y: auto;">
+        <div class="grid-2">
+          <div><span style="color:var(--muted)">Patient:</span> <strong>${bill.patient_name || 'Walk-in'}</strong></div>
+          <div><span style="color:var(--muted)">Doctor:</span> <strong>${bill.doctor || '—'}</strong></div>
+        </div>
+        <div class="grid-2">
+          <div><span style="color:var(--muted)">Rx No:</span> <strong>${bill.rx_no || '—'}</strong></div>
+          <div><span style="color:var(--muted)">Date:</span> <strong>${bill.created_at || '—'}</strong></div>
+        </div>
+        <div class="grid-2">
+          <div><span style="color:var(--muted)">Payment Mode:</span> <span class="tag tag-gray">${bill.payment_mode}</span></div>
+          <div><span style="color:var(--muted)">Cashier:</span> <strong>${bill.cashier || '—'}</strong></div>
+        </div>
+        ${bill.customer_name ? `
+        <div class="grid-2">
+          <div><span style="color:var(--muted)">Customer:</span> <strong>${bill.customer_name}</strong></div>
+          <div><span style="color:var(--muted)">Phone:</span> <strong>${bill.customer_phone || '—'}</strong></div>
+        </div>` : ''}
+        
+        <div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:12px">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Drug</th>
+                <th>Batch</th>
+                <th>Expiry</th>
+                <th style="text-align:right">Qty</th>
+                <th style="text-align:right">MRP/Tab</th>
+                <th style="text-align:right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+        </div>
+        
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:14px">
+          <div><span style="color:var(--muted)">Subtotal:</span> <strong>₹${bill.subtotal.toFixed(2)}</strong></div>
+          <div><span style="color:var(--muted)">Discount (${bill.discount_pct}%):</span> <strong style="color:var(--danger)">-₹${bill.discount_amt.toFixed(2)}</strong></div>
+          <div><span style="color:var(--muted)">GST:</span> <strong>₹${bill.gst_amt.toFixed(2)}</strong></div>
+          <div style="font-size:16px;font-weight:800;color:var(--accent);margin-top:4px">
+            <span style="color:var(--text)">Net Total:</span> ₹${bill.total.toFixed(2)}
+          </div>
+        </div>
+      </div>
+    `;
+
+    const printData = {
+      res: bill,
+      items: bill.items,
+      cust: bill.customer_id ? { id: bill.customer_id, name: bill.customer_name } : null,
+      disc: bill.discount_pct,
+      pay: bill.payment_mode
+    };
+
+    window._viewBillPrintData = printData;
+
+    _modal(`👁️ Bill Detail — ${billNo}`, bodyHtml, `
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Close</button>
+      <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="window.open('https://wa.me/91' + '${bill.customer_phone || ''}'.replace(/\\D/g,'') + '?text=Hi%20' + encodeURIComponent(window._viewBillPrintData.res.patient_name || window._viewBillPrintData.res.customer_name || 'Customer') + ',%20here%20is%20your%20invoice%20no%20' + '${billNo}' + '%20amounting%20to%20Rs.%20' + window._viewBillPrintData.res.total.toFixed(2) + '.', '_blank')">💬 WhatsApp</button>
+      <button class="btn btn-outline" style="flex:1" onclick="window.printChallan(window._viewBillPrintData)">🚗 Challan</button>
+      <button class="btn btn-primary" style="flex:1.2" onclick="window.printBill(window._viewBillPrintData)">🖨️ Print Bill</button>
+    `);
+  };
+
+  window.openEditBillModal = async (billId, billNo) => {
+    const bill = await _GET('/bills/' + billId);
+    let editCart = bill.items.map(item => ({
+      drug_id: item.drug_id,
+      name: item.name,
+      brand: item.brand,
+      mrp_per_tab: item.mrp_per_tab,
+      qty: item.tablets_qty
+    }));
+
+    window.updateEditQty = (idx, delta) => {
+      editCart[idx].qty = Math.max(1, editCart[idx].qty + delta);
+      renderEditCartTable();
+    };
+
+    window.setEditQty = (idx, val) => {
+      const q = parseInt(val);
+      if (q > 0) {
+        editCart[idx].qty = q;
+        renderEditCartTable();
+      }
+    };
+
+    window.removeEditItem = (idx) => {
+      editCart.splice(idx, 1);
+      renderEditCartTable();
+    };
+
+    window.addDrugToEditByIndex = (idx) => {
+      const drug = window._editSearchDrugs[idx];
+      if (!drug) return;
+      
+      const existing = editCart.find(i => i.drug_id === drug.id);
+      if (existing) {
+        existing.qty += 10;
+      } else {
+        editCart.push({
+          drug_id: drug.id,
+          name: drug.name,
+          brand: drug.brand || '',
+          mrp_per_tab: drug.mrp_per_tablet,
+          qty: 10
+        });
+      }
+      const searchInput = document.getElementById('edit-drug-search');
+      if (searchInput) searchInput.value = '';
+      const resultsDiv = document.getElementById('edit-drug-results');
+      if (resultsDiv) resultsDiv.innerHTML = '';
+      renderEditCartTable();
+    };
+
+    window.onEditSearchInput = async (val) => {
+      const q = val.trim();
+      const resultsDiv = document.getElementById('edit-drug-results');
+      if (!resultsDiv) return;
+      if (!q) { resultsDiv.innerHTML = ''; return; }
+      
+      const drugs = await _GET('/drugs?q=' + encodeURIComponent(q));
+      if (!drugs.length) {
+        resultsDiv.innerHTML = '<div style="padding:8px;color:var(--muted)">No medicines found</div>';
+        return;
+      }
+      
+      window._editSearchDrugs = drugs;
+      
+      resultsDiv.innerHTML = drugs.map((d, i) => `
+        <div class="edit-search-item" style="padding:8px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.2s" 
+             onmouseover="this.style.background='var(--faint)'" onmouseout="this.style.background='transparent'"
+             onclick="window.addDrugToEditByIndex(${i})">
+          <strong style="color:var(--text)">${d.name}</strong> <span style="font-size:11px;color:var(--muted)">${d.brand || ''}</span>
+          <div style="font-size:11px;color:var(--accent);margin-top:2px">Stock: ${d.stock_tablets} tabs · MRP: ₹${d.mrp_per_tablet.toFixed(2)}/tab</div>
+        </div>
+      `).join('');
+    };
+
+    const gstSlab = parseFloat(APP?.config?.gst_slab || 12);
+
+    window.recalculateEditTotals = () => {
+      const subtotal = editCart.reduce((sum, item) => sum + (item.mrp_per_tab * item.qty), 0);
+      const discPct = parseFloat(document.getElementById('edit-disc-pct')?.value || 0);
+      
+      const pctDiscAmt = (subtotal * discPct) / 100.0;
+      const discAmt = pctDiscAmt; // Simplification as points redeemed isn't stored
+      
+      const gstInclusive = document.getElementById('edit-gst-inclusive')?.checked;
+      
+      let baseSubtotal, gstAmt, total;
+      
+      if (gstInclusive) {
+        baseSubtotal = subtotal / (1 + gstSlab / 100);
+        const actualPctDiscAmt = (baseSubtotal * discPct) / 100.0;
+        const actualDiscAmt = actualPctDiscAmt;
+        const taxable = baseSubtotal - actualDiscAmt;
+        gstAmt = taxable * gstSlab / 100;
+        total = baseSubtotal - actualDiscAmt + gstAmt;
+      } else {
+        gstAmt = (subtotal - discAmt) * gstSlab / 100;
+        total = subtotal - discAmt + gstAmt;
+      }
+      
+      document.getElementById('edit-subtotal').textContent = '₹' + subtotal.toFixed(2);
+      document.getElementById('edit-disc-amt').textContent = '-₹' + discAmt.toFixed(2);
+      document.getElementById('edit-gst-amt').textContent = '₹' + gstAmt.toFixed(2);
+      document.getElementById('edit-total').textContent = '₹' + total.toFixed(2);
+    };
+
+    const bodyHtml = `
+      <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;max-height: 65vh;overflow-y: auto;padding-right: 4px;">
+        <div class="grid-2">
+          <div class="field"><label>Patient Name *</label><input class="input" id="edit-patient-name" value="${bill.patient_name || ''}"></div>
+          <div class="field"><label>Doctor</label><input class="input" id="edit-doctor" value="${bill.doctor || ''}"></div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Rx No</label><input class="input" id="edit-rx-no" value="${bill.rx_no || ''}"></div>
+          <div class="field"><label>Payment Mode</label>
+            <select class="select" id="edit-payment-mode">
+              <option value="Cash" ${bill.payment_mode === 'Cash' ? 'selected' : ''}>Cash</option>
+              <option value="UPI" ${bill.payment_mode === 'UPI' ? 'selected' : ''}>UPI</option>
+              <option value="Card" ${bill.payment_mode === 'Card' ? 'selected' : ''}>Card</option>
+              <option value="Credit" ${bill.payment_mode === 'Credit' ? 'selected' : ''}>Credit</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Discount (%)</label><input class="input" type="number" id="edit-disc-pct" value="${bill.discount_pct || 0}" min="0" max="100" oninput="recalculateEditTotals()"></div>
+          <div class="field" style="display:flex;align-items:center;margin-top:20px;gap:8px">
+            <label class="switch"><input type="checkbox" id="edit-gst-inclusive" ${bill.gst_inclusive ? 'checked' : ''} onchange="recalculateEditTotals()"><span class="slider"></span></label>
+            <div style="font-weight:600">GST Inclusive Pricing</div>
+          </div>
+        </div>
+        
+        <div class="field" style="position:relative">
+          <label>🔍 Add Medicine</label>
+          <input class="input" id="edit-drug-search" placeholder="Type medicine name, composition or brand..." oninput="onEditSearchInput(this.value)">
+          <div id="edit-drug-results" style="position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--border);border-top:none;z-index:1000;max-height:200px;overflow-y:auto;border-radius:0 0 6px 6px;box-shadow:0 8px 16px rgba(0,0,0,0.1)"></div>
+        </div>
+
+        <div style="margin-top:8px">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Drug</th>
+                <th style="width:140px">Qty (tabs)</th>
+                <th style="text-align:right">MRP/Tab</th>
+                <th style="text-align:right">Amount</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="edit-bill-items-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:14px">
+          <div><span style="color:var(--muted)">Subtotal:</span> <strong id="edit-subtotal">₹0.00</strong></div>
+          <div><span style="color:var(--muted)">Discount:</span> <strong id="edit-disc-amt" style="color:var(--danger)">-₹0.00</strong></div>
+          <div><span style="color:var(--muted)">GST (${gstSlab}%):</span> <strong id="edit-gst-amt">₹0.00</strong></div>
+          <div style="font-size:16px;font-weight:800;color:var(--accent);margin-top:4px">
+            <span style="color:var(--text)">Net Total:</span> <span id="edit-total">₹0.00</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    _modal(`✏️ Edit Bill — ${billNo}`, bodyHtml, `
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:2" onclick="submitEditBill(${billId})">💾 Save Changes</button>
+    `);
+
+    window.renderEditCartTable = () => {
+      const tbody = document.getElementById('edit-bill-items-body');
+      if (!tbody) return;
+      tbody.innerHTML = editCart.map((item, idx) => `
+        <tr>
+          <td>
+            <div style="font-weight:700">${item.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${item.brand || ''}</div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px">
+              <button class="btn btn-outline btn-sm" style="padding:2px 6px" onclick="updateEditQty(${idx}, -1)">−</button>
+              <input class="input" type="number" value="${item.qty}" min="1" style="width:60px;text-align:center;padding:2px" onchange="setEditQty(${idx}, this.value)">
+              <button class="btn btn-outline btn-sm" style="padding:2px 6px" onclick="updateEditQty(${idx}, 1)">+</button>
+            </div>
+          </td>
+          <td style="text-align:right">₹${item.mrp_per_tab.toFixed(2)}</td>
+          <td style="text-align:right;font-weight:700">₹${(item.mrp_per_tab * item.qty).toFixed(2)}</td>
+          <td>
+            <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.2);padding:2px 6px" onclick="removeEditItem(${idx})">✕</button>
+          </td>
+        </tr>
+      `).join('');
+      recalculateEditTotals();
+    };
+
+    renderEditCartTable();
+
+    window.submitEditBill = async (id) => {
+      if (!editCart.length) { _toast('Add at least one item', 'warn'); return; }
+      
+      const patName = document.getElementById('edit-patient-name')?.value.trim();
+      if (!patName) { _toast('Patient name required', 'warn'); return; }
+
+      const payload = {
+        customer_id: bill.customer_id,
+        patient_name: patName,
+        doctor: document.getElementById('edit-doctor')?.value.trim() || '',
+        rx_no: document.getElementById('edit-rx-no')?.value.trim() || '',
+        rx_image_path: bill.rx_image_path || '',
+        discount_pct: parseFloat(document.getElementById('edit-disc-pct')?.value || 0),
+        payment_mode: document.getElementById('edit-payment-mode')?.value || 'Cash',
+        points_redeemed: 0,
+        gst_inclusive: document.getElementById('edit-gst-inclusive')?.checked || false,
+        items: editCart.map(item => ({
+          drug_id: item.drug_id,
+          tablets_qty: item.qty
+        }))
+      };
+
+      try {
+        await _PUT('/bills/' + id, payload);
+        _close();
+        _toast('Bill updated successfully ✅', 'success');
+        renderBillHistory(c, APP);
+      } catch (e) {
+        _toast('Failed to update bill: ' + e.message, 'error');
+      }
+    };
+  };
 
   window.openReturnModal = async (billId, billNo) => {
     const bill = await _GET('/bills/' + billId);

@@ -499,13 +499,13 @@ ENRICHMENT_STATUS = {
     "last_error": None
 }
 
-def enrich_inventory_task():
+def enrich_inventory_task(force: bool = False):
     global ENRICHMENT_STATUS
     ENRICHMENT_STATUS["running"] = True
     ENRICHMENT_STATUS["last_error"] = None
     try:
         from scripts.populate_indications import run as run_enrichment
-        run_enrichment()
+        run_enrichment(force=force)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -514,13 +514,13 @@ def enrich_inventory_task():
         ENRICHMENT_STATUS["running"] = False
 
 @router.post("/enrich_inventory")
-def trigger_enrichment(background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
+def trigger_enrichment(background_tasks: BackgroundTasks, force: bool = False, x_token: Optional[str] = Header(default=None)):
     get_current_user(x_token)
     global ENRICHMENT_STATUS
     if ENRICHMENT_STATUS["running"]:
         return {"ok": False, "message": "Enrichment already running"}
     
-    background_tasks.add_task(enrich_inventory_task)
+    background_tasks.add_task(enrich_inventory_task, force=force)
     return {"ok": True, "message": "Enrichment started in the background"}
 
 @router.get("/enrich_status")

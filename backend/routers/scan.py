@@ -219,9 +219,10 @@ def scan_image(body: ScanIn):
     elif body.mode == "challan":
         prompt = (
             "Look at this pharmacy invoice/challan photo.\n"
-            "Extract ALL medicine line items: drug_name, batch_no, expiry (YYYY-MM), strips (int), mrp (number), cost (number).\n"
+            "Extract ALL medicine line items: drug_name, batch_no, expiry (YYYY-MM), strips (int), mrp (number), cost (number), composition (string, optional), hsn (string, optional).\n"
             "Respond ONLY with a JSON array, matching schema:\n"
-            '[{"drug_name":"","batch_no":"","expiry":"","strips":1,"mrp":0,"cost":0}]\n'
+            '[{"drug_name":"","batch_no":"","expiry":"","strips":1,"mrp":0,"cost":0,"composition":"","hsn":""}]\n'
+            "Note on 'cost': This must be the purchase cost per strip (dealer trade price/PTR). If the invoice only lists the total price for a row, divide it by the number of strips/quantity to get the cost per strip.\n"
             "Use empty string or 0 for unreadable fields."
         )
         try:

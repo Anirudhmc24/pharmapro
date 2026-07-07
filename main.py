@@ -51,9 +51,10 @@ def _attach_chrome_client():
             webView = activity.mWebView
             if webView is not None:
                 Client = autoclass('org.pharmapro.CustomWebChromeClient')
-                webView.setWebChromeClient(Client(activity))
-                # Configure WebView settings for camera/mic/file access
-                Client.configureWebView(webView)
+                client_instance = Client(activity)
+                webView.setWebChromeClient(client_instance)
+                # Configure WebView settings and register back button interception
+                client_instance.configureWebViewInstance(webView)
 
     _set_client()
 

@@ -327,6 +327,7 @@ nav{padding:8px}
       <div id="topbar">
         <div style="display:flex;align-items:center;gap:10px">
           <button id="sidebar-toggle" class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+          <button id="header-back-btn" style="display:none;background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;align-items:center;justify-content:center;" onclick="APP.navigate('dashboard')">←</button>
           <div style="font-size:14px;font-weight:700;color:var(--text)" id="page-title">Dashboard</div>
         </div>
         <div style="display:flex;gap:14px;align-items:center">
@@ -371,6 +372,30 @@ window.toggleSidebar = () => {
 };
 // Close sidebar when a nav item is clicked on mobile
 const origNavigate = null;
+
+// ── Android Back Button handling ─────────────────────────
+window.updateAndroidBackState = () => {
+  if (window.AndroidBridge && typeof window.AndroidBridge.setCanGoBack === 'function') {
+    const hasModal = !!document.querySelector('.modal-overlay');
+    const notOnDashboard = window.APP && window.APP.page !== 'dashboard';
+    window.AndroidBridge.setCanGoBack(hasModal || notOnDashboard);
+  }
+};
+
+window.handleAndroidBack = () => {
+  const modalOverlay = document.querySelector('.modal-overlay');
+  if (modalOverlay) {
+    window.closeModal();
+    window.updateAndroidBackState();
+    return;
+  }
+  if (window.APP && typeof window.APP.navigate === 'function') {
+    if (window.APP.page !== 'dashboard') {
+      window.APP.navigate('dashboard');
+      window.updateAndroidBackState();
+    }
+  }
+};
 
 // Forward declarations — actual implementations assigned below after function definitions
 window.doLogin  = () => {};
@@ -464,6 +489,13 @@ function renderNav(alerts = {}) {
 function navigate(page) {
   APP.page = page;
   document.getElementById('page-title').textContent = PAGES.find(p => p.id === page)?.label || page;
+  
+  // Show/hide back button in header
+  const backBtn = document.getElementById('header-back-btn');
+  if (backBtn) {
+    backBtn.style.display = page === 'dashboard' ? 'none' : 'inline-flex';
+  }
+
   // Close sidebar on mobile after navigation
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebar-overlay');
@@ -471,6 +503,9 @@ function navigate(page) {
   if (overlay) overlay.classList.remove('open');
   renderNav();
   renderPage(page);
+
+  // Update back gesture state
+  window.updateAndroidBackState();
 }
 
 async function renderPage(page) {
@@ -727,6 +762,9 @@ async function bootApp() {
 
   renderNav();
   navigate('dashboard');
+
+  // Set initial back button handling state after login
+  window.updateAndroidBackState();
 }
 
 // ── Init ─────────────────────────────────────────────────
