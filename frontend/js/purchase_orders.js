@@ -476,13 +476,24 @@ export async function renderPurchaseOrders(c, APP) {
           <td style="text-align:right;font-weight:700">₹${amt.toFixed(2)}</td></tr>`;
       }).join('');
       w.document.write(`<html><head><title>${po.po_no}</title>
-        <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}
-        h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}
-        th{background:#f5f5f5;padding:8px;text-align:left;border:1px solid #ddd}
-        td{padding:8px;border:1px solid #ddd}
-        .hdr{display:flex;justify-content:space-between;margin-bottom:16px}
-        .total{font-size:18px;font-weight:700;text-align:right;margin-top:12px}
-        .lbl{color:#666;font-size:11px}</style></head><body>
+        <style>
+          body{font-family:Arial,sans-serif;padding:24px;font-size:13px}
+          h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}
+          th{background:#f5f5f5;padding:8px;text-align:left;border:1px solid #ddd}
+          td{padding:8px;border:1px solid #ddd}
+          .hdr{display:flex;justify-content:space-between;margin-bottom:16px}
+          .total{font-size:18px;font-weight:700;text-align:right;margin-top:12px}
+          .lbl{color:#666;font-size:11px}
+          .no-print { display: block; }
+          @media print {
+            .no-print { display: none !important; }
+          }
+        </style></head><body>
+        <div class="no-print" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;margin-bottom:20px;">
+          <button onclick="window.history.back() || (window.location.href='/')" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">← Back to App</button>
+          <span style="font-size:12px;color:#475569;font-weight:600">Print page loaded.</span>
+          <button onclick="window.close()" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">Close Tab ✕</button>
+        </div>
         <div class="hdr">
           <div><h1>Purchase Order</h1><div class="lbl">PO Number</div><div style="font-weight:700;font-size:15px">${po.po_no}</div></div>
           <div style="text-align:right">

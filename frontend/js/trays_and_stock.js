@@ -46,7 +46,18 @@ export async function renderTrays(c, APP) {
     const ml  = monthsLeft(expiry);
     const col = ml <= 0 ? '#ef4444' : ml <= 3 ? '#f59e0b' : '#10b981';
     const w   = window.open('', '_blank', 'width=320,height=420');
-    w.document.write(`<html><body style="font-family:monospace;padding:16px;background:#fff;color:#111">
+    w.document.write(`<html><head>
+      <style>
+        .no-print { display: block; }
+        @media print {
+          .no-print { display: none !important; }
+        }
+      </style>
+      </head><body style="font-family:monospace;padding:16px;background:#fff;color:#111">
+      <div class="no-print" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <button onclick="window.history.back() || (window.location.href='/')" style="padding:4px 8px;background:#3b82f6;color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:10px">← Back</button>
+        <button onclick="window.close()" style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:10px">Close ✕</button>
+      </div>
       <div style="font-size:9px;font-weight:700;letter-spacing:2px;color:#666;margin-bottom:6px">PHARMAPRO TRAY LABEL</div>
       <div style="font-size:18px;font-weight:900;margin-bottom:2px">${drug}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0">

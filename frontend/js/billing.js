@@ -740,14 +740,21 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     .summary-table tr.total-row td { padding: 8px 6px; color: #0f172a; }
     .footer { text-align: center; margin-top: 20px; padding-top: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 10px; line-height: 1.5; }
     .warning-box { margin-top: 10px; padding: 6px 8px; background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; color: #b45309; font-size: 9px; text-align: left; line-height: 1.3; }
+    .no-print { display: block; }
     @media print {
       body { padding: 0; }
       .invoice-card { border: none; box-shadow: none; padding: 0; max-width: 100%; }
       .warning-box { background-color: #fff; border-color: #ccc; }
+      .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
+  <div class="no-print" style="max-width:650px;margin: 0 auto 20px auto;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;font-family:'Segoe UI',system-ui,sans-serif;">
+    <button onclick="window.history.back() || (window.location.href='/')" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">← Back to App</button>
+    <span style="font-size:12px;color:#475569;font-weight:600">Print page loaded.</span>
+    <button onclick="window.close()" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">Close Tab ✕</button>
+  </div>
   <div class="invoice-card">
     <div class="header">
       <div class="shop-name">${shopName}</div>
@@ -874,11 +881,22 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     const { res, items, cust } = data;
     const w = window.open('', '_blank', 'width=800,height=600');
     w.document.write(`<html><head><title>DELIVERY CHALLAN ${res.bill_no}</title>
-    <style>body{font-family:sans-serif;padding:24px;color:#111;font-size:13px}
-    .row{display:flex;justify-content:space-between}hr{border-top:1px solid #111;margin:16px 0}
-    .big{font-size:24px;font-weight:900}table{width:100%;border-collapse:collapse;margin-top:20px}
-    td,th{padding:8px;border:1px solid #666;text-align:left}th{background:#eee}</style>
+    <style>
+      body{font-family:sans-serif;padding:24px;color:#111;font-size:13px}
+      .row{display:flex;justify-content:space-between}hr{border-top:1px solid #111;margin:16px 0}
+      .big{font-size:24px;font-weight:900}table{width:100%;border-collapse:collapse;margin-top:20px}
+      td,th{padding:8px;border:1px solid #666;text-align:left}th{background:#eee}
+      .no-print { display: block; }
+      @media print {
+        .no-print { display: none !important; }
+      }
+    </style>
     </head><body>
+    <div class="no-print" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;margin-bottom:20px;">
+      <button onclick="window.history.back() || (window.location.href='/')" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">← Back to App</button>
+      <span style="font-size:12px;color:#475569;font-weight:600">Print page loaded.</span>
+      <button onclick="window.close()" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">Close Tab ✕</button>
+    </div>
     <div style="text-align:center;margin-bottom:20px">
       <div class="big">DELIVERY CHALLAN / DISPATCH NOTE</div>
       <div style="font-size:12px;color:#666">Not for ITC (Non-Tax Invoice)</div>
