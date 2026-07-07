@@ -529,9 +529,25 @@ export async function renderBillHistory(c, APP) {
 
     window._viewBillPrintData = printData;
 
+    window.shareBillOnWhatsapp = (patientName, billNo, total, customerPhone) => {
+      let phone = (customerPhone || '').replace(/\D/g, '');
+      if (!phone) {
+        phone = prompt("This bill does not have a customer phone number linked. Enter a 10-digit phone number to send via WhatsApp:");
+        if (!phone) return;
+        phone = phone.replace(/\D/g, '');
+      }
+      if (phone.length < 10) {
+        alert("Please enter a valid 10-digit mobile number.");
+        return;
+      }
+      const waPhone = phone.length === 10 ? '91' + phone : phone;
+      const msg = `Hi ${patientName || 'Customer'}, here is your invoice no ${billNo} amounting to Rs. ${total.toFixed(2)}.`;
+      window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+    };
+
     _modal(`👁️ Bill Detail — ${billNo}`, bodyHtml, `
       <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Close</button>
-      <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="window.open('https://wa.me/91' + '${bill.customer_phone || ''}'.replace(/\\D/g,'') + '?text=Hi%20' + encodeURIComponent(window._viewBillPrintData.res.patient_name || window._viewBillPrintData.res.customer_name || 'Customer') + ',%20here%20is%20your%20invoice%20no%20' + '${billNo}' + '%20amounting%20to%20Rs.%20' + window._viewBillPrintData.res.total.toFixed(2) + '.', '_blank')">💬 WhatsApp</button>
+      <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="window.shareBillOnWhatsapp('${bill.patient_name || bill.customer_name || 'Customer'}', '${billNo}', ${bill.total}, '${bill.customer_phone || ''}')">💬 WhatsApp</button>
       <button class="btn btn-outline" style="flex:1" onclick="window.printChallan(window._viewBillPrintData)">🚗 Challan</button>
       <button class="btn btn-primary" style="flex:1.2" onclick="window.printBill(window._viewBillPrintData)">🖨️ Print Bill</button>
     `);

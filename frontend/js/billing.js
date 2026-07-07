@@ -674,8 +674,9 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     }
   }
   window.addEventListener('keydown', handleBarcode);
+}
 
-  window.printBill = (data) => {
+window.printBill = (data) => {
     const { res, items, cust, disc, pay } = data;
     const config = window.APP?.config || {};
     const shopName = config.name || "PharmaPro Retail";
@@ -926,4 +927,3 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     </div>
     <script>window.print();window.close();<\/script></body></html>`);
   }
-}
