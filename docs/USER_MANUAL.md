@@ -61,7 +61,10 @@ The Billing screen is designed for speed and clinical safety.
 5. **Drug Interactions**: If you add two medicines to the same bill that have known negative interactions, the system will display a bright red clinical warning.
 6. **BOGO Schemes**: If a drug is marked under a Buy-One-Get-One scheme, the billing engine will calculate the free items automatically.
 7. **Customer Details**: Add a customer's phone number to track loyalty points.
-8. **Finalize**: Click **Print Bill & Save** to deduct stock and log revenue. Alternatively, click **Generate Challan** to print a delivery challan without finalizing the tax invoice.
+8. **WhatsApp PDF Invoice Sharing**: After saving, click the green **💬 WhatsApp** button.
+   - On **Mobile**: PharmaPro will automatically download the invoice PDF from the backend, generate a secure attachment link via a custom `FileProvider` Android bridge, and share the PDF directly to a new WhatsApp chat with the customer.
+   - On **Desktop**: PharmaPro fallback logic instantly redirects to a WhatsApp click-to-chat web query with the custom message pre-filled.
+9. **Finalize**: Click **Print Bill & Save** to deduct stock and log revenue. Alternatively, click **Generate Challan** to print a delivery challan without finalizing the tax invoice.
 
 ---
 
