@@ -73,7 +73,8 @@ export async function renderCustomers(c, APP) {
       <div class="field"><label>Customer ID (defaults to phone)</label><input class="input" id="ac-custom-id" placeholder="Custom Customer ID (e.g. phone)"></div>
       <div class="field"><label>Date of Birth</label><input class="input" type="date" id="ac-dob"></div>
       <div class="field"><label>Agreed Discount %</label><input class="input" type="number" id="ac-discount" value="0" min="0" max="100"></div>
-      <div class="field"><label>Loyalty Points</label><input class="input" type="number" id="ac-loyalty" value="0"></div>`,
+      <div class="field"><label>Loyalty Points</label><input class="input" type="number" id="ac-loyalty" value="0"></div>
+      <div class="field"><label>Purchased Medicines (comma-separated)</label><input class="input" id="ac-medicines" placeholder="e.g. Paracetamol, Metformin"></div>`,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" style="flex:1" onclick="saveCustomer()">Add Customer</button>`
     );
@@ -91,10 +92,11 @@ export async function renderCustomers(c, APP) {
     }
     const agreed_discount = parseFloat(document.getElementById('ac-discount')?.value) || 0.0;
     const loyalty_points = parseInt(document.getElementById('ac-loyalty')?.value) || 0;
+    const purchased_medicines = document.getElementById('ac-medicines')?.value?.trim() || '';
 
     await POST('/customers', { 
       name, phone, dob, custom_id, agreed_discount, 
-      loyalty_points, purchased_medicines: '', last_purchase_date: '' 
+      loyalty_points, purchased_medicines, last_purchase_date: '' 
     });
     closeModal(); toast('Customer added ✅', 'success');
     custs = await GET('/customers'); c.innerHTML = html();
@@ -107,13 +109,14 @@ export async function renderCustomers(c, APP) {
       <div class="field"><label>Customer ID</label><input class="input" id="ec-custom-id" value="${customId || ''}"></div>
       <div class="field"><label>Date of Birth</label><input class="input" type="date" id="ec-dob" value="${dob || ''}"></div>
       <div class="field"><label>Agreed Discount %</label><input class="input" type="number" id="ec-discount" value="${discount}" min="0" max="100"></div>
-      <div class="field"><label>Loyalty Points</label><input class="input" type="number" id="ec-loyalty" value="${loyalty}"></div>`,
+      <div class="field"><label>Loyalty Points</label><input class="input" type="number" id="ec-loyalty" value="${loyalty}"></div>
+      <div class="field"><label>Purchased Medicines (comma-separated)</label><input class="input" id="ec-medicines" value="${purchasedMeds || ''}" placeholder="e.g. Paracetamol, Metformin"></div>`,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
-       <button class="btn btn-primary" style="flex:1" onclick="updateCustomer(${id}, '${purchasedMeds.replace(/'/g,"\\'")}', '${lastPurchaseDate}')">Save Changes</button>`
+       <button class="btn btn-primary" style="flex:1" onclick="updateCustomer(${id}, '${lastPurchaseDate}')">Save Changes</button>`
     );
   };
 
-  window.updateCustomer = async (id, purchasedMeds, lastPurchaseDate) => {
+  window.updateCustomer = async (id, lastPurchaseDate) => {
     const name = document.getElementById('ec-name')?.value?.trim();
     if (!name) { toast('Name required', 'warn'); return; }
     
@@ -125,6 +128,7 @@ export async function renderCustomers(c, APP) {
     }
     const agreed_discount = parseFloat(document.getElementById('ec-discount')?.value) || 0.0;
     const loyalty_points = parseInt(document.getElementById('ec-loyalty')?.value) || 0;
+    const purchased_medicines = document.getElementById('ec-medicines')?.value?.trim() || '';
 
     await fetch(`/api/customers/${id}`, {
       method: 'PUT',
@@ -134,7 +138,7 @@ export async function renderCustomers(c, APP) {
       },
       body: JSON.stringify({
         name, phone, dob, custom_id, agreed_discount, loyalty_points,
-        purchased_medicines: purchasedMeds || '',
+        purchased_medicines,
         last_purchase_date: lastPurchaseDate || ''
       })
     });

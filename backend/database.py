@@ -395,6 +395,19 @@ def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         conn.executescript(SCHEMA)
+
+        # Auto-seed master drugs from master_template.db if empty
+        template_db = Path(__file__).parent / "master_template.db"
+        if template_db.exists():
+            try:
+                count = conn.execute("SELECT COUNT(*) FROM master_drugs").fetchone()[0]
+                if count == 0:
+                    conn.execute("ATTACH DATABASE ? AS template", (str(template_db),))
+                    conn.execute("INSERT OR IGNORE INTO master_drugs(id, name, manufacturer, composition, mrp, description, hsn) SELECT id, name, manufacturer, composition, mrp, description, hsn FROM template.master_drugs")
+                    conn.execute("DETACH DATABASE template")
+            except Exception:
+                try: conn.execute("DETACH DATABASE template")
+                except Exception: pass
         
         # Safe migrations for new columns
         try: conn.execute("ALTER TABLE drugs ADD COLUMN barcode TEXT UNIQUE")
