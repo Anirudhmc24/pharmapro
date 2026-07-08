@@ -5,9 +5,6 @@ on:
     branches: [ master ]
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -36,9 +33,10 @@ jobs:
           python-version: '3.11'
 
       - name: Initialize and Seed Database
+        env:
+          PYTHONPATH: .
         run: |
           python -c "from backend.database import init_db; init_db()"
-          python scripts/import_master_data.py
 
       - name: Build APK with Buildozer
         uses: digreatbrian/buildozer-action@v2
