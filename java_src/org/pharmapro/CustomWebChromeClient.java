@@ -112,14 +112,33 @@ public class CustomWebChromeClient extends WebChromeClient {
                 try {
                     java.net.URL url = new java.net.URL(pdfUrl);
                     java.net.HttpURLConnection cn = (java.net.HttpURLConnection) url.openConnection();
-                    cn.setRequestMethod("GET");
+                    cn.setConnectTimeout(6000);
+                    cn.setReadTimeout(12000);
                     cn.connect();
                     
                     File cacheDir = mActivity.getExternalCacheDir();
                     if (cacheDir == null) {
                         cacheDir = mActivity.getCacheDir();
                     }
-                    File tempFile = new File(cacheDir, "Invoice.pdf");
+                    
+                    // Clean up old pdf temp files to avoid cache bloating
+                    try {
+                        File[] oldFiles = cacheDir.listFiles();
+                        if (oldFiles != null) {
+                            for (File f : oldFiles) {
+                                if (f.getName().startsWith("Invoice_") && f.getName().endsWith(".pdf")) {
+                                    f.delete();
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        // ignore cleanup errors
+                    }
+
+                    // Generate a unique filename to prevent file locking/sharing conflicts
+                    String fileName = "Invoice_" + System.currentTimeMillis() + ".pdf";
+                    File tempFile = new File(cacheDir, fileName);
+                    
                     java.io.InputStream in = cn.getInputStream();
                     java.io.FileOutputStream out = new java.io.FileOutputStream(tempFile);
                     byte[] buf = new byte[1024];
@@ -152,11 +171,21 @@ public class CustomWebChromeClient extends WebChromeClient {
                                 intent.setType("application/pdf");
                                 intent.putExtra(Intent.EXTRA_STREAM, fileUri);
                                 intent.putExtra(Intent.EXTRA_TEXT, captionText);
+                                // Crucial for Android 4.1+: Set ClipData to grant read permission for EXTRA_STREAM Uri
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                                    intent.setClipData(android.content.ClipData.newRawUri("", fileUri));
+                                }
                                 // WhatsApp-specific extras to pre-select a contact
                                 intent.putExtra("jid", jid);
                                 intent.setPackage("com.whatsapp");
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                                // Explicitly grant URI permission to WhatsApp package
+                                try {
+                                    mActivity.grantUriPermission("com.whatsapp", fileUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                } catch (Exception e) {}
+
                                 mActivity.startActivity(intent);
                             } catch (Exception e) {
                                 try {
@@ -165,8 +194,12 @@ public class CustomWebChromeClient extends WebChromeClient {
                                     intent.setType("application/pdf");
                                     intent.putExtra(Intent.EXTRA_STREAM, fileUri);
                                     intent.putExtra(Intent.EXTRA_TEXT, captionText);
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                                        intent.setClipData(android.content.ClipData.newRawUri("", fileUri));
+                                    }
                                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    
                                     mActivity.startActivity(Intent.createChooser(intent, "Send Invoice"));
                                 } catch (Exception ex) {
                                     android.util.Log.e("PharmaPro", "Failed sharing PDF via picker: " + ex.getMessage(), ex);

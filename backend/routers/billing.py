@@ -150,6 +150,8 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
                         VALUES(?,?,?,?,?,?,?)""",
                         (bill_id, item.drug_id, batch["id"], None, use, mrp, amt))
 
+                    remaining -= use
+
                     if leftover > 0:
                         tid = next_tray_id(conn)
                         conn.execute("""
@@ -157,6 +159,17 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
                             VALUES(?,?,?,?,?)""",
                             (tid, item.drug_id, batch["id"], leftover, drug["box_id"]))
                         remaining = 0
+
+            # If there's still remaining (or if the drug had no stock at all), record it as a bill item
+            if remaining > 0:
+                # Find any batch for this drug as a fallback
+                fallback_batch = conn.execute("SELECT id FROM batches WHERE drug_id=? ORDER BY expiry DESC LIMIT 1", (item.drug_id,)).fetchone()
+                fb_batch_id = fallback_batch["id"] if fallback_batch else None
+                amt = round(mrp * remaining, 2)
+                conn.execute("""
+                    INSERT INTO bill_items(bill_id,drug_id,batch_id,tray_id,tablets_qty,mrp_per_tab,amount)
+                    VALUES(?,?,?,?,?,?,?)""",
+                    (bill_id, item.drug_id, fb_batch_id, None, remaining, mrp, amt))
 
 
         if resolved_customer_id:
