@@ -570,7 +570,7 @@ def get_bill_pdf(bill_id: int):
         pdf.cell(20, 6, item.get("expiry", "") or "—", border=1, align="C")
         pdf.cell(20, 6, str(item.get("tablets_qty", 0)), border=1, align="R")
         pdf.cell(25, 6, f"Rs.{item.get('mrp_per_tab', 0.0):.2f}", border=1, align="R")
-        pdf.cell(30, 6, f"Rs.{item.get('total_amount', 0.0):.2f}", border=1, align="R")
+        pdf.cell(30, 6, f"Rs.{item.get('amount', 0.0):.2f}", border=1, align="R")
         pdf.ln()
         
     pdf.ln(3)

@@ -574,14 +574,14 @@ export async function renderBillHistory(c, APP) {
     const itemsHtml = bill.items.map(item => `
       <tr>
         <td>
-          <div style="font-weight:700">${item.name}</div>
+          <div style="font-weight:700">${item.name || 'Unknown'}</div>
           <div style="font-size:11px;color:var(--muted)">${item.brand || ''}</div>
         </td>
         <td>${item.batch_no || '—'}</td>
         <td>${item.expiry || '—'}</td>
         <td style="text-align:right">${item.tablets_qty}</td>
-        <td style="text-align:right">₹${item.mrp_per_tab.toFixed(2)}</td>
-        <td style="text-align:right;font-weight:700">₹${item.amount.toFixed(2)}</td>
+        <td style="text-align:right">₹${(item.mrp_per_tab || 0).toFixed(2)}</td>
+        <td style="text-align:right;font-weight:700">₹${(item.amount || 0).toFixed(2)}</td>
       </tr>
     `).join('');
 

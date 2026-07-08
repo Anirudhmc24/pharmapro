@@ -144,20 +144,29 @@ public class CustomWebChromeClient extends WebChromeClient {
                         @Override
                         public void run() {
                             try {
+                                // Format phone number to international format for WhatsApp jid
+                                String formattedPhone = phoneNumber.replaceAll("[^0-9]", "");
+                                String jid = formattedPhone + "@s.whatsapp.net";
+                                
                                 Intent intent = new Intent(Intent.ACTION_SEND);
                                 intent.setType("application/pdf");
                                 intent.putExtra(Intent.EXTRA_STREAM, fileUri);
                                 intent.putExtra(Intent.EXTRA_TEXT, captionText);
+                                // WhatsApp-specific extras to pre-select a contact
+                                intent.putExtra("jid", jid);
                                 intent.setPackage("com.whatsapp");
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                 mActivity.startActivity(intent);
                             } catch (Exception e) {
                                 try {
+                                    // Fallback: generic share chooser (works when WhatsApp not installed)
                                     Intent intent = new Intent(Intent.ACTION_SEND);
                                     intent.setType("application/pdf");
                                     intent.putExtra(Intent.EXTRA_STREAM, fileUri);
                                     intent.putExtra(Intent.EXTRA_TEXT, captionText);
                                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                     mActivity.startActivity(Intent.createChooser(intent, "Send Invoice"));
                                 } catch (Exception ex) {
                                     android.util.Log.e("PharmaPro", "Failed sharing PDF via picker: " + ex.getMessage(), ex);
