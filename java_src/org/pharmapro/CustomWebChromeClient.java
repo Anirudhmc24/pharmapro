@@ -130,14 +130,15 @@ public class CustomWebChromeClient extends WebChromeClient {
                     in.close();
                     out.close();
                     
-                    final Uri fileUri;
+                    Uri tempUri = null;
                     try {
                         Class<?> fp = Class.forName("androidx.core.content.FileProvider");
                         java.lang.reflect.Method m = fp.getMethod("getUriForFile", android.content.Context.class, String.class, File.class);
-                        fileUri = (Uri) m.invoke(null, mActivity, mActivity.getPackageName() + ".fileprovider", tempFile);
+                        tempUri = (Uri) m.invoke(null, mActivity, mActivity.getPackageName() + ".fileprovider", tempFile);
                     } catch (Exception e) {
-                        fileUri = Uri.fromFile(tempFile);
+                        tempUri = Uri.fromFile(tempFile);
                     }
+                    final Uri fileUri = tempUri;
                     
                     mActivity.runOnUiThread(new Runnable() {
                         @Override
