@@ -21,6 +21,57 @@ DATA_DIR = PERSISTENT_ROOT / "data"
 DB_PATH  = DATA_DIR / "pharmapro.db"
 DATA_DIR.mkdir(exist_ok=True)
 
+def get_android_backup_paths():
+    paths = []
+    paths.append(Path("/storage/emulated/0/Download/pharmapro_backup.db"))
+    paths.append(Path("/storage/emulated/0/Documents/pharmapro_backup.db"))
+    paths.append(Path("/sdcard/Download/pharmapro_backup.db"))
+    paths.append(Path("/sdcard/Documents/pharmapro_backup.db"))
+    try:
+        from jnius import autoclass
+        Environment = autoclass('android.os.Environment')
+        download_dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        if download_dir:
+            paths.append(Path(download_dir.getAbsolutePath()) / "pharmapro_backup.db")
+        doc_dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+        if doc_dir:
+            paths.append(Path(doc_dir.getAbsolutePath()) / "pharmapro_backup.db")
+    except Exception:
+        pass
+    seen = set()
+    result = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            result.append(p)
+    return result
+
+def checkpoint_db():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.close()
+    except Exception:
+        pass
+
+def check_and_perform_android_backup():
+    if "ANDROID_ARGUMENT" not in os.environ:
+        return
+    try:
+        import shutil
+        checkpoint_db()
+        if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
+            return
+        backup_paths = get_android_backup_paths()
+        for bp in backup_paths:
+            try:
+                bp.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(DB_PATH, bp)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
 @contextmanager
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -30,6 +81,7 @@ def get_db():
     try:
         yield conn
         conn.commit()
+        check_and_perform_android_backup()
     except Exception:
         conn.rollback()
         raise
@@ -120,13 +172,17 @@ CREATE TABLE IF NOT EXISTS trays (
 );
 
 CREATE TABLE IF NOT EXISTS customers (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    name           TEXT NOT NULL,
-    phone          TEXT UNIQUE,
-    dob            TEXT,
-    loyalty_points INTEGER DEFAULT 0,
-    credit_balance REAL DEFAULT 0,
-    created_at     TEXT DEFAULT (datetime('now'))
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    phone               TEXT UNIQUE,
+    dob                 TEXT,
+    loyalty_points      INTEGER DEFAULT 0,
+    credit_balance      REAL DEFAULT 0,
+    custom_id           TEXT,
+    agreed_discount     REAL DEFAULT 0.0,
+    purchased_medicines TEXT DEFAULT '',
+    last_purchase_date  TEXT DEFAULT '',
+    created_at          TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -321,6 +377,21 @@ CREATE INDEX IF NOT EXISTS idx_master_name ON master_drugs(name);
 def init_db():
     import random
     import sqlite3
+
+    # Auto-Restore from Android external backup if local DB is missing/empty
+    if "ANDROID_ARGUMENT" in os.environ:
+        if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
+            backup_paths = get_android_backup_paths()
+            for bp in backup_paths:
+                if bp.exists() and bp.stat().st_size > 0:
+                    try:
+                        import shutil
+                        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(bp, DB_PATH)
+                        break
+                    except Exception:
+                        pass
+
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         conn.executescript(SCHEMA)
@@ -360,6 +431,18 @@ def init_db():
         except sqlite3.OperationalError: pass
 
         try: conn.execute("ALTER TABLE customers ADD COLUMN credit_balance REAL DEFAULT 0")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE customers ADD COLUMN custom_id TEXT")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE customers ADD COLUMN agreed_discount REAL DEFAULT 0.0")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE customers ADD COLUMN purchased_medicines TEXT DEFAULT ''")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE customers ADD COLUMN last_purchase_date TEXT DEFAULT ''")
         except sqlite3.OperationalError: pass
 
         # Seed default admin user

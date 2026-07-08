@@ -31,6 +31,28 @@ def next_tray_id(conn) -> str:
 def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
     user = get_current_user(x_token)
     with get_db() as conn:
+        # Resolve customer or create dynamically
+        resolved_customer_id = bill.customer_id
+        if bill.phone:
+            cleaned_phone = "".join(filter(str.isdigit, bill.phone))
+            if cleaned_phone:
+                cust_row = conn.execute("SELECT id FROM customers WHERE phone=?", (cleaned_phone,)).fetchone()
+                if cust_row:
+                    resolved_customer_id = cust_row["id"]
+                else:
+                    custom_id = cleaned_phone[-6:] if len(cleaned_phone) >= 6 else cleaned_phone
+                    base_id = custom_id
+                    idx = 1
+                    while conn.execute("SELECT id FROM customers WHERE custom_id=?", (custom_id,)).fetchone() is not None:
+                         custom_id = f"{base_id}_{idx}"
+                         idx += 1
+                    
+                    cur_cust = conn.execute("""
+                        INSERT INTO customers(name, phone, custom_id, loyalty_points, last_purchase_date, purchased_medicines)
+                        VALUES(?, ?, ?, ?, ?, ?)
+                    """, (bill.patient_name, cleaned_phone, custom_id, 0, date.today().isoformat(), ""))
+                    resolved_customer_id = cur_cust.lastrowid
+
         bill_no  = next_bill_no(conn)
         subtotal = sum(
             i.tablets_qty * conn.execute(
@@ -39,7 +61,7 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
             for i in bill.items
         )
         pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
-        points_disc_amt = float(bill.points_redeemed) if bill.points_redeemed else 0.0
+        points_disc_amt = float(bill.points_redeemed) * 0.01 if bill.points_redeemed else 0.0
         disc_amt = pct_disc_amt + points_disc_amt
         
         # Determine GST slab
@@ -65,7 +87,7 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
             INSERT INTO bills(bill_no,customer_id,patient_name,doctor,rx_no,
             subtotal,discount_pct,discount_amt,gst_amt,total,payment_mode,created_by)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (bill_no, bill.customer_id, bill.patient_name, bill.doctor, bill.rx_no,
+            (bill_no, resolved_customer_id, bill.patient_name, bill.doctor, bill.rx_no,
              subtotal, bill.discount_pct, disc_amt, gst_amt, total, bill.payment_mode, user["id"]))
         bill_id = cur.lastrowid
         
@@ -137,20 +159,37 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
                         remaining = 0
 
 
-        if bill.customer_id:
-            # Earn 1 point per 100 rupees spent
-            pts_earned = int(total // 100)
+        if resolved_customer_id:
+            # Earn 1 point per 1 rupee spent
+            pts_earned = int(total)
+            
+            # Read existing purchased medicines
+            cust_row = conn.execute("SELECT purchased_medicines FROM customers WHERE id=?", (resolved_customer_id,)).fetchone()
+            existing_meds = set()
+            if cust_row and cust_row["purchased_medicines"]:
+                existing_meds = {m.strip() for m in cust_row["purchased_medicines"].split(",") if m.strip()}
+            
+            # Add current bill items' drug names
+            for item in bill.items:
+                drug_row = conn.execute("SELECT name FROM drugs WHERE id=?", (item.drug_id,)).fetchone()
+                if drug_row:
+                    existing_meds.add(drug_row["name"])
+            
+            new_purchased_meds = ", ".join(sorted(existing_meds))
+            
             conn.execute("""
                 UPDATE customers 
-                SET loyalty_points = COALESCE(loyalty_points, 0) - ? + ?
+                SET loyalty_points = COALESCE(loyalty_points, 0) - ? + ?,
+                    last_purchase_date = ?,
+                    purchased_medicines = ?
                 WHERE id=?
-            """, (bill.points_redeemed, pts_earned, bill.customer_id))
+            """, (bill.points_redeemed, pts_earned, date.today().isoformat(), new_purchased_meds, resolved_customer_id))
             
             # Credit payment — debit customer balance
             if bill.payment_mode == "Credit":
-                conn.execute("UPDATE customers SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id=?", (total, bill.customer_id))
+                conn.execute("UPDATE customers SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id=?", (total, resolved_customer_id))
                 conn.execute("INSERT INTO credit_ledger(customer_id,bill_id,type,amount,note) VALUES(?,?,?,?,?)",
-                             (bill.customer_id, bill_id, "debit", total, "Credit Bill Generated"))
+                             (resolved_customer_id, bill_id, "debit", total, "Credit Bill Generated"))
 
         # Schedule H/X auto-log
         for item in bill.items:
@@ -241,7 +280,7 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
         # 2. Revert Customer Balance/Points
         if old_bill.get("customer_id"):
             old_total = old_bill.get("total") or 0.0
-            old_pts_earned = int(old_total // 100)
+            old_pts_earned = int(old_total) # 1 point per rupee
             
             # Back-calculate old points redeemed.
             # Determine GST slab
@@ -257,7 +296,7 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
                 base_subtotal = round(old_bill["subtotal"] / (1 + gst_slab / 100), 2)
                 old_pct_disc_amt = round(float(base_subtotal * old_bill["discount_pct"]) / 100.0, 2)
                 
-            old_points_redeemed = max(0, int(round(old_bill["discount_amt"] - old_pct_disc_amt)))
+            old_points_redeemed = max(0, int(round((old_bill["discount_amt"] - old_pct_disc_amt) * 100))) # scaled by 100
             
             conn.execute("""
                 UPDATE customers 
@@ -274,6 +313,28 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
         conn.execute("DELETE FROM prescriptions WHERE bill_id=?", (bill_id,))
         conn.execute("DELETE FROM bill_items WHERE bill_id=?", (bill_id,))
 
+        # Resolve customer or create dynamically
+        resolved_customer_id = bill.customer_id
+        if bill.phone:
+            cleaned_phone = "".join(filter(str.isdigit, bill.phone))
+            if cleaned_phone:
+                cust_row = conn.execute("SELECT id FROM customers WHERE phone=?", (cleaned_phone,)).fetchone()
+                if cust_row:
+                    resolved_customer_id = cust_row["id"]
+                else:
+                    custom_id = cleaned_phone[-6:] if len(cleaned_phone) >= 6 else cleaned_phone
+                    base_id = custom_id
+                    idx = 1
+                    while conn.execute("SELECT id FROM customers WHERE custom_id=?", (custom_id,)).fetchone() is not None:
+                         custom_id = f"{base_id}_{idx}"
+                         idx += 1
+                    
+                    cur_cust = conn.execute("""
+                        INSERT INTO customers(name, phone, custom_id, loyalty_points, last_purchase_date, purchased_medicines)
+                        VALUES(?, ?, ?, ?, ?, ?)
+                    """, (bill.patient_name, cleaned_phone, custom_id, 0, date.today().isoformat(), ""))
+                    resolved_customer_id = cur_cust.lastrowid
+
         # 4. Calculate New Totals
         subtotal = sum(
             i.tablets_qty * conn.execute(
@@ -282,7 +343,7 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
             for i in bill.items
         )
         pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
-        points_disc_amt = float(bill.points_redeemed) if bill.points_redeemed else 0.0
+        points_disc_amt = float(bill.points_redeemed) * 0.01 if bill.points_redeemed else 0.0
         disc_amt = pct_disc_amt + points_disc_amt
         
         # Determine GST slab
@@ -308,7 +369,7 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
             SET customer_id=?, patient_name=?, doctor=?, rx_no=?,
                 subtotal=?, discount_pct=?, discount_amt=?, gst_amt=?, total=?, payment_mode=?
             WHERE id=?""",
-            (bill.customer_id, bill.patient_name, bill.doctor, bill.rx_no,
+            (resolved_customer_id, bill.patient_name, bill.doctor, bill.rx_no,
              subtotal, bill.discount_pct, disc_amt, gst_amt, total, bill.payment_mode, bill_id))
 
         # 6. Insert new prescriptions if needed
@@ -370,18 +431,35 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
                         remaining = 0
 
         # 8. Re-apply customer changes and credit balance/ledger/logs
-        if bill.customer_id:
-            pts_earned = int(total // 100)
+        if resolved_customer_id:
+            pts_earned = int(total)
+            
+            # Read existing purchased medicines
+            cust_row = conn.execute("SELECT purchased_medicines FROM customers WHERE id=?", (resolved_customer_id,)).fetchone()
+            existing_meds = set()
+            if cust_row and cust_row["purchased_medicines"]:
+                existing_meds = {m.strip() for m in cust_row["purchased_medicines"].split(",") if m.strip()}
+            
+            # Add current bill items' drug names
+            for item in bill.items:
+                drug_row = conn.execute("SELECT name FROM drugs WHERE id=?", (item.drug_id,)).fetchone()
+                if drug_row:
+                    existing_meds.add(drug_row["name"])
+            
+            new_purchased_meds = ", ".join(sorted(existing_meds))
+            
             conn.execute("""
                 UPDATE customers 
-                SET loyalty_points = COALESCE(loyalty_points, 0) - ? + ?
+                SET loyalty_points = COALESCE(loyalty_points, 0) - ? + ?,
+                    last_purchase_date = ?,
+                    purchased_medicines = ?
                 WHERE id=?
-            """, (bill.points_redeemed, pts_earned, bill.customer_id))
+            """, (bill.points_redeemed, pts_earned, date.today().isoformat(), new_purchased_meds, resolved_customer_id))
             
             if bill.payment_mode == "Credit":
-                conn.execute("UPDATE customers SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id=?", (total, bill.customer_id))
+                conn.execute("UPDATE customers SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id=?", (total, resolved_customer_id))
                 conn.execute("INSERT INTO credit_ledger(customer_id,bill_id,type,amount,note) VALUES(?,?,?,?,?)",
-                             (bill.customer_id, bill_id, "debit", total, "Credit Bill Updated"))
+                             (resolved_customer_id, bill_id, "debit", total, "Credit Bill Updated"))
 
         # Schedule H/X auto-log
         for item in bill.items:

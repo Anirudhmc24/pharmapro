@@ -15,14 +15,45 @@ export async function renderCustomers(c, APP) {
       ${custs.length === 0 ? '<div class="card" style="text-align:center;padding:48px;color:var(--muted)"><div style="font-size:48px;margin-bottom:12px">👥</div>No customers yet</div>' : `
       <div class="card" style="padding:0;overflow:auto">
         <table class="tbl">
-          <thead><tr><th>Name</th><th>Phone</th><th>Loyalty</th><th>Joined</th><th></th></tr></thead>
-          <tbody>${custs.map(cu => `<tr>
-            <td style="font-weight:700">${cu.name}</td>
-            <td style="color:var(--muted)">${cu.phone || '—'}</td>
-            <td><span style="color:var(--accent);font-weight:800">${cu.loyalty_points || 0}</span> <span style="color:var(--muted);font-size:11px">pts</span></td>
-            <td style="font-size:11px;color:var(--muted)">${formatDate(cu.created_at)}</td>
-            <td><button class="btn btn-outline btn-sm" onclick="viewCustomerHistory(${cu.id},'${cu.name.replace(/'/g,"\\'")}')">History</button></td>
-          </tr>`).join('')}
+          <thead>
+            <tr>
+              <th>Name & ID</th>
+              <th>Contact Details</th>
+              <th>Agreed Discount</th>
+              <th>Loyalty Points</th>
+              <th>Last Purchase</th>
+              <th>Tablet Purchases</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>${custs.map(cu => {
+            const purchasedEncoded = (cu.purchased_medicines || '').replace(/'/g, "&#39;");
+            const lastDate = cu.last_purchase_date || '—';
+            return `<tr>
+              <td>
+                <div style="font-weight:700">${cu.name}</div>
+                <div style="font-size:10px;color:var(--muted);font-family:monospace">ID: ${cu.custom_id || '—'}</div>
+              </td>
+              <td>
+                <div>${cu.phone || '—'}</div>
+                ${cu.dob ? `<div style="font-size:10px;color:var(--muted)">DOB: ${cu.dob}</div>` : ''}
+              </td>
+              <td><span class="tag tag-amber" style="font-weight:700">${cu.agreed_discount || 0}% Off</span></td>
+              <td><span style="color:var(--accent);font-weight:800">${cu.loyalty_points || 0}</span> <span style="color:var(--muted);font-size:11px">pts</span></td>
+              <td style="font-weight:600">${lastDate}</td>
+              <td>
+                <div style="font-size:11px;color:var(--text);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${purchasedEncoded}">
+                  ${cu.purchased_medicines || '—'}
+                </div>
+              </td>
+              <td style="font-size:11px;color:var(--muted)">${formatDate(cu.created_at)}</td>
+              <td style="display:flex;gap:6px">
+                <button class="btn btn-outline btn-sm" onclick="showEditCustomer(${cu.id},'${cu.name.replace(/'/g,"\\'")}', '${cu.phone || ''}', '${cu.dob || ''}', '${cu.custom_id || ''}', ${cu.agreed_discount || 0}, ${cu.loyalty_points || 0}, '${purchasedEncoded}', '${lastDate}')">✏️ Edit</button>
+                <button class="btn btn-outline btn-sm" onclick="viewCustomerHistory(${cu.id},'${cu.name.replace(/'/g,"\\'")}')">📜 History</button>
+              </td>
+            </tr>`;
+          }).join('')}
           </tbody>
         </table>
       </div>`}
@@ -30,11 +61,19 @@ export async function renderCustomers(c, APP) {
   }
   c.innerHTML = html();
 
+  window.updateDefaultCustId = (phone) => {
+    const el = document.getElementById('ac-custom-id');
+    if (el) el.value = phone.replace(/[^0-9]/g, '');
+  };
+
   window.showAddCustomer = () => {
     modal('👤 Add Customer', `
       <div class="field"><label>Full Name *</label><input class="input" id="ac-name" placeholder="Patient name"></div>
-      <div class="field"><label>Phone</label><input class="input" id="ac-phone" placeholder="Mobile number" type="tel"></div>
-      <div class="field"><label>Date of Birth</label><input class="input" type="date" id="ac-dob"></div>`,
+      <div class="field"><label>Phone</label><input class="input" id="ac-phone" placeholder="Mobile number" type="tel" oninput="window.updateDefaultCustId(this.value)"></div>
+      <div class="field"><label>Customer ID (defaults to phone)</label><input class="input" id="ac-custom-id" placeholder="Custom Customer ID (e.g. phone)"></div>
+      <div class="field"><label>Date of Birth</label><input class="input" type="date" id="ac-dob"></div>
+      <div class="field"><label>Agreed Discount %</label><input class="input" type="number" id="ac-discount" value="0" min="0" max="100"></div>
+      <div class="field"><label>Loyalty Points</label><input class="input" type="number" id="ac-loyalty" value="0"></div>`,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" style="flex:1" onclick="saveCustomer()">Add Customer</button>`
     );
@@ -43,8 +82,64 @@ export async function renderCustomers(c, APP) {
   window.saveCustomer = async () => {
     const name = document.getElementById('ac-name')?.value?.trim();
     if (!name) { toast('Name required', 'warn'); return; }
-    await POST('/customers', { name, phone: document.getElementById('ac-phone')?.value || '', dob: document.getElementById('ac-dob')?.value || '' });
+    
+    const phone = document.getElementById('ac-phone')?.value || '';
+    const dob = document.getElementById('ac-dob')?.value || '';
+    let custom_id = document.getElementById('ac-custom-id')?.value?.trim();
+    if (!custom_id && phone) {
+      custom_id = phone;
+    }
+    const agreed_discount = parseFloat(document.getElementById('ac-discount')?.value) || 0.0;
+    const loyalty_points = parseInt(document.getElementById('ac-loyalty')?.value) || 0;
+
+    await POST('/customers', { 
+      name, phone, dob, custom_id, agreed_discount, 
+      loyalty_points, purchased_medicines: '', last_purchase_date: '' 
+    });
     closeModal(); toast('Customer added ✅', 'success');
+    custs = await GET('/customers'); c.innerHTML = html();
+  };
+
+  window.showEditCustomer = (id, name, phone, dob, customId, discount, loyalty, purchasedMeds, lastPurchaseDate) => {
+    modal('✏️ Edit Customer', `
+      <div class="field"><label>Full Name *</label><input class="input" id="ec-name" placeholder="Patient name" value="${name}"></div>
+      <div class="field"><label>Phone</label><input class="input" id="ec-phone" placeholder="Mobile number" type="tel" value="${phone}"></div>
+      <div class="field"><label>Customer ID</label><input class="input" id="ec-custom-id" value="${customId || ''}"></div>
+      <div class="field"><label>Date of Birth</label><input class="input" type="date" id="ec-dob" value="${dob || ''}"></div>
+      <div class="field"><label>Agreed Discount %</label><input class="input" type="number" id="ec-discount" value="${discount}" min="0" max="100"></div>
+      <div class="field"><label>Loyalty Points</label><input class="input" type="number" id="ec-loyalty" value="${loyalty}"></div>`,
+      `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-primary" style="flex:1" onclick="updateCustomer(${id}, '${purchasedMeds.replace(/'/g,"\\'")}', '${lastPurchaseDate}')">Save Changes</button>`
+    );
+  };
+
+  window.updateCustomer = async (id, purchasedMeds, lastPurchaseDate) => {
+    const name = document.getElementById('ec-name')?.value?.trim();
+    if (!name) { toast('Name required', 'warn'); return; }
+    
+    const phone = document.getElementById('ec-phone')?.value || '';
+    const dob = document.getElementById('ec-dob')?.value || '';
+    let custom_id = document.getElementById('ec-custom-id')?.value?.trim();
+    if (!custom_id && phone) {
+      custom_id = phone;
+    }
+    const agreed_discount = parseFloat(document.getElementById('ec-discount')?.value) || 0.0;
+    const loyalty_points = parseInt(document.getElementById('ec-loyalty')?.value) || 0;
+
+    await fetch(`/api/customers/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Token': localStorage.getItem('token') || ''
+      },
+      body: JSON.stringify({
+        name, phone, dob, custom_id, agreed_discount, loyalty_points,
+        purchased_medicines: purchasedMeds || '',
+        last_purchase_date: lastPurchaseDate || ''
+      })
+    });
+    
+    closeModal(); toast('Customer updated ✅', 'success');
     custs = await GET('/customers'); c.innerHTML = html();
   };
 
@@ -318,8 +413,12 @@ export async function renderSettings(c, APP) {
   };
 
   window.exportDatabase = () => {
-    const token = localStorage.getItem('token') || '';
-    window.open('/api/config/db/export?token=' + encodeURIComponent(token), '_blank');
+    if (window.AndroidBridge && window.AndroidBridge.shareDatabaseFile) {
+      window.AndroidBridge.shareDatabaseFile();
+    } else {
+      const token = localStorage.getItem('token') || '';
+      window.open('/api/config/db/export?token=' + encodeURIComponent(token), '_blank');
+    }
   };
 
   window.importDatabase = async (file) => {
@@ -391,7 +490,7 @@ export async function renderBackorders(c, APP) {
               <td style="font-size:11px;color:var(--muted)">${_fd ? _fd(bo.created_at) : bo.created_at?.slice(0,10)}</td>
               <td style="display:flex;gap:6px">
                 <button class="btn btn-primary btn-sm" onclick="manualNotify(${bo.id})">📱 Notify</button>
-                <button class="btn btn-outline btn-sm" style="color:#10b981;border-color:#10b98144;font-weight:700" onclick="window.open('https://wa.me/91' + '${bo.phone}'.replace(/\\D/g,'') + '?text=Hi%20' + encodeURIComponent('${bo.customer_name}') + ',%20your%20medicines%20have%20arrived%20in%20Shrivari%20Medicals.%20Kindly%20come%20at%20your%20convenience%20and%20collect.', '_blank')">💬 WhatsApp</button>
+                <button class="btn btn-outline btn-sm" style="color:#10b981;border-color:#10b98144;font-weight:700" onclick="window.sendBOWhatsapp('${bo.phone}', '${bo.customer_name.replace(/'/g, "\\'")}')">💬 WhatsApp</button>
                 <button class="btn btn-outline btn-sm" onclick="cancelBO(${bo.id})">✕</button>
               </td>
             </tr>`).join('')}</tbody>
@@ -403,6 +502,18 @@ export async function renderBackorders(c, APP) {
       await fetch('/api/backorders/' + id + '/notify', { method: 'PUT', headers: { 'x-token': localStorage.getItem('pp_token') || '' } });
       _toast('Customer notified via SMS ✅', 'success');
       load();
+    };
+
+    window.sendBOWhatsapp = (phone, name) => {
+      const cleanPhone = phone.replace(/\D/g, '');
+      const waPhone = cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone;
+      const msg = `Hi ${name}, your medicines have arrived in Shrivari Medicals. Kindly come at your convenience and collect.`;
+      const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+      if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+        window.AndroidBridge.openExternalUrl(waUrl);
+      } else {
+        window.open(waUrl, '_blank');
+      }
     };
     window.cancelBO = async (id) => {
       await fetch('/api/backorders/' + id + '/cancel', { method: 'PUT', headers: { 'x-token': localStorage.getItem('pp_token') || '' } });
@@ -542,7 +653,12 @@ export async function renderBillHistory(c, APP) {
       }
       const waPhone = phone.length === 10 ? '91' + phone : phone;
       const msg = `Hi ${patientName || 'Customer'}, here is your invoice no ${billNo} amounting to Rs. ${total.toFixed(2)}.`;
-      window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+      const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+      if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+        window.AndroidBridge.openExternalUrl(waUrl);
+      } else {
+        window.open(waUrl, '_blank');
+      }
     };
 
     _modal(`👁️ Bill Detail — ${billNo}`, bodyHtml, `
@@ -831,6 +947,99 @@ export async function renderBillHistory(c, APP) {
     });
     _close();
     _toast(`↩ Return ${res.return_no} · Refund ₹${(res.total_refund || 0).toFixed(2)}`, 'success');
+  };
+}
+
+export async function renderReminders(c, APP) {
+  let reminders = await GET('/customers/reminders/active');
+
+  function html() {
+    return `<div class="gap-16 fade-in">
+      <div class="flex-between">
+        <div>
+          <h2 style="font-size:18px;font-weight:800;margin-bottom:2px">Medicine Refill Reminders</h2>
+          <div style="color:var(--muted);font-size:12px">Alerts you when a customer's medicine courses are nearing completion (assuming dosage of 2 tablets/day)</div>
+        </div>
+      </div>
+      
+      ${reminders.length === 0 ? `
+        <div class="card" style="text-align:center;padding:48px;color:var(--muted)">
+          <div style="font-size:48px;margin-bottom:12px">⏰</div>
+          No active reminders. All customers have sufficient stock!
+        </div>
+      ` : `
+      <div class="card" style="padding:0;overflow:auto">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Medicine</th>
+              <th>Billed Qty</th>
+              <th>Deducted Date</th>
+              <th>Est. Completion</th>
+              <th>Days Left</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${reminders.map(r => {
+              let tagClass = 'tag-gray';
+              if (r.days_left < 0) tagClass = 'tag-red';
+              else if (r.days_left <= 1) tagClass = 'tag-amber';
+              else tagClass = 'tag-green';
+              
+              const waMessage = `Hi ${r.customer_name}, this is a friendly reminder from PharmaPro. Your medicine "${r.drug_name}" is nearing completion (Est. refill date: ${r.completion_date}). Please visit us or contact us to refill.`;
+              return `<tr>
+                <td>
+                  <div style="font-weight:700">${r.customer_name}</div>
+                  <div style="font-size:10px;color:var(--muted)">Custom ID: ${r.custom_id || '—'} · ${r.phone || 'No phone'}</div>
+                </td>
+                <td style="font-weight:600;color:var(--accent)">${r.drug_name}</td>
+                <td>${r.qty} tabs</td>
+                <td>${r.purchase_date}</td>
+                <td><b>${r.completion_date}</b></td>
+                <td>
+                  <span class="tag ${tagClass}">
+                    ${r.days_left < 0 
+                      ? `Overdue by ${Math.abs(r.days_left)} days` 
+                      : r.days_left === 0 
+                        ? 'Today' 
+                        : `${r.days_left} days left`}
+                  </span>
+                </td>
+                <td>
+                  <span style="font-weight:bold;color:${r.status === 'Completed' ? 'var(--danger)' : 'var(--warn)'}">
+                    ${r.status}
+                  </span>
+                </td>
+                <td>
+                  ${r.phone ? `
+                    <button class="btn btn-outline btn-sm" style="border-color:#25d366;color:#25d366;font-weight:bold" onclick="sendReminderWhatsapp('${r.phone}', '${waMessage.replace(/'/g,"\\'")}')">
+                      💬 WhatsApp
+                    </button>
+                  ` : `<span style="font-size:11px;color:var(--muted)">Needs phone number</span>`}
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`}
+    </div>`;
+  }
+
+  c.innerHTML = html();
+
+  window.sendReminderWhatsapp = (phone, message) => {
+    phone = phone.replace(/[^0-9]/g, '');
+    const cleanPhone = phone.length === 10 ? '91' + phone : phone;
+    const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+    
+    if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+      window.AndroidBridge.openExternalUrl(waUrl);
+    } else {
+      window.open(waUrl, '_blank');
+    }
   };
 }
 

@@ -46,6 +46,64 @@ public class CustomWebChromeClient extends WebChromeClient {
         this.mCanGoBack = canGoBack;
     }
 
+    @android.webkit.JavascriptInterface
+    public void openExternalUrl(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            mActivity.startActivity(intent);
+        } catch (Exception e) {
+            android.util.Log.e("PharmaPro", "Failed to open external url: " + url, e);
+        }
+    }
+
+    @android.webkit.JavascriptInterface
+    public void shareDatabaseFile() {
+        try {
+            File parentDir = mActivity.getFilesDir().getParentFile();
+            File dbFile = new File(parentDir, "databases/pharmapro.db");
+            if (!dbFile.exists()) {
+                dbFile = new File(mActivity.getFilesDir(), "app/data/pharmapro.db");
+            }
+            if (!dbFile.exists()) {
+                android.util.Log.e("PharmaPro", "Database file not found for sharing");
+                return;
+            }
+
+            File tempFile = new File(mActivity.getExternalCacheDir(), "pharmapro_backup.db");
+            java.io.FileInputStream in = new java.io.FileInputStream(dbFile);
+            java.io.FileOutputStream out = new java.io.FileOutputStream(tempFile);
+            byte[] buf = new byte[1024];
+            int len;
+            while ((len = in.read(buf)) > 0) {
+                out.write(buf, 0, len);
+            }
+            in.close();
+            out.close();
+
+            Uri fileUri;
+            try {
+                Class<?> fileProviderClass = Class.forName("androidx.core.content.FileProvider");
+                java.lang.reflect.Method getUriForFileMethod = fileProviderClass.getMethod(
+                    "getUriForFile", 
+                    android.content.Context.class, 
+                    String.class, 
+                    File.class
+                );
+                fileUri = (Uri) getUriForFileMethod.invoke(null, mActivity, mActivity.getPackageName() + ".fileprovider", tempFile);
+            } catch (Exception e) {
+                fileUri = Uri.fromFile(tempFile);
+            }
+
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("application/x-sqlite3");
+            intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            mActivity.startActivity(Intent.createChooser(intent, "Share/Backup Database"));
+        } catch (Exception e) {
+            android.util.Log.e("PharmaPro", "Failed to share database: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * Configure WebView settings for camera/mic access via getUserMedia.
      * Call this once right after setting the WebChromeClient on the WebView.
@@ -74,6 +132,30 @@ public class CustomWebChromeClient extends WebChromeClient {
 
         // Register the JS interface for back key state updates
         webView.addJavascriptInterface(this, "AndroidBridge");
+
+        // Intercept WhatsApp redirects and custom schemes
+        webView.setWebViewClient(new android.webkit.WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && (url.startsWith("whatsapp://") || url.startsWith("intent://") || url.startsWith("https://wa.me") || url.startsWith("https://api.whatsapp.com"))) {
+                    openExternalUrl(url);
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                if (request != null && request.getUrl() != null) {
+                    String url = request.getUrl().toString();
+                    if (url.startsWith("whatsapp://") || url.startsWith("intent://") || url.startsWith("https://wa.me") || url.startsWith("https://api.whatsapp.com")) {
+                        openExternalUrl(url);
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
 
         // Set on key listener to intercept Back Key presses
         webView.setOnKeyListener(new android.view.View.OnKeyListener() {

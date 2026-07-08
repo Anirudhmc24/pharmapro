@@ -38,7 +38,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       return s + activeQty * item.mrp_per_tablet;
     }, 0);
     const pctDiscAmt = subtotal * discount / 100;
-    const discAmt  = pctDiscAmt + ptsRedeemed;
+    const discAmt  = pctDiscAmt + (ptsRedeemed * 0.01);
     const gst      = Math.max(0, (subtotal - discAmt) * 0.12);
     const total    = Math.max(0, subtotal - discAmt + gst);
     return `
@@ -97,13 +97,26 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       <div class="gap-12">
         <div class="card">
           <div class="section-title">Customer & Prescription</div>
-          ${customer ? `<div class="flex-between">
-            <div><div style="font-weight:700">${customer.name}</div><div style="font-size:11px;color:var(--muted)">${customer.phone || ''} · 🎯 ${customer.loyalty_points || 0} pts</div></div>
-            <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px" onclick="billClearCustomer()">✕</button>
-          </div>` : `
+          ${customer ? `
+            <div class="flex-between" style="align-items:flex-start">
+              <div style="flex:1">
+                <div style="font-weight:700">${customer.name}</div>
+                ${customer.id === null ? `
+                  <div class="field" style="margin-top:6px;margin-bottom:0">
+                    <label style="font-size:10px;margin-bottom:2px">Phone Number</label>
+                    <input class="input" id="cust-walkin-phone" placeholder="10-digit number" value="${customer.phone || ''}" oninput="window.setWalkinPhone(this.value)" type="tel" style="font-size:12px;padding:4px 8px">
+                  </div>
+                ` : `
+                  <div style="font-size:11px;color:var(--muted)">${customer.phone || 'No phone'} · 🎯 ${customer.loyalty_points || 0} pts ${customer.agreed_discount > 0 ? `· 🏷️ ${customer.agreed_discount}% Off` : ''}</div>
+                  ${customer.custom_id ? `<div style="font-size:10px;color:var(--muted);font-family:monospace;margin-top:2px">ID: ${customer.custom_id}</div>` : ''}
+                `}
+              </div>
+              <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" onclick="billClearCustomer()">✕</button>
+            </div>
+          ` : `
           <div class="search-wrap">
             <span class="search-icon">👤</span>
-            <input class="input" id="cust-search" placeholder="Search or type patient name…" autocomplete="off" oninput="custSearch(this.value)">
+            <input class="input" id="cust-search" placeholder="Search by name, phone or ID…" autocomplete="off" oninput="custSearch(this.value)">
             <div class="search-drop" id="cust-drop" style="display:none"></div>
           </div>`}
           
@@ -145,7 +158,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
           ${customer && customer.loyalty_points > 0 ? `
           <div style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:13px;padding:8px;background:var(--accent-dim);border-radius:6px;border:1px solid var(--accent)">
             <input type="checkbox" id="redeem-cb" ${redeemPoints ? 'checked' : ''} onchange="toggleRedeem(this.checked)" style="width:16px;height:16px;accent-color:var(--accent)">
-            <label for="redeem-cb" style="cursor:pointer;font-weight:700;color:var(--accent)">Redeem ${customer.loyalty_points} Points (− ₹${customer.loyalty_points})</label>
+            <label for="redeem-cb" style="cursor:pointer;font-weight:700;color:var(--accent)">Redeem ${customer.loyalty_points} Points (− ₹${(customer.loyalty_points * 0.01).toFixed(2)})</label>
           </div>` : ''}
           <div style="margin-top:12px">
             <div class="section-title">Payment Mode</div>
@@ -521,14 +534,31 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     const custs = await GET('/customers?q=' + encodeURIComponent(q));
     const drop  = document.getElementById('cust-drop');
     drop.innerHTML = [
-      ...custs.map(cu => `<div class="search-item" onclick="billSetCustomer(${cu.id},'${cu.name.replace(/'/g,"\\'")}','${cu.phone || ''}',${cu.loyalty_points || 0})">${cu.name} <span style="color:var(--muted);font-size:11px">— ${cu.phone || ''}</span></div>`),
+      ...custs.map(cu => {
+        const idLabel = cu.custom_id ? ` (ID: ${cu.custom_id})` : '';
+        const args = `${cu.id},'${cu.name.replace(/'/g,"\\'")}','${cu.phone || ''}',${cu.loyalty_points || 0},${cu.agreed_discount || 0},'${cu.custom_id || ''}'`;
+        return `<div class="search-item" onclick="billSetCustomer(${args})">${cu.name}${idLabel} <span style="color:var(--muted);font-size:11px">— ${cu.phone || ''}</span></div>`;
+      }),
       `<div class="search-item" style="color:var(--accent)" onclick="billWalkIn('${q.replace(/'/g,"\\'")}')">+ Add "${q}" as patient</div>`
     ].join('');
     drop.style.display = 'block';
   };
 
-  window.billSetCustomer = (id, name, phone, pts) => { customer = { id, name, phone, loyalty_points: pts }; c.innerHTML = billHTML(); };
-  window.billWalkIn = (name) => { customer = { id: null, name, phone: '', loyalty_points: 0, walkIn: true }; c.innerHTML = billHTML(); };
+  window.billSetCustomer = (id, name, phone, pts, disc, customId) => { 
+    customer = { id, name, phone, loyalty_points: pts, agreed_discount: disc, custom_id: customId }; 
+    if (disc > 0) {
+      discount = disc;
+    }
+    c.innerHTML = billHTML(); 
+  };
+  
+  window.billWalkIn = (name) => { customer = { id: null, name, phone: '', loyalty_points: 0, agreed_discount: 0, walkIn: true }; c.innerHTML = billHTML(); };
+  
+  window.setWalkinPhone = (val) => {
+    if (customer) {
+      customer.phone = val;
+    }
+  };
 
   window.uploadRx = async (file) => {
     if (!file) return;
@@ -566,6 +596,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     try {
       const b = await POST('/bills', {
         customer_id: customer?.id || null,
+        phone: customer?.phone || '',
         patient_name: name, doctor: dr, rx_no: rx, rx_image_path: rxPath,
         discount_pct: discount, payment_mode: payMode, points_redeemed: ptsRedeemed,
         items: cart.map(i => ({ drug_id: i.id, tablets_qty: i.qty }))
@@ -636,7 +667,11 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       
       // Simply launch WhatsApp chat without pre-filled message
       const waUrl = `https://api.whatsapp.com/send?phone=${waPhone}`;
-      window.open(waUrl, '_blank');
+      if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+        window.AndroidBridge.openExternalUrl(waUrl);
+      } else {
+        window.open(waUrl, '_blank');
+      }
       
       closeModal();
       APP.navigate('dashboard');

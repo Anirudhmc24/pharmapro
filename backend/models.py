@@ -110,22 +110,28 @@ class BillItemIn(BaseModel):
 
 
 class BillIn(BaseModel):
-    customer_id: Optional[int] = None; patient_name: str = ""
-    doctor: str = ""; rx_no: str = ""; rx_image_path: str = ""
-    discount_pct: float = 0; payment_mode: str = "Cash"
-    points_redeemed: int = 0
-    gst_inclusive: bool = False
-    items: List[BillItemIn]
-    customer_id: Optional[int] = None; patient_name: str = ""
-    doctor: str = ""; rx_no: str = ""; rx_image_path: str = ""
-    discount_pct: float = 0; payment_mode: str = "Cash"
+    customer_id: Optional[int] = None
+    patient_name: str = ""
+    phone: str = ""
+    doctor: str = ""
+    rx_no: str = ""
+    rx_image_path: str = ""
+    discount_pct: float = 0
+    payment_mode: str = "Cash"
     points_redeemed: int = 0
     gst_inclusive: bool = False
     items: List[BillItemIn]
 
 
 class CustomerIn(BaseModel):
-    name: str; phone: str = ""; dob: str = ""
+    name: str
+    phone: str = ""
+    dob: str = ""
+    custom_id: Optional[str] = None
+    agreed_discount: float = 0.0
+    purchased_medicines: str = ""
+    last_purchase_date: str = ""
+    loyalty_points: int = 0
 
 
 class SupplierIn(BaseModel):

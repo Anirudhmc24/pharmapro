@@ -16,7 +16,7 @@ source.dir = .
 source.include_exts = py,png,jpg,jpeg,html,css,js,ico,json,db,java,xml
 
 # (list) List of directory to exclude
-source.exclude_dirs = tests, bin, build, dist, .git, .pytest_cache, data_backup_before_build, Bills_For_Inward, scratch
+source.exclude_dirs = tests, bin, build, dist, .git, .pytest_cache, data_backup_before_build, Bills_For_Inward, scratch, data, uploads
 
 # (str) Application versioning
 version = 2.0.1

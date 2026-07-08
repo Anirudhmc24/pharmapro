@@ -354,7 +354,7 @@ import { renderTrays, renderStockEntry } from '/js/trays_and_stock.js';
 import { renderPurchaseOrders } from '/js/purchase_orders.js';
 import { renderReports } from '/js/reports.js';
 import { renderStaff } from '/js/staff.js';
-import { renderCustomers, renderSuppliers, renderSettings, renderBackorders, renderBillHistory } from '/js/other_pages.js';
+import { renderCustomers, renderSuppliers, renderSettings, renderBackorders, renderBillHistory, renderReminders } from '/js/other_pages.js';
 import { renderLayoutBuilder } from '/js/layout_builder.js';
 import { renderCatalogue } from '/js/catalogue.js';
 import { renderCustomBilling } from '/js/custom_billing.js';
@@ -458,6 +458,7 @@ const PAGES = [
   { id: 'custom_billing',  icon: '🎲', label: 'Custom Billing',   section: null },
   { id: 'layout_builder',  icon: '🗺️', label: 'Store Map',        section: 'SETUP' },
   { id: 'customers',       icon: '👥', label: 'Customers',        section: 'PEOPLE' },
+  { id: 'reminders',       icon: '⏰', label: 'Reminders',        section: null },
   { id: 'suppliers',       icon: '🏭', label: 'Suppliers',        section: null },
   { id: 'staff',           icon: '👤', label: 'Staff',            section: null, adminOnly: true },
   { id: 'reports',         icon: '📊', label: 'Reports',          section: 'MORE' },
@@ -524,6 +525,7 @@ async function renderPage(page) {
     else if (page === 'putaway')         await renderPutaway(c, APP);
     else if (page === 'layout_builder')         await renderLayoutBuilder(c, APP);
     else if (page === 'customers')       await renderCustomers(c, APP);
+    else if (page === 'reminders')       await renderReminders(c, APP);
     else if (page === 'suppliers')       await renderSuppliers(c, APP);
     else if (page === 'staff')           await renderStaff(c, APP);
     else if (page === 'reports')         await renderReports(c, APP);

@@ -450,7 +450,7 @@ export async function renderPurchaseOrders(c, APP) {
               <div style="color:var(--muted);font-size:13px">Click below to send this PO via WhatsApp.</div>
             </div>`,
             `<button class="btn btn-outline" style="flex:1" onclick="closeModal(); window._renderList()">Skip</button>
-             <button class="btn btn-primary" style="flex:2;background:#25D366;color:white;border:none" onclick="window.open('https://wa.me/${phone}?text=${encodeURIComponent(msg)}', '_blank'); closeModal(); window._renderList();">Send via WhatsApp →</button>`
+             <button class="btn btn-primary" style="flex:2;background:#25d366;color:white;border:none" onclick="window.sendPoWhatsapp('${phone}', '${msg.replace(/'/g, "\\'")}')">Send via WhatsApp →</button>`
           );
         } else {
           toast('PO sent internally. No supplier phone found.', 'success');
@@ -596,6 +596,15 @@ export async function renderPurchaseOrders(c, APP) {
   // ── Expose navigation globally ────────────────────────────────
   window._renderList    = renderList;
   window._renderCreatePO = renderCreatePO;
+
+  window.sendPoWhatsapp = (phone, msg) => {
+    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+    if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+      window.AndroidBridge.openExternalUrl(waUrl);
+    } else {
+      window.open(waUrl, '_blank');
+    }
+  };
 
   // ── Boot ─────────────────────────────────────────────────────
   await renderList();
