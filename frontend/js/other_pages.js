@@ -644,7 +644,7 @@ export async function renderBillHistory(c, APP) {
 
     window._viewBillPrintData = printData;
 
-    window.shareBillOnWhatsapp = (patientName, billNo, total, customerPhone) => {
+    window.shareBillOnWhatsapp = (billId, patientName, billNo, total, customerPhone) => {
       let phone = (customerPhone || '').replace(/\D/g, '');
       if (!phone) {
         phone = prompt("This bill does not have a customer phone number linked. Enter a 10-digit phone number to send via WhatsApp:");
@@ -656,18 +656,24 @@ export async function renderBillHistory(c, APP) {
         return;
       }
       const waPhone = phone.length === 10 ? '91' + phone : phone;
-      const msg = `Hi ${patientName || 'Customer'}, here is your invoice no ${billNo} amounting to Rs. ${total.toFixed(2)}.`;
-      const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
-      if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
-        window.AndroidBridge.openExternalUrl(waUrl);
+      const msg = `Thank you for your purchase in Shrivari Medicals! Here is your invoice no ${billNo} amounting to Rs. ${total.toFixed(2)}.`;
+      const pdfUrl = `${window.location.origin}/api/bills/${billId}/pdf`;
+      
+      if (window.AndroidBridge && window.AndroidBridge.shareBillPdf) {
+        window.AndroidBridge.shareBillPdf(pdfUrl, waPhone, msg);
       } else {
-        window.open(waUrl, '_blank');
+        const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+        if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+          window.AndroidBridge.openExternalUrl(waUrl);
+        } else {
+          window.open(waUrl, '_blank');
+        }
       }
     };
 
     _modal(`👁️ Bill Detail — ${billNo}`, bodyHtml, `
       <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Close</button>
-      <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="window.shareBillOnWhatsapp('${bill.patient_name || bill.customer_name || 'Customer'}', '${billNo}', ${bill.total}, '${bill.customer_phone || ''}')">💬 WhatsApp</button>
+      <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="window.shareBillOnWhatsapp(${bill.id}, '${bill.patient_name || bill.customer_name || 'Customer'}', '${billNo}', ${bill.total}, '${bill.customer_phone || ''}')">💬 WhatsApp</button>
       <button class="btn btn-outline" style="flex:1" onclick="window.printChallan(window._viewBillPrintData)">🚗 Challan</button>
       <button class="btn btn-primary" style="flex:1.2" onclick="window.printBill(window._viewBillPrintData)">🖨️ Print Bill</button>
     `);

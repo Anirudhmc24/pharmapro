@@ -104,6 +104,73 @@ public class CustomWebChromeClient extends WebChromeClient {
         }
     }
 
+    @android.webkit.JavascriptInterface
+    public void shareBillPdf(final String pdfUrl, final String phoneNumber, final String captionText) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    java.net.URL url = new java.net.URL(pdfUrl);
+                    java.net.HttpURLConnection cn = (java.net.HttpURLConnection) url.openConnection();
+                    cn.setRequestMethod("GET");
+                    cn.connect();
+                    
+                    File cacheDir = mActivity.getExternalCacheDir();
+                    if (cacheDir == null) {
+                        cacheDir = mActivity.getCacheDir();
+                    }
+                    File tempFile = new File(cacheDir, "Invoice.pdf");
+                    java.io.InputStream in = cn.getInputStream();
+                    java.io.FileOutputStream out = new java.io.FileOutputStream(tempFile);
+                    byte[] buf = new byte[1024];
+                    int len;
+                    while ((len = in.read(buf)) > 0) {
+                        out.write(buf, 0, len);
+                    }
+                    in.close();
+                    out.close();
+                    
+                    final Uri fileUri;
+                    try {
+                        Class<?> fp = Class.forName("androidx.core.content.FileProvider");
+                        java.lang.reflect.Method m = fp.getMethod("getUriForFile", android.content.Context.class, String.class, File.class);
+                        fileUri = (Uri) m.invoke(null, mActivity, mActivity.getPackageName() + ".fileprovider", tempFile);
+                    } catch (Exception e) {
+                        fileUri = Uri.fromFile(tempFile);
+                    }
+                    
+                    mActivity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                Intent intent = new Intent(Intent.ACTION_SEND);
+                                intent.setType("application/pdf");
+                                intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+                                intent.putExtra(Intent.EXTRA_TEXT, captionText);
+                                intent.setPackage("com.whatsapp");
+                                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                mActivity.startActivity(intent);
+                            } catch (Exception e) {
+                                try {
+                                    Intent intent = new Intent(Intent.ACTION_SEND);
+                                    intent.setType("application/pdf");
+                                    intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+                                    intent.putExtra(Intent.EXTRA_TEXT, captionText);
+                                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    mActivity.startActivity(Intent.createChooser(intent, "Send Invoice"));
+                                } catch (Exception ex) {
+                                    android.util.Log.e("PharmaPro", "Failed sharing PDF via picker: " + ex.getMessage(), ex);
+                                }
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    android.util.Log.e("PharmaPro", "Failed in shareBillPdf async work: " + e.getMessage(), e);
+                }
+            }
+        }).start();
+    }
+
     /**
      * Configure WebView settings for camera/mic access via getUserMedia.
      * Call this once right after setting the WebChromeClient on the WebView.

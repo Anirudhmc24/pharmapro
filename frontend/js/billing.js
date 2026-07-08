@@ -639,11 +639,11 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       </div>
     `, `
       <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" style="flex:1.5; background:#25d366; border-color:#25d366; color:#fff" onclick="sendBillWhatsapp('${data.res.bill_no}', ${data.res.total}, '${data.res.payment_mode}')">🟢 Send Bill</button>
+      <button class="btn btn-primary" style="flex:1.5; background:#25d366; border-color:#25d366; color:#fff" onclick="sendBillWhatsapp(${data.res.id}, '${data.res.bill_no}', ${data.res.total}, '${data.res.payment_mode}')">🟢 Send Bill</button>
     `);
   };
 
-  window.sendBillWhatsapp = async (billNo, total, paymentMode) => {
+  window.sendBillWhatsapp = async (billId, billNo, total, paymentMode) => {
     const name = document.getElementById('wa-name')?.value?.trim();
     let phone = document.getElementById('wa-phone')?.value?.trim();
     
@@ -665,12 +665,18 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
         toast('Added new customer to database ✅', 'info');
       }
       
-      // Simply launch WhatsApp chat without pre-filled message
-      const waUrl = `https://api.whatsapp.com/send?phone=${waPhone}`;
-      if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
-        window.AndroidBridge.openExternalUrl(waUrl);
+      const msg = `Thank you for your purchase in Shrivari Medicals! Here is your invoice no ${billNo} amounting to Rs. ${total.toFixed(2)}.`;
+      const pdfUrl = `${window.location.origin}/api/bills/${billId}/pdf`;
+      
+      if (window.AndroidBridge && window.AndroidBridge.shareBillPdf) {
+        window.AndroidBridge.shareBillPdf(pdfUrl, waPhone, msg);
       } else {
-        window.open(waUrl, '_blank');
+        const waUrl = `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(msg)}`;
+        if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+          window.AndroidBridge.openExternalUrl(waUrl);
+        } else {
+          window.open(waUrl, '_blank');
+        }
       }
       
       closeModal();

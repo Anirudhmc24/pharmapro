@@ -481,3 +481,132 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
 
     return {"bill_no": old_bill["bill_no"], "bill_id": bill_id, "total": total,
             "subtotal": subtotal, "discount_amt": disc_amt, "gst_amt": gst_amt}
+
+
+@router.get("/{bill_id}/pdf")
+def get_bill_pdf(bill_id: int):
+    from fastapi.responses import Response
+    from fpdf import FPDF
+    
+    with get_db() as conn:
+        bill_row = conn.execute("SELECT * FROM bills WHERE id=?", (bill_id,)).fetchone()
+        if not bill_row:
+            raise HTTPException(status_code=404, detail="Bill not found")
+        bill = dict(bill_row)
+        
+        if bill["customer_id"]:
+            cust = conn.execute("SELECT phone FROM customers WHERE id=?", (bill["customer_id"],)).fetchone()
+            if cust:
+                bill["customer_phone"] = cust["phone"]
+                
+        items_rows = conn.execute("""
+            SELECT bi.*, d.name, d.brand, d.tablets_per_strip, b.batch_no, b.expiry
+            FROM bill_items bi
+            JOIN drugs d ON bi.drug_id = d.id
+            LEFT JOIN batches b ON bi.batch_id = b.id
+            WHERE bi.bill_id=?
+        """, (bill_id,)).fetchall()
+        items = [dict(r) for r in items_rows]
+        
+        config_rows = conn.execute("SELECT key, value FROM shop_config").fetchall()
+        shop_config = {r["key"]: r["value"] for r in config_rows}
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 18)
+    shop_name = shop_config.get("name", "Shrivari Medicals")
+    pdf.cell(0, 10, shop_name, ln=True, align="C")
+    
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 5, shop_config.get("address", "123 Main St, Bangalore"), ln=True, align="C")
+    
+    details = []
+    phone = shop_config.get("phone", "")
+    gstin = shop_config.get("gstin", "")
+    if phone: details.append(f"Phone: {phone}")
+    if gstin: details.append(f"GSTIN: {gstin}")
+    if details:
+        pdf.cell(0, 5, " | ".join(details), ln=True, align="C")
+        
+    lic = shop_config.get("licence", "")
+    if lic:
+        pdf.cell(0, 5, f"DL: {lic}", ln=True, align="C")
+        
+    pdf.ln(5)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(5)
+    
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(100, 7, f"TAX INVOICE: {bill['bill_no']}", ln=False)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(90, 7, f"Date: {bill['created_at']}", ln=True, align="R")
+    
+    pdf.cell(100, 7, f"Patient Name: {bill['patient_name'] or 'Customer'}", ln=False)
+    phone_cust = bill.get("customer_phone", "") or ""
+    pdf.cell(90, 7, f"Customer Phone: {phone_cust}", ln=True, align="R")
+    
+    dr = bill.get("doctor", "")
+    if dr:
+        pdf.cell(100, 7, f"Doctor: {dr}", ln=True)
+    pdf.ln(3)
+    
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(75, 7, " Item/Drug Description", border=1, fill=True)
+    pdf.cell(20, 7, "Batch", border=1, fill=True, align="C")
+    pdf.cell(20, 7, "Expiry", border=1, fill=True, align="C")
+    pdf.cell(20, 7, "Qty", border=1, fill=True, align="R")
+    pdf.cell(25, 7, "MRP/Tab", border=1, fill=True, align="R")
+    pdf.cell(30, 7, "Amount", border=1, fill=True, align="R")
+    pdf.ln()
+    
+    pdf.set_font("Helvetica", "", 9)
+    for item in items:
+        name = item.get("name", "Unknown Item")
+        if len(name) > 35:
+            name = name[:32] + "..."
+        pdf.cell(75, 6, " " + name, border=1)
+        pdf.cell(20, 6, item.get("batch_no", "") or "—", border=1, align="C")
+        pdf.cell(20, 6, item.get("expiry", "") or "—", border=1, align="C")
+        pdf.cell(20, 6, str(item.get("tablets_qty", 0)), border=1, align="R")
+        pdf.cell(25, 6, f"Rs.{item.get('mrp_per_tab', 0.0):.2f}", border=1, align="R")
+        pdf.cell(30, 6, f"Rs.{item.get('total_amount', 0.0):.2f}", border=1, align="R")
+        pdf.ln()
+        
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(130)
+    pdf.cell(30, 6, "Subtotal:", align="R")
+    pdf.cell(30, 6, f"Rs.{bill.get('subtotal', 0.0):.2f}", align="R")
+    pdf.ln()
+    
+    disc_pct = bill.get("discount_pct", 0.0)
+    disc_amt = bill.get("discount_amt", 0.0)
+    if disc_amt > 0:
+        pdf.cell(130)
+        pdf.cell(30, 6, f"Discount ({disc_pct}%):", align="R")
+        pdf.cell(30, 6, f"-Rs.{disc_amt:.2f}", align="R")
+        pdf.ln()
+        
+    pdf.cell(130)
+    pdf.cell(30, 6, "GST:", align="R")
+    pdf.cell(30, 6, f"Rs.{bill.get('gst_amt', 0.0):.2f}", align="R")
+    pdf.ln()
+    
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(130)
+    pdf.cell(30, 8, "Net Total:", align="R")
+    pdf.cell(30, 8, f"Rs.{bill.get('total', 0.0):.2f}", align="R")
+    pdf.ln()
+    
+    pdf.ln(5)
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.cell(0, 6, f"Thank you for your purchase in {shop_name}!", ln=True, align="C")
+    
+    pdf_bytes = pdf.output(dest='S')
+    if isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode('latin1')
+        
+    return Response(content=pdf_bytes, media_type="application/pdf", headers={
+        "Content-Disposition": f"attachment; filename=Bill_{bill['bill_no']}.pdf"
+    })
