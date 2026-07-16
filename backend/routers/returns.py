@@ -29,6 +29,11 @@ def create_return(body: BillReturnIn, background_tasks: BackgroundTasks, x_token
         if not bill:
             raise HTTPException(404, "Bill not found")
 
+        # Prevent duplicate returns
+        already_returned = conn.execute("SELECT 1 FROM bill_returns WHERE bill_id=?", (body.bill_id,)).fetchone()
+        if already_returned:
+            raise HTTPException(400, "Return already processed for this bill")
+
         total_refund = 0.0
         return_no = next_return_no(conn)
 

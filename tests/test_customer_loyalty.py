@@ -26,6 +26,7 @@ def test_customer_registration_and_loyalty(client, auth_headers):
         "patient_name": "Loyal Patient",
         "phone": "9998887776",
         "discount_pct": 0.0,
+        "gst_inclusive": False,
         "items": [{"drug_id": drug_id, "tablets_qty": 20}]
     }
     resp = client.post("/api/bills", json=bill_data, headers=auth_headers)
@@ -82,6 +83,7 @@ def test_loyalty_redemption_and_discount(client, auth_headers):
         "phone": "1112223334",
         "discount_pct": 10.0,
         "points_redeemed": 500,
+        "gst_inclusive": False,
         "items": [{"drug_id": drug_id, "tablets_qty": 20}]
     }
     
@@ -132,6 +134,7 @@ def test_reminders_logic(client, auth_headers):
         "patient_name": "Remind Me",
         "phone": "4445556667",
         "discount_pct": 0.0,
+        "gst_inclusive": False,
         "items": [{"drug_id": drug_id, "tablets_qty": 10}]
     }
     client.post("/api/bills", json=bill_data, headers=auth_headers)
@@ -142,6 +145,7 @@ def test_reminders_logic(client, auth_headers):
         "patient_name": "Remind Me",
         "phone": "4445556667",
         "discount_pct": 0.0,
+        "gst_inclusive": False,
         "items": [{"drug_id": drug_id, "tablets_qty": 2}]
     }
     client.post("/api/bills", json=bill_data2, headers=auth_headers)

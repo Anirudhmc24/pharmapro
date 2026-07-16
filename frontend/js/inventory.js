@@ -317,7 +317,7 @@ export async function renderInventory(c, APP) {
 
   function invRow(d) {
     const { full, broken } = breakdown(d);
-    const low = (d.stock_tablets || 0) < (d.reorder_level || 20);
+    const low = (d.stock_tablets || 0) < (d.reorder_level || APP.config.low_stock_alert_limit || 20);
     const exp = d.nearest_expiry;
     const ml  = monthsLeft(exp);
     return `<tr>
@@ -589,7 +589,7 @@ export async function renderInventory(c, APP) {
       hsn: document.getElementById('ad-hsn')?.value || '30049099',
       tablets_per_strip: tps, strips_per_box: 10,
       mrp_per_strip: mrps, mrp_per_tablet: mrpt,
-      reorder_level: parseInt(document.getElementById('ad-reorder')?.value || 20),
+      reorder_level: parseInt(document.getElementById('ad-reorder')?.value || APP.config.low_stock_alert_limit || 20),
       pack_type: document.getElementById('ad-pack')?.value || 'Strip',
       batch_no: batch || null,
       expiry: expiry || null,
@@ -671,7 +671,7 @@ export async function renderInventory(c, APP) {
         <div class="field"><label>HSN Code</label>
           <input class="input" id="ed-hsn" value="${d.hsn || '30049099'}" list="hsn-codes">
         </div>
-        <div class="field"><label>Reorder Level (tabs)</label><input class="input" type="number" id="ed-reorder" value="${d.reorder_level || 20}"></div>
+        <div class="field"><label>Reorder Level (tabs)</label><input class="input" type="number" id="ed-reorder" value="${d.reorder_level || APP.config.low_stock_alert_limit || 20}"></div>
       </div>
       <div class="grid-2">
         <div class="field"><label>MRP / Pack (₹)</label><input class="input" type="number" id="ed-mrps" value="${d.mrp_per_strip || 0}" step="0.5"></div>
@@ -704,6 +704,21 @@ export async function renderInventory(c, APP) {
             <input type="checkbox" id="ed-elderly-ok" ${elderlyChecked} style="width:16px;height:16px;accent-color:var(--accent)"> Seniors / Elderly
           </label>
         </div>
+      </div>
+      <div style="margin-top:12px; padding: 12px; background:var(--faint); border-radius: 8px; border: 1px solid var(--border)">
+        <div style="font-weight:700; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px">📦 Active Batches & Costs</div>
+        ${d.batches && d.batches.length ? d.batches.map(b => `
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px">
+            <div style="flex:1; font-size:12px">
+              <strong>Batch ${b.batch_no}</strong><br>
+              <span style="color:var(--muted); font-size:10.5px">Exp ${b.expiry} · ${b.full_strips} strips remaining</span>
+            </div>
+            <div class="field" style="width:125px; margin-bottom:0">
+              <label style="font-size:10px">Cost / Strip (₹)</label>
+              <input class="input edit-batch-cost" type="number" data-id="${b.id}" value="${b.cost_per_strip || 0}" step="0.1" style="height:32px; padding:4px 8px; font-size:12px">
+            </div>
+          </div>
+        `).join('') : '<div style="font-size:12px; color:var(--muted)">No batch stock history found</div>'}
       </div>
       `,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
@@ -801,6 +816,29 @@ export async function renderInventory(c, APP) {
         administration: getValue('ed-administration'),
         age_suitability: JSON.stringify(suitabilityObj)
       });
+
+      // Save modified batch costs
+      const batchCostElements = document.querySelectorAll('.edit-batch-cost');
+      const batchUpdates = [];
+      const token = localStorage.getItem('pp_token') || '';
+      for (const el of batchCostElements) {
+        const bId = el.dataset.id;
+        const bCost = parseFloat(el.value || 0);
+        batchUpdates.push(
+          fetch('/api/batches/' + bId, {
+            method: 'PUT',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-token': token 
+            },
+            body: JSON.stringify({ cost_per_strip: bCost })
+          })
+        );
+      }
+      if (batchUpdates.length > 0) {
+        await Promise.all(batchUpdates);
+      }
+
       closeModal();
       toast('Drug updated ✅', 'success');
       drugs = await GET('/inventory');

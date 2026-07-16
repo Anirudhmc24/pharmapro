@@ -134,7 +134,7 @@ export async function renderCustomers(c, APP) {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'X-Token': localStorage.getItem('token') || ''
+        'X-Token': localStorage.getItem('pp_token') || ''
       },
       body: JSON.stringify({
         name, phone, dob, custom_id, agreed_discount, loyalty_points,
@@ -338,9 +338,10 @@ export async function renderSettings(c, APP) {
     </div>
     <div class="card gap-12">
       <div class="section-title">Inventory Settings</div>
-      <div class="grid-2">
+      <div class="grid-3">
         <div class="field"><label>Expiry Warning (months)</label><input class="input" type="number" id="cfg-expwarn" value="${cfg.expiry_warn_months || 3}" min="1" max="12"></div>
         <div class="field"><label>Broken Strip Alert (tablets)</label><input class="input" type="number" id="cfg-bsa" value="${cfg.broken_strip_alert || 2}" min="1"></div>
+        <div class="field"><label>Low Stock Alert (tablets)</label><input class="input" type="number" id="cfg-lsa" value="${cfg.low_stock_alert_limit || 20}" min="1"></div>
       </div>
     </div>
     <div class="card gap-12">
@@ -402,6 +403,7 @@ export async function renderSettings(c, APP) {
       gst_slab: document.getElementById('cfg-gst')?.value || '12',
       expiry_warn_months: parseInt(document.getElementById('cfg-expwarn')?.value || 3),
       broken_strip_alert: parseInt(document.getElementById('cfg-bsa')?.value || 2),
+      low_stock_alert_limit: parseInt(document.getElementById('cfg-lsa')?.value || 20),
       fast2sms_key: document.getElementById('cfg-smskey')?.value?.trim() || '',
       gemini_api_key: document.getElementById('cfg-geminikey')?.value?.trim() || '',
       backup_enabled: document.getElementById('cfg-backup')?.checked ? 'True' : 'False',
@@ -444,7 +446,7 @@ export async function renderSettings(c, APP) {
     if (window.AndroidBridge && window.AndroidBridge.shareDatabaseFile) {
       window.AndroidBridge.shareDatabaseFile();
     } else {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('pp_token') || '';
       window.open('/api/config/db/export?token=' + encodeURIComponent(token), '_blank');
     }
   };
@@ -455,7 +457,7 @@ export async function renderSettings(c, APP) {
       document.getElementById('db-import-file').value = '';
       return;
     }
-    const token = localStorage.getItem('token') || '';
+    const token = localStorage.getItem('pp_token') || '';
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -564,33 +566,94 @@ export async function renderBillHistory(c, APP) {
     return `<span class="tag ${colors[pm] || 'tag-gray'}">${pm}</span>`;
   }
 
+  // Group bills by day
+  const billsByDay = {};
+  bills.forEach(b => {
+    // b.created_at is ISO format: YYYY-MM-DDTHH:MM:SS...
+    const day = b.created_at ? b.created_at.slice(0, 10) : 'Unknown Date';
+    if (!billsByDay[day]) billsByDay[day] = [];
+    billsByDay[day].push(b);
+  });
+  const sortedDays = Object.keys(billsByDay).sort().reverse();
+  const isAdmin = APP.user?.role === 'admin';
+
+  const daySectionsHtml = sortedDays.map(day => {
+    const dayBills = billsByDay[day];
+    const dayTotal = dayBills.reduce((sum, b) => sum + (b.total || 0), 0);
+    const dayBillsHtml = dayBills.map(b => `<tr>
+      <td style="font-family:monospace;font-weight:700;color:var(--accent)">${b.bill_no}</td>
+      <td>${b.patient_name || b.customer_name || '<span style="color:var(--muted)">Walk-in</span>'}</td>
+      <td style="font-weight:800">₹${(b.total || 0).toFixed(2)}</td>
+      <td>${statusTag(b.payment_mode)}</td>
+      <td style="color:var(--muted);font-size:12px">${b.cashier || '—'}</td>
+      <td style="font-size:11px;color:var(--muted)">${b.created_at?.slice(11,16) || ''}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-outline btn-sm" onclick="openViewBillModal(${b.id},'${b.bill_no}')">👁️ View</button>
+          <button class="btn btn-outline btn-sm" onclick="openEditBillModal(${b.id},'${b.bill_no}')">✏️ Edit</button>
+          <button class="btn btn-outline btn-sm" onclick="openReturnModal(${b.id},'${b.bill_no}')" ${b.is_returned ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>↩ Return</button>
+        </div>
+      </td>
+    </tr>`).join('');
+
+    return `
+    <div class="card" style="margin-bottom:16px;padding:0">
+      <div class="flex-between" style="padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);border-top-left-radius:8px;border-top-right-radius:8px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-weight:800;font-size:14px;color:var(--text)">📅 ${day}</span>
+          <span class="tag tag-gray" style="font-size:11px">${dayBills.length} bill${dayBills.length > 1 ? 's' : ''}</span>
+          <span style="font-weight:700;font-size:13px;color:var(--accent)">Total: ₹${dayTotal.toFixed(2)}</span>
+        </div>
+        ${isAdmin ? `<button class="btn btn-danger btn-sm" style="padding:4px 8px;font-size:11px" onclick="clearDayBills('${day}')">🗑️ Clear Day's Bills</button>` : ''}
+      </div>
+      <div style="overflow:auto">
+        <table class="tbl">
+          <thead><tr><th>Bill No.</th><th>Patient</th><th>Amount</th><th>Payment</th><th>Cashier</th><th>Time</th><th></th></tr></thead>
+          <tbody>
+            ${dayBillsHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
   c.innerHTML = `<div class="gap-16 fade-in">
     <div class="flex-between">
       <div><h2 style="font-size:18px;font-weight:800;margin-bottom:2px">🧾 Bill History</h2>
-        <div style="color:var(--muted);font-size:12px">${bills.length} recent bills</div></div>
+        <div style="color:var(--muted);font-size:12px">${bills.length} recent bills organized by day</div></div>
     </div>
-    <div class="card" style="padding:0;overflow:auto">
-      <table class="tbl">
-        <thead><tr><th>Bill No.</th><th>Patient</th><th>Amount</th><th>Payment</th><th>Cashier</th><th>Date</th><th></th></tr></thead>
-        <tbody>${bills.map(b => `<tr>
-          <td style="font-family:monospace;font-weight:700;color:var(--accent)">${b.bill_no}</td>
-          <td>${b.patient_name || b.customer_name || '<span style="color:var(--muted)">Walk-in</span>'}</td>
-          <td style="font-weight:800">₹${(b.total || 0).toFixed(2)}</td>
-          <td>${statusTag(b.payment_mode)}</td>
-          <td style="color:var(--muted);font-size:12px">${b.cashier || '—'}</td>
-          <td style="font-size:11px;color:var(--muted)">${b.created_at?.slice(0,16) || ''}</td>
-          <td>
-            <div style="display:flex;gap:6px">
-              <button class="btn btn-outline btn-sm" onclick="openViewBillModal(${b.id},'${b.bill_no}')">👁️ View</button>
-              <button class="btn btn-outline btn-sm" onclick="openEditBillModal(${b.id},'${b.bill_no}')">✏️ Edit</button>
-              <button class="btn btn-outline btn-sm" onclick="openReturnModal(${b.id},'${b.bill_no}')">↩ Return</button>
-            </div>
-          </td>
-        </tr>`).join('')}
-        </tbody>
-      </table>
+    <div style="margin-top:8px">
+      ${daySectionsHtml || '<div class="card" style="text-align:center;padding:48px;color:var(--muted)">No billing history found</div>'}
     </div>
   </div>`;
+
+  window.clearDayBills = async (dayString) => {
+    if (!confirm(`⚠️ WARNING: You are about to DELETE all ${billsByDay[dayString].length} bills on ${dayString} and restore their quantities back to inventory.\n\nAre you sure you want to proceed?`)) {
+      return;
+    }
+    const doubleCheck = prompt(`Type "CLEAR ${dayString}" to confirm this action:`);
+    if (doubleCheck !== `CLEAR ${dayString}`) {
+      _toast('Confirmation mismatch. Operation canceled.', 'warn');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/bills/clear_day?date=' + encodeURIComponent(dayString), {
+        method: 'DELETE',
+        headers: {
+          'X-Token': localStorage.getItem('pp_token') || ''
+        }
+      }).then(r => r.json());
+      if (res.ok) {
+        _toast(`Successfully cleared bills for ${dayString} and restored stock!`, 'success');
+        renderBillHistory(c, APP);
+      } else {
+        _toast(res.detail || res.message || 'Operation failed', 'error');
+      }
+    } catch (e) {
+      _toast('Error: ' + e.message, 'error');
+    }
+  };
 
   window.openViewBillModal = async (billId, billNo) => {
     const bill = await _GET('/bills/' + billId);
@@ -792,15 +855,15 @@ export async function renderBillHistory(c, APP) {
       let baseSubtotal, gstAmt, total;
       
       if (gstInclusive) {
-        baseSubtotal = subtotal / (1 + gstSlab / 100);
-        const actualPctDiscAmt = (baseSubtotal * discPct) / 100.0;
-        const actualDiscAmt = actualPctDiscAmt;
-        const taxable = baseSubtotal - actualDiscAmt;
-        gstAmt = taxable * gstSlab / 100;
-        total = baseSubtotal - actualDiscAmt + gstAmt;
+        gstAmt = 0;
+        total = subtotal - discAmt;
+        const gstRow = document.getElementById('edit-gst-row');
+        if (gstRow) gstRow.style.display = 'none';
       } else {
         gstAmt = (subtotal - discAmt) * gstSlab / 100;
         total = subtotal - discAmt + gstAmt;
+        const gstRow = document.getElementById('edit-gst-row');
+        if (gstRow) gstRow.style.display = 'block';
       }
       
       document.getElementById('edit-subtotal').textContent = '₹' + subtotal.toFixed(2);
@@ -860,7 +923,7 @@ export async function renderBillHistory(c, APP) {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:14px">
           <div><span style="color:var(--muted)">Subtotal:</span> <strong id="edit-subtotal">₹0.00</strong></div>
           <div><span style="color:var(--muted)">Discount:</span> <strong id="edit-disc-amt" style="color:var(--danger)">-₹0.00</strong></div>
-          <div><span style="color:var(--muted)">GST (${gstSlab}%):</span> <strong id="edit-gst-amt">₹0.00</strong></div>
+          <div id="edit-gst-row"><span style="color:var(--muted)">GST (${gstSlab}%):</span> <strong id="edit-gst-amt">₹0.00</strong></div>
           <div style="font-size:16px;font-weight:800;color:var(--accent);margin-top:4px">
             <span style="color:var(--text)">Net Total:</span> <span id="edit-total">₹0.00</span>
           </div>

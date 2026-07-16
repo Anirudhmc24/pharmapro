@@ -3,6 +3,8 @@ PharmaPro — routers/drugs.py
 Drug catalogue, batches, FEFO logic
 """
 
+import json
+from pydantic import BaseModel
 from backend.database import get_db, row_to_dict, rows_to_list
 from backend.models import DrugIn, DrugUpdateIn, BatchIn, DrugLocationIn
 from backend.routers.auth import get_current_user
@@ -21,7 +23,8 @@ def get_drugs(q: str = ""):
             rows = conn.execute("""
                 SELECT d.*,
                   COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
-                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets
+                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
+                  (SELECT b2.cost_per_strip FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0 ORDER BY b2.expiry ASC LIMIT 1) as cost_per_strip
                 FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
                 WHERE d.name LIKE ? OR d.brand LIKE ? OR d.composition LIKE ?
                 GROUP BY d.id ORDER BY d.name LIMIT 20""", (like, like, like)).fetchall()
@@ -29,7 +32,8 @@ def get_drugs(q: str = ""):
             rows = conn.execute("""
                 SELECT d.*,
                   COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
-                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets
+                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
+                  (SELECT b2.cost_per_strip FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0 ORDER BY b2.expiry ASC LIMIT 1) as cost_per_strip
                 FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
                 GROUP BY d.id ORDER BY d.name""").fetchall()
         return rows_to_list(rows)
@@ -46,7 +50,8 @@ def master_search(q: str = ""):
             return []
         like = f"{q}%"
         rows = conn.execute("""
-            SELECT name, manufacturer, composition, mrp, hsn, description
+            SELECT name, manufacturer, composition, mrp, hsn, description,
+                   indications, side_effects, administration, age_suitability
             FROM master_drugs
             WHERE name LIKE ?
             ORDER BY name
@@ -67,7 +72,8 @@ def search_by_problem(q: str = ""):
               COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
               COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
               (SELECT MIN(b2.expiry) FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0) as nearest_expiry,
-              (SELECT COUNT(*) FROM trays t2 WHERE t2.drug_id=d.id AND t2.closed=0) as open_trays
+              (SELECT COUNT(*) FROM trays t2 WHERE t2.drug_id=d.id AND t2.closed=0) as open_trays,
+              (SELECT b3.cost_per_strip FROM batches b3 WHERE b3.drug_id=d.id AND b3.full_strips>0 ORDER BY b3.expiry ASC LIMIT 1) as cost_per_strip
             FROM drugs d 
             LEFT JOIN batches b ON b.drug_id=d.id
             WHERE d.indications LIKE ? OR d.category LIKE ? OR d.composition LIKE ? OR d.name LIKE ? OR d.brand LIKE ?
@@ -84,13 +90,29 @@ def master_all(page: int = 1, limit: int = 50):
     offset = (page - 1) * limit
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT name, manufacturer, composition, mrp, hsn, description
+            SELECT name, manufacturer, composition, mrp, hsn, description,
+                   indications, side_effects, administration, age_suitability
             FROM master_drugs
             ORDER BY name
             LIMIT ? OFFSET ?
         """, (limit, offset)).fetchall()
         total = conn.execute("SELECT COUNT(*) FROM master_drugs").fetchone()[0]
         return {"items": rows_to_list(rows), "total": total, "page": page, "limit": limit}
+
+
+def is_exact_composition_match(comp1: str, comp2: str) -> bool:
+    import re
+    if not comp1 or not comp2:
+        return False
+    def normalize(c):
+        parts = [p.strip().lower() for p in c.split("+")]
+        cleaned = []
+        for p in parts:
+            p = re.sub(r'[\(\)\-\s\,\/]', '', p)
+            cleaned.append(p)
+        cleaned.sort()
+        return "+".join(cleaned)
+    return normalize(comp1) == normalize(comp2)
 
 
 @router.get("/substitutes")
@@ -125,7 +147,8 @@ def get_substitutes_any(drug_id: int = 0, name: str = "", composition: str = "")
 
         if not resolved_composition:
             return {"drug_name": resolved_name, "composition": None,
-                    "in_stock": [], "orderable": []}
+                    "exact_in_stock": [], "exact_orderable": [],
+                    "comb_in_stock": [], "comb_orderable": []}
 
         # Extract key active ingredients (strip dose numbers)
         parts = [p.strip() for p in resolved_composition.split("+")]
@@ -138,7 +161,8 @@ def get_substitutes_any(drug_id: int = 0, name: str = "", composition: str = "")
 
         if not key_ingredients:
             return {"drug_name": resolved_name, "composition": resolved_composition,
-                    "in_stock": [], "orderable": []}
+                    "exact_in_stock": [], "exact_orderable": [],
+                    "comb_in_stock": [], "comb_orderable": []}
 
         conditions = " AND ".join(["composition LIKE ?" for _ in key_ingredients])
         params = [f"%{ing}%" for ing in key_ingredients]
@@ -155,27 +179,41 @@ def get_substitutes_any(drug_id: int = 0, name: str = "", composition: str = "")
             WHERE ({conditions}) AND LOWER(d.name) != LOWER(?)
             GROUP BY d.id
             ORDER BY stock_tablets DESC, d.name
-            LIMIT 10
+            LIMIT 25
         """, (*params, resolved_name)).fetchall()
-        in_stock = rows_to_list(shop_rows)
-        for r in in_stock:
+        
+        in_stock_list = rows_to_list(shop_rows)
+        for r in in_stock_list:
             r["available"] = r["stock_tablets"] > 0
+            
+        exact_in_stock = [r for r in in_stock_list if is_exact_composition_match(resolved_composition, r["composition"])]
+        comb_in_stock = [r for r in in_stock_list if not is_exact_composition_match(resolved_composition, r["composition"])]
 
         # Layer 2: Search MASTER DATABASE (orderable)
         master_rows = conn.execute(f"""
             SELECT name, manufacturer, composition, mrp
             FROM master_drugs
             WHERE ({conditions}) AND LOWER(name) != LOWER(?)
-            ORDER BY name LIMIT 15
+            ORDER BY name LIMIT 40
         """, (*params, resolved_name)).fetchall()
-        orderable = rows_to_list(master_rows)
+        
+        orderable_list = rows_to_list(master_rows)
+        
+        # Filter out master items that already exist in our shop database (so there's no duplication)
+        in_stock_names = {r["name"].lower() for r in in_stock_list}
+        orderable_list = [o for o in orderable_list if o["name"].lower() not in in_stock_names]
+        
+        exact_orderable = [r for r in orderable_list if is_exact_composition_match(resolved_composition, r["composition"])]
+        comb_orderable = [r for r in orderable_list if not is_exact_composition_match(resolved_composition, r["composition"])]
 
         return {
             "drug_name": resolved_name,
             "composition": resolved_composition,
             "key_ingredients": key_ingredients,
-            "in_stock": in_stock,
-            "orderable": orderable,
+            "exact_in_stock": exact_in_stock,
+            "exact_orderable": exact_orderable,
+            "comb_in_stock": comb_in_stock,
+            "comb_orderable": comb_orderable,
         }
 
 
@@ -198,6 +236,22 @@ def get_drug(drug_id: int):
 def add_drug(drug: DrugIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
     get_current_user(x_token)
     with get_db() as conn:
+        # If indications/side_effects not provided, check if matching master drug has them
+        ind = drug.indications
+        se = drug.side_effects
+        adm = drug.administration
+        age = drug.age_suitability
+        
+        if not ind or not se:
+            master_info = conn.execute("""
+                SELECT indications, side_effects, administration, age_suitability
+                FROM master_drugs WHERE name = ?""", (drug.name,)).fetchone()
+            if master_info:
+                ind = ind or master_info["indications"] or ""
+                se = se or master_info["side_effects"] or ""
+                adm = adm or master_info["administration"] or ""
+                age = age or master_info["age_suitability"] or ""
+
         # 1. Create the drug in shop database
         cur = conn.execute("""
             INSERT INTO drugs(name,brand,composition,category,schedule,hsn,
@@ -207,21 +261,23 @@ def add_drug(drug: DrugIn, background_tasks: BackgroundTasks, x_token: Optional[
             (drug.name, drug.brand, drug.composition, drug.category, drug.schedule, drug.hsn,
              drug.tablets_per_strip, drug.strips_per_box, drug.mrp_per_strip, drug.mrp_per_tablet,
              drug.reorder_level, drug.box_id, drug.offer_type, drug.pack_type,
-             drug.indications, drug.side_effects, drug.administration, drug.age_suitability))
+             ind, se, adm, age))
         drug_id = cur.lastrowid
         
         # 2. Sync / Update Master Catalogue (Ensuring every new entry is in master_drugs)
         master_row = conn.execute("SELECT id FROM master_drugs WHERE name = ?", (drug.name,)).fetchone()
         if not master_row:
             conn.execute("""
-                INSERT INTO master_drugs(name, manufacturer, composition, mrp, hsn)
-                VALUES(?,?,?,?,?)
-            """, (drug.name, drug.brand, drug.composition, drug.mrp_per_strip, drug.hsn))
+                INSERT INTO master_drugs(name, manufacturer, composition, mrp, hsn, indications, side_effects, administration, age_suitability)
+                VALUES(?,?,?,?,?,?,?,?,?)
+            """, (drug.name, drug.brand, drug.composition, drug.mrp_per_strip, drug.hsn, ind, se, adm, age))
         else:
             # Update master entry with latest details if it already exists
             conn.execute("""
-                UPDATE master_drugs SET manufacturer=?, composition=?, mrp=?, hsn=? WHERE name=?
-            """, (drug.brand, drug.composition, drug.mrp_per_strip, drug.hsn, drug.name))
+                UPDATE master_drugs 
+                SET manufacturer=?, composition=?, mrp=?, hsn=?, indications=?, side_effects=?, administration=?, age_suitability=? 
+                WHERE name=?
+            """, (drug.brand, drug.composition, drug.mrp_per_strip, drug.hsn, ind, se, adm, age, drug.name))
 
         # 3. Create initial batch if expiry is provided (batch_no is now optional)
         if drug.expiry:
@@ -421,6 +477,16 @@ def add_batch(b: BatchIn, background_tasks: BackgroundTasks, x_token: Optional[s
     auto_trigger_backup(background_tasks)
     return {"batch_id": batch_id}
 
+
+@batches_router.put("/{batch_id}")
+def update_batch(batch_id: int, data: dict, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    with get_db() as conn:
+        cost = data.get("cost_per_strip")
+        if cost is not None:
+            conn.execute("UPDATE batches SET cost_per_strip=? WHERE id=?", (float(cost), batch_id))
+    return {"ok": True}
+
 # ── Global Medicine Dictionary ──────────────────────────────────────────────
 GLOBAL_MEDICINES = {
     # Pain & Fever
@@ -543,3 +609,74 @@ def get_enrichment_status(x_token: Optional[str] = Header(default=None)):
     ENRICHMENT_STATUS["total"] = total
     ENRICHMENT_STATUS["current"] = total - missing
     return ENRICHMENT_STATUS
+
+
+class MasterEnrichIn(BaseModel):
+    name: str
+    manufacturer: Optional[str] = ""
+    composition: Optional[str] = ""
+
+
+@router.post("/enrich_master_item")
+def enrich_master_item(body: MasterEnrichIn, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    
+    # 1. Retrieve Gemini key
+    from backend.routers.scan import get_gemini_key
+    key = get_gemini_key()
+    if not key:
+        return {"ok": False, "message": "Gemini API key not configured. Please set your key in Settings."}
+        
+    # 2. Call gemini to generate clinical details
+    from scripts.populate_indications import enrich_medicine
+    try:
+        data = enrich_medicine(key, body.name, body.manufacturer or "", body.composition or "")
+        
+        # Prepare age suitability JSON
+        age_suitability = json.dumps({
+            "child": {"ok": bool(data.get("child_ok", True)), "dose": data.get("child_dose", "")},
+            "middle_aged_men": {"ok": bool(data.get("middle_aged_men_ok", True)), "dose": data.get("middle_aged_men_dose", "")},
+            "middle_aged_women": {"ok": bool(data.get("middle_aged_women_ok", True)), "dose": data.get("middle_aged_women_dose", "")},
+            "elderly_men": {"ok": bool(data.get("elderly_men_ok", True)), "dose": data.get("elderly_men_dose", "")},
+            "elderly_women": {"ok": bool(data.get("elderly_women_ok", True)), "dose": data.get("elderly_women_dose", "")}
+        })
+        
+        # 3. Update master_drugs table
+        with get_db() as conn:
+            conn.execute("""
+                UPDATE master_drugs
+                SET indications = ?,
+                    side_effects = ?,
+                    administration = ?,
+                    age_suitability = ?
+                WHERE LOWER(name) = LOWER(?)
+            """, (
+                data.get("indications", ""),
+                data.get("side_effects", ""),
+                data.get("administration", ""),
+                age_suitability,
+                body.name
+            ))
+            
+            # Also update drugs table if a drug with the exact same name resides in shop stock
+            conn.execute("""
+                UPDATE drugs
+                SET indications = ?,
+                    side_effects = ?,
+                    administration = ?,
+                    age_suitability = ?
+                WHERE LOWER(name) = LOWER(?)
+            """, (
+                data.get("indications", ""),
+                data.get("side_effects", ""),
+                data.get("administration", ""),
+                age_suitability,
+                body.name
+            ))
+            conn.commit()
+            
+        return {"ok": True, "data": data}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "message": str(e)}

@@ -367,7 +367,11 @@ CREATE TABLE IF NOT EXISTS master_drugs (
     composition TEXT,
     mrp REAL,
     hsn TEXT,
-    description TEXT
+    description TEXT,
+    indications TEXT,
+    side_effects TEXT,
+    administration TEXT,
+    age_suitability TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_master_name ON master_drugs(name);
@@ -417,6 +421,18 @@ def init_db():
         except sqlite3.OperationalError: pass
         
         try: conn.execute("ALTER TABLE master_drugs ADD COLUMN hsn TEXT")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE master_drugs ADD COLUMN indications TEXT")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE master_drugs ADD COLUMN side_effects TEXT")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE master_drugs ADD COLUMN administration TEXT")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE master_drugs ADD COLUMN age_suitability TEXT")
         except sqlite3.OperationalError: pass
 
         try: conn.execute("ALTER TABLE prescriptions ADD COLUMN image_path TEXT")

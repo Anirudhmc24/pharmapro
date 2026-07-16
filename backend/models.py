@@ -25,6 +25,7 @@ class ShopConfigIn(BaseModel):
     top_up_tray: bool = True
     broken_strip_alert: int = 2
     expiry_warn_months: int = 3
+    low_stock_alert_limit: int = 20
     print_tray_label: bool = True
     schedule_warning: bool = True
     require_batch_on_sale: bool = True
@@ -119,7 +120,7 @@ class BillIn(BaseModel):
     discount_pct: float = 0
     payment_mode: str = "Cash"
     points_redeemed: int = 0
-    gst_inclusive: bool = False
+    gst_inclusive: bool = True
     items: List[BillItemIn]
 
 

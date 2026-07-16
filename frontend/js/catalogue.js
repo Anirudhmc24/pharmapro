@@ -72,6 +72,31 @@ export async function renderCatalogue(c, APP) {
     }, 150);
   };
 
+  window.enrichMasterItem = async (name, manufacturer, composition, btn) => {
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = 'Enriching...';
+    try {
+      const res = await POST('/drugs/enrich_master_item', { name, manufacturer, composition });
+      if (res.ok) {
+        toast('Master item enriched successfully!', 'success');
+        if (query) {
+          doSearch(query);
+        } else {
+          loadPage(currentPage);
+        }
+      } else {
+        toast(res.message || 'Enrichment failed', 'error');
+        btn.disabled = false;
+        btn.innerHTML = oldText;
+      }
+    } catch(e) {
+      toast(e.message || 'Enrichment failed', 'error');
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  };
+
   // ── Load alphabetical page ────────────────────────────────
   async function loadPage(page) {
     setGridLoading();
@@ -173,11 +198,30 @@ export async function renderCatalogue(c, APP) {
       const mrp  = d.mrp || 0;
       const compShort = comp.length > 60 ? comp.substring(0, 60) + '…' : comp;
 
+      let clinicalHtml = '';
+      if (d.indications) {
+        clinicalHtml = `
+          <div style="font-size:11px;background:var(--accent-dim);color:var(--accent);padding:6px 10px;border-radius:8px;margin-top:4px;border:1px solid var(--border)">
+            🎯 <b>Indications:</b> ${d.indications}
+          </div>
+        `;
+      } else {
+        clinicalHtml = `
+          <div style="margin-top:4px">
+            <button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 8px;width:100%"
+              onclick="event.stopPropagation(); window.enrichMasterItem('${name.replace(/'/g, "\\'")}', '${mfr.replace(/'/g, "\\'")}', '${comp.replace(/'/g, "\\'")}', this)">
+              ✨ AI Enrich Item
+            </button>
+          </div>
+        `;
+      }
+
       return `<div class="card fade-in" style="display:flex;flex-direction:column;gap:8px">
         <div style="font-weight:800;color:var(--accent);font-size:14px;line-height:1.3">${d.name || '—'}</div>
         <div style="font-size:11px;color:var(--muted);font-weight:600">${d.manufacturer || '—'}</div>
         <div style="font-size:12px;color:var(--text);line-height:1.5;flex:1">${compShort || '—'}</div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">HSN: ${d.hsn || '30049099'}</div>
+        <div style="font-size:10px;color:var(--muted)">HSN: ${d.hsn || '30049099'}</div>
+        ${clinicalHtml}
         <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;justify-content:space-between;align-items:center">
           <div style="font-weight:700;color:var(--text)">MRP: ₹${mrp > 0 ? mrp.toFixed(2) : '—'}</div>
           <button class="btn btn-primary btn-sm"

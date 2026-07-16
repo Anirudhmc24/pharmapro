@@ -79,6 +79,46 @@ export async function renderDashboard(c, APP) {
       </div>
     </div>
 
+    ${d.near_expiry_alerts?.length ? `
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:14px">
+        <div>
+          <div class="section-title" style="color:var(--danger)">⚠️ Near Expiry & Expired Medicines</div>
+          <div style="color:var(--muted);font-size:12px">${d.near_expiry_alerts.length} batch${d.near_expiry_alerts.length > 1 ? 'es' : ''} expiring/expired soon — consider initiating expiry returns</div>
+        </div>
+      </div>
+      <div style="overflow:auto">
+        <table class="tbl">
+          <thead><tr><th>Drug</th><th>Batch</th><th>Expiry Date</th><th>Strips Left</th><th>Status</th><th>Location</th></tr></thead>
+          <tbody>
+          ${d.near_expiry_alerts.map((r) => {
+            const ml = monthsLeft(r.expiry);
+            let statusText = '';
+            let statusColor = '';
+            if (ml <= 0) {
+              statusText = 'Expired';
+              statusColor = 'var(--danger)';
+            } else if (ml <= 1) {
+              statusText = 'Expires in ' + ml + 'm';
+              statusColor = 'var(--danger)';
+            } else {
+              statusText = 'Expires in ' + ml + 'm';
+              statusColor = 'var(--warn)';
+            }
+            return `<tr>
+              <td><div style="font-weight:700">${r.name}</div><div style="font-size:11px;color:var(--muted)">${r.brand || ''}</div></td>
+              <td><code>${r.batch_no}</code></td>
+              <td><span style="font-weight:800;color:${expiryColor(r.expiry)}">${fmtExp(r.expiry)}</span></td>
+              <td><span style="font-weight:800">${r.full_strips}</span> strips</td>
+              <td><span class="tag" style="background:${statusColor}18;color:${statusColor};font-weight:700">${statusText}</span></td>
+              <td><button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:10px" onclick="locateDrug(${r.drug_id})">📍 Locate</button></td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
     ${d.reorder_alerts?.length ? `
     <div class="card">
       <div class="flex-between" style="margin-bottom:14px">
@@ -115,6 +155,41 @@ export async function renderDashboard(c, APP) {
         </table>
       </div>
     </div>` : ''}
+
+    ${d.daily_reorder_alerts?.length ? `
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:14px">
+        <div>
+          <div class="section-title">📦 Daily Reorder Suggestions (Sold Today)</div>
+          <div style="color:var(--muted);font-size:12px">${d.daily_reorder_alerts.length} drug${d.daily_reorder_alerts.length > 1 ? 's' : ''} sold today — select and restock instantly</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="dailyReorderSelectAll()">Select All</button>
+          <button class="btn btn-primary btn-sm" onclick="createPOFromDailyReorder()">📋 Create PO from selection →</button>
+        </div>
+      </div>
+      <div style="overflow:auto">
+        <table class="tbl">
+          <thead><tr><th style="width:36px"><input type="checkbox" id="daily-reorder-chk-all" onchange="dailyReorderToggleAll(this)" style="accent-color:var(--accent)"></th><th>Drug</th><th>Stock Left</th><th>Sold Today</th><th>Suggest Order</th><th>Location</th></tr></thead>
+          <tbody>
+          ${d.daily_reorder_alerts.map((r, i) => {
+            const stockTabs = r.stock_tablets || 0;
+            const soldToday = r.sold_today || 0;
+            const tps       = r.tablets_per_strip || 10;
+            const suggestStrips = Math.max(1, Math.ceil(soldToday / tps));
+            return `<tr>
+              <td><input type="checkbox" class="daily-reorder-chk" value="${r.id}" data-name="${r.name}" data-rate="${r.mrp_per_strip || 0}" data-strips="${suggestStrips}" checked style="accent-color:var(--accent)"></td>
+              <td><div style="font-weight:700">${r.name}</div><div style="font-size:11px;color:var(--muted)">${r.brand || ''}</div></td>
+              <td><span style="font-weight:800;color:${stockTabs < 10 ? 'var(--danger)' : 'var(--warn)'}">${stockTabs}</span> tabs</td>
+              <td>${soldToday} tabs</td>
+              <td><span style="color:var(--accent);font-weight:700">${suggestStrips} strips</span></td>
+              <td><button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:10px" onclick="locateDrug(${r.id})">📍 Locate</button></td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}
   </div>`;
 
   // Reorder → PO helpers exposed globally
@@ -128,6 +203,27 @@ export async function renderDashboard(c, APP) {
   };
   window.createPOFromReorder = () => {
     const selected = [...document.querySelectorAll('.reorder-chk:checked')].map(c => ({
+      drug_id: parseInt(c.value),
+      name:    c.dataset.name,
+      rate:    parseFloat(c.dataset.rate || 0),
+      strips:  parseInt(c.dataset.strips || 1),
+    }));
+    if (!selected.length) { alert('Select at least one drug'); return; }
+    // Pass reorder drugs to PO creation via sessionStorage
+    sessionStorage.setItem('po_preload', JSON.stringify(selected));
+    APP.navigate('purchase_orders');
+  };
+
+  window.dailyReorderToggleAll = (chk) => {
+    document.querySelectorAll('.daily-reorder-chk').forEach(c => c.checked = chk.checked);
+  };
+  window.dailyReorderSelectAll = () => {
+    document.querySelectorAll('.daily-reorder-chk').forEach(c => c.checked = true);
+    const allChk = document.getElementById('daily-reorder-chk-all');
+    if (allChk) allChk.checked = true;
+  };
+  window.createPOFromDailyReorder = () => {
+    const selected = [...document.querySelectorAll('.daily-reorder-chk:checked')].map(c => ({
       drug_id: parseInt(c.value),
       name:    c.dataset.name,
       rate:    parseFloat(c.dataset.rate || 0),

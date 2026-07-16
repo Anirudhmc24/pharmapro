@@ -179,6 +179,20 @@ def run(force=False):
                 age_suitability,
                 drug['id']
             ))
+            conn.execute("""
+                UPDATE master_drugs
+                SET indications = ?,
+                    side_effects = ?,
+                    administration = ?,
+                    age_suitability = ?
+                WHERE name = ?
+            """, (
+                data.get("indications", ""),
+                data.get("side_effects", ""),
+                data.get("administration", ""),
+                age_suitability,
+                drug['name']
+            ))
             conn.commit()
             print(f"  -> Successfully enriched: {drug['name']}")
             success_count += 1

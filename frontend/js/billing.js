@@ -4,7 +4,7 @@ import { fmt, fmtI, tag, stripVis, toast, modal, closeModal } from './utils.js';
 import { showSubstitutesModal } from './substitutes.js';
 
 export async function renderBilling(c, APP) {
-  let cart = [], customer = null, discount = 0, payMode = 'Cash', redeemPoints = false, gstInclusive = false;
+  let cart = [], customer = null, discount = 0, payMode = 'Cash', redeemPoints = false, gstInclusive = true;
   let interactions = [];
 
   window.toggleRedeem = (checked) => { redeemPoints = checked; window.billApplyState(); };
@@ -39,8 +39,16 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     }, 0);
     const pctDiscAmt = subtotal * discount / 100;
     const discAmt  = pctDiscAmt + (ptsRedeemed * 0.01);
-    const gst      = Math.max(0, (subtotal - discAmt) * 0.12);
-    const total    = Math.max(0, subtotal - discAmt + gst);
+    const gst      = gstInclusive ? 0 : Math.max(0, (subtotal - discAmt) * 0.12);
+    const total    = Math.max(0, subtotal - discAmt + (gstInclusive ? 0 : gst));
+    const summaryLines = [
+      ['Subtotal', fmt(subtotal)],
+      ['Discount', discount + '%'],
+      ['Disc. Amount', '− ' + fmt(discAmt)]
+    ];
+    if (!gstInclusive) {
+      summaryLines.push(['GST (12%)', '+' + fmt(gst)]);
+    }
     return `
     <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;height:calc(100vh - 130px)" class="billing-layout">
       <div class="gap-12" style="overflow:hidden;display:flex;flex-direction:column">
@@ -78,7 +86,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
               const amt = activeQty * item.mrp_per_tablet;
               return `<tr>
                 <td><div style="font-weight:700;color:var(--text)">${item.name} ${isBogo ? tag('BOGO', 'tag-amber') : ''}</div>
-                    <div style="font-size:11px;color:var(--muted)">${item.brand || ''} · ${tag(item.schedule === 'Rx' ? 'Rx' : 'OTC', item.schedule === 'Rx' ? 'tag-red' : 'tag-green')}</div></td>
+                    <div style="font-size:11px;color:var(--muted)">${item.brand || ''} · ${tag(item.schedule === 'Rx' ? 'Rx' : 'OTC', item.schedule === 'Rx' ? 'tag-red' : 'tag-green')} · Cost: <b>₹${item.cost_per_strip || (item.batches && item.batches.length ? item.batches[0].cost_per_strip : 0)}</b>/strip</div></td>
                 <td><div class="qty-ctrl">
                   <button class="qty-btn" onclick="cartQty(${i},${item.qty-1})">−</button>
                   <input class="qty-val" type="number" value="${item.qty}" min="1" onchange="cartQty(${i},+this.value)">
@@ -141,7 +149,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
         <div class="card" style="flex:1">
           <div class="section-title">Bill Summary</div>
           <div class="gap-12">
-            ${[['Subtotal', fmt(subtotal)], ['Discount', discount + '%'], ['Disc. Amount', '− ' + fmt(discAmt)], ['GST (12%)', '+' + fmt(gst)]].map(([k, v]) =>
+            ${summaryLines.map(([k, v]) =>
               `<div class="flex-between" style="font-size:13px;color:var(--muted)"><span>${k}</span><span style="color:var(--text)">${v}</span></div>`
             ).join('')}
             <div class="flex-between" style="font-size:20px;font-weight:900;border-top:1px solid var(--border);padding-top:10px">
@@ -177,10 +185,94 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
         </div>
       </div>
     </div>
+
+    <!-- Quick Bill Calculator -->
+    <details id="quick-calc-details" style="margin-top:14px;" ${window._calcOpen ? 'open' : ''}>
+      <summary onclick="window._calcOpen = !document.getElementById('quick-calc-details').open"
+        style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;
+          padding:10px 16px;background:var(--surface);border:1px solid var(--border);
+          border-radius:10px;font-weight:700;font-size:14px;color:var(--accent);
+          user-select:none;transition:background .15s"
+        onmouseover="this.style.background='var(--accent-dim)'"
+        onmouseout="this.style.background='var(--surface)'">
+        <span>🧮</span> Quick Bill Calculator
+        <span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:400">Enter MRP + discount → instant total</span>
+      </summary>
+      <div style="padding:14px 16px;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;background:var(--surface)">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:flex-end;flex-wrap:wrap" class="calc-row">
+          <div class="field" style="margin:0">
+            <label style="font-size:11px">MRP (₹)</label>
+            <input class="input" id="calc-mrp" type="number" min="0" step="0.01" placeholder="e.g. 100"
+              oninput="window.runQuickCalc()">
+          </div>
+          <div class="field" style="margin:0">
+            <label style="font-size:11px">Discount (%)</label>
+            <input class="input" id="calc-disc" type="number" min="0" max="100" step="0.1" placeholder="e.g. 10"
+              oninput="window.runQuickCalc()">
+          </div>
+          <div class="field" style="margin:0">
+            <label style="font-size:11px">GST (%)</label>
+            <input class="input" id="calc-gst" type="number" min="0" max="28" step="0.5" placeholder="12 (if excl)"
+              oninput="window.runQuickCalc()">
+          </div>
+          <div style="display:flex;gap:6px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;cursor:pointer">
+              <input type="checkbox" id="calc-inclusive" checked onchange="window.runQuickCalc()"
+                style="width:14px;height:14px;accent-color:var(--accent)">
+              GST Incl.
+            </label>
+          </div>
+        </div>
+        <div id="calc-result" style="margin-top:12px;display:none;padding:12px;
+          background:var(--accent-dim);border-radius:8px;border:1px solid var(--accent)">
+        </div>
+      </div>
+    </details>
     </div>`;
   }
 
   c.innerHTML = billHTML();
+
+  window.runQuickCalc = () => {
+    const mrp       = parseFloat(document.getElementById('calc-mrp')?.value) || 0;
+    const discPct   = parseFloat(document.getElementById('calc-disc')?.value) || 0;
+    const gstPct    = parseFloat(document.getElementById('calc-gst')?.value) || 0;
+    const inclusive = document.getElementById('calc-inclusive')?.checked ?? true;
+    const out       = document.getElementById('calc-result');
+    if (!out) return;
+
+    if (mrp <= 0) { out.style.display = 'none'; return; }
+
+    const discAmt = Math.round(mrp * discPct / 100 * 100) / 100;
+    const afterDisc = Math.round((mrp - discAmt) * 100) / 100;
+
+    let gstAmt = 0, finalTotal = afterDisc;
+    if (gstPct > 0) {
+      if (inclusive) {
+        // GST already baked in — back-calculate
+        gstAmt = Math.round(afterDisc * gstPct / (100 + gstPct) * 100) / 100;
+      } else {
+        gstAmt = Math.round(afterDisc * gstPct / 100 * 100) / 100;
+        finalTotal = Math.round((afterDisc + gstAmt) * 100) / 100;
+      }
+    }
+
+    const rows = [
+      ['MRP',                `₹${mrp.toFixed(2)}`],
+      [`Discount (${discPct}%)`, `− ₹${discAmt.toFixed(2)}`],
+      ...(gstPct > 0 ? [[`GST ${gstPct}% (${inclusive ? 'incl.' : 'excl.'})`, `${inclusive ? '(incl.)' : '+ ₹' + gstAmt.toFixed(2)}`]] : []),
+    ];
+
+    out.style.display = 'block';
+    out.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr auto;gap:4px 16px;font-size:13px;color:var(--muted)">
+        ${rows.map(([k, v]) => `<span>${k}</span><span style="text-align:right;font-weight:600;color:var(--text)">${v}</span>`).join('')}
+        <div style="grid-column:1/-1;border-top:1px solid var(--accent);margin:6px 0"></div>
+        <span style="font-weight:900;font-size:16px;color:var(--accent)">Amount Payable</span>
+        <span style="text-align:right;font-weight:900;font-size:18px;color:var(--accent)">₹${finalTotal.toFixed(2)}</span>
+        ${gstPct > 0 && inclusive ? `<span style="grid-column:1/-1;font-size:10px;color:var(--muted);margin-top:2px">GST of ₹${gstAmt.toFixed(2)} already included in the above amount</span>` : ''}
+      </div>`;
+  };
 
   window.billSearch = async (q) => {
     if (q.length < 2) { document.getElementById('bill-drop').style.display = 'none'; return; }
@@ -197,7 +289,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
         <div class="search-item" style="${outOfStock ? 'opacity:0.7' : ''}" onclick="${outOfStock ? `showBackorderForm(${d.id},'${d.name.replace(/'/g,"\\'")}')` : `billAddDrug(${d.id})`}">
           <div>
             <div style="font-weight:700">${d.name} <span style="color:var(--muted);font-weight:400;font-size:12px">${d.brand || ''}</span></div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Box ${d.box_id || '?'} · Stock: <b style="color:${outOfStock ? 'var(--danger)' : 'var(--accent)'}">${d.stock_tablets || 0}</b> ${(d.pack_type || 'Strip').toLowerCase()}s · ${tag(d.schedule === 'Rx' ? '℞ Rx' : 'OTC', d.schedule === 'Rx' ? 'tag-red' : 'tag-green')}${outOfStock ? ' · <span style="color:var(--warn);font-weight:700">⚠️ Out of Stock</span>' : ''}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Box ${d.box_id || '?'} · Stock: <b style="color:${outOfStock ? 'var(--danger)' : 'var(--accent)'}">${d.stock_tablets || 0}</b> ${(d.pack_type || 'Strip').toLowerCase()}s · Cost: <b>₹${d.cost_per_strip || 0}</b>/strip · ${tag(d.schedule === 'Rx' ? '℞ Rx' : 'OTC', d.schedule === 'Rx' ? 'tag-red' : 'tag-green')}${outOfStock ? ' · <span style="color:var(--warn);font-weight:700">⚠️ Out of Stock</span>' : ''}</div>
           </div>
           <div style="text-align:right">
             ${outOfStock
@@ -568,7 +660,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       const fd = new FormData();
       fd.append('file', file);
       const r = await fetch('/api/prescriptions/upload', {
-        method: 'POST', headers: { 'X-Token': window.APP ? (localStorage.getItem('token') || '') : '' },
+        method: 'POST', headers: { 'X-Token': window.APP ? (localStorage.getItem('pp_token') || '') : '' },
         body: fd
       });
       if (!r.ok) throw new Error('Upload failed');
@@ -599,6 +691,7 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
         phone: customer?.phone || '',
         patient_name: name, doctor: dr, rx_no: rx, rx_image_path: rxPath,
         discount_pct: discount, payment_mode: payMode, points_redeemed: ptsRedeemed,
+        gst_inclusive: gstInclusive,
         items: cart.map(i => ({ drug_id: i.id, tablets_qty: i.qty }))
       });
       
@@ -778,6 +871,7 @@ window.printBill = (data) => {
     const totalVal = res.total || (taxableVal + gstAmt);
     const cgstAmt = gstAmt / 2;
     const sgstAmt = gstAmt / 2;
+    const isInclusive = Math.abs(totalVal - (subtotal - discAmt)) < 0.1;
 
     const w = window.open('', '_blank', 'width=800,height=800');
     w.document.write(`<!DOCTYPE html>
@@ -904,6 +998,7 @@ window.printBill = (data) => {
           <td style="text-align: right; font-weight: 600; color: #dc2626;">-${fmtVal(discAmt)}</td>
         </tr>
         ` : ''}
+        ${isInclusive ? '' : `
         <tr>
           <td class="info-label">Taxable Value:</td>
           <td style="text-align: right; font-weight: 600;">${fmtVal(taxableVal)}</td>
@@ -916,6 +1011,7 @@ window.printBill = (data) => {
           <td class="info-label">SGST (${(gstPct/2)}%):</td>
           <td style="text-align: right; font-weight: 600;">${fmtVal(sgstAmt)}</td>
         </tr>
+        `}
         <tr class="total-row">
           <td>Total Net Payable:</td>
           <td style="text-align: right;">${fmtVal(totalVal)}</td>

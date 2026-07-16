@@ -162,3 +162,76 @@ def test_delete_drug_fails_with_billing_history(client, auth_headers):
     del_resp = client.delete(f"/api/drugs/{drug_id}", headers=auth_headers)
     assert del_resp.status_code == 400
     assert "billing history" in del_resp.json()["detail"]
+
+
+def test_update_batch_cost(client, auth_headers):
+    # 1. Add a new drug
+    resp = client.post("/api/drugs", json={"name": "CostTest 500mg", "tablets_per_strip": 10}, headers=auth_headers)
+    drug_id = resp.json()["id"]
+
+    # 2. Add batch with initial cost_per_strip = 15.5
+    batch_data = {
+        "drug_id": drug_id,
+        "batch_no": "CT-001",
+        "expiry": "2027-12",
+        "strips": 5,
+        "cost_per_strip": 15.5
+    }
+    resp = client.post("/api/batches", json=batch_data, headers=auth_headers)
+    batch_id = resp.json()["batch_id"]
+
+    # 3. Update the batch's cost_per_strip via the PUT endpoint to 12.0
+    up_resp = client.put(f"/api/batches/{batch_id}", json={"cost_per_strip": 12.0}, headers=auth_headers)
+    assert up_resp.status_code == 200
+
+    # 5. Verify that the updated batch has cost_per_strip = 12.0
+    get_resp = client.get(f"/api/drugs/{drug_id}", headers=auth_headers)
+    drug_info = get_resp.json()
+    assert len(drug_info["batches"]) == 1
+    assert drug_info["batches"][0]["cost_per_strip"] == 12.0
+
+
+def test_master_db_ai_inheritance(client, auth_headers):
+    # 1. Preset a master_drugs entry with AI details
+    from backend.database import get_db
+    with get_db() as conn:
+        conn.execute("DELETE FROM master_drugs WHERE name = 'MasterInherit Test'")
+        conn.execute("""
+            INSERT INTO master_drugs(name, manufacturer, composition, mrp, hsn, indications, side_effects, administration, age_suitability)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            "MasterInherit Test", "MasterLab", "Inherit + Test 50mg", 30.0, "30049099",
+            "inherited indications", "inherited side effects", "take once daily", "{\"child\": {\"ok\": false}}"
+        ))
+        conn.commit()
+
+    # 2. Add drug to active inventory with empty indications/side_effects
+    drug_data = {
+        "name": "MasterInherit Test",
+        "brand": "MasterLab",
+        "composition": "Inherit + Test 50mg",
+        "category": "Test Category",
+        "schedule": "OTC",
+        "hsn": "30049099",
+        "tablets_per_strip": 10,
+        "strips_per_box": 10,
+        "mrp_per_strip": 30.0,
+        "mrp_per_tablet": 3.0,
+        "reorder_level": 5,
+        "indications": "",
+        "side_effects": "",
+        "administration": "",
+        "age_suitability": ""
+    }
+    resp = client.post("/api/drugs", json=drug_data, headers=auth_headers)
+    assert resp.status_code == 200
+    drug_id = resp.json()["id"]
+
+    # 3. Retrieve added drug and assert that it correctly inherited details from master_drugs
+    get_resp = client.get(f"/api/drugs/{drug_id}", headers=auth_headers)
+    assert get_resp.status_code == 200
+    fetched = get_resp.json()
+    assert fetched["indications"] == "inherited indications"
+    assert fetched["side_effects"] == "inherited side effects"
+    assert fetched["administration"] == "take once daily"
+    assert "child" in fetched["age_suitability"]

@@ -34,10 +34,15 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
       return;
     }
 
-    const inStock  = data.in_stock  || [];
-    const orderable = data.orderable || [];
-    const available = inStock.filter(d => d.available);
-    const outOfStock = inStock.filter(d => !d.available);
+    const exactInStock  = data.exact_in_stock  || [];
+    const exactOrderable = data.exact_orderable || [];
+    const exactAvailable = exactInStock.filter(d => d.available);
+    const exactOutOfStock = exactInStock.filter(d => !d.available);
+
+    const combInStock  = data.comb_in_stock  || [];
+    const combOrderable = data.comb_orderable || [];
+    const combAvailable = combInStock.filter(d => d.available);
+    const combOutOfStock = combInStock.filter(d => !d.available);
 
     let html = `
       <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
@@ -50,12 +55,19 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
           </div>
         </div>`;
 
-    // ── IN STOCK alternatives ─────────────────────────────────
-    if (available.length > 0) {
-      html += `<div style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--green);background:var(--green-dim)">
+    // ── SECTION 1: Exact Same Composition ──────────────────────
+    html += `<div style="padding:10px 14px;background:var(--accent-dim);border-bottom:1px solid var(--border);font-weight:800;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px">
+      🎯 Exact Same Composition Alternatives
+    </div>`;
+
+    let exactCount = 0;
+
+    if (exactAvailable.length > 0) {
+      html += `<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--green);background:var(--green-dim)">
         ✅ IN YOUR SHOP — Ready to dispense
       </div>`;
-      available.forEach(d => {
+      exactAvailable.forEach(d => {
+        exactCount++;
         html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px">
           <div style="flex:1">
             <div style="font-weight:700;font-size:13px">${d.name}</div>
@@ -70,12 +82,12 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
       });
     }
 
-    // ── OUT OF STOCK shop alternatives ───────────────────────
-    if (outOfStock.length > 0) {
-      html += `<div style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--warn);background:var(--warn-dim)">
+    if (exactOutOfStock.length > 0) {
+      html += `<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--warn);background:var(--warn-dim)">
         ⚠️ ALSO IN SHOP — Currently out of stock
       </div>`;
-      outOfStock.forEach(d => {
+      exactOutOfStock.forEach(d => {
+        exactCount++;
         html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px;opacity:0.7">
           <div style="flex:1">
             <div style="font-weight:700;font-size:13px">${d.name}</div>
@@ -86,25 +98,90 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
       });
     }
 
-    // ── ORDERABLE from master DB ──────────────────────────────
-    if (orderable.length > 0) {
-      html += `<div style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--info);background:var(--info-dim)">
-        📋 CAN BE ORDERED — Same composition, not in your shop yet
+    if (exactOrderable.length > 0) {
+      html += `<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--info);background:var(--info-dim)">
+        📋 CAN BE ORDERED — Not in shop stock
       </div>`;
-      orderable.slice(0, 8).forEach(d => {
+      exactOrderable.slice(0, 10).forEach(o => {
+        exactCount++;
         html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px">
           <div style="flex:1">
-            <div style="font-weight:600;font-size:13px">${d.name}</div>
-            <div style="font-size:11px;color:var(--muted)">${d.manufacturer || ''}</div>
+            <div style="font-weight:600;font-size:13px">${o.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${o.manufacturer || ''}</div>
           </div>
-          <div style="font-weight:700;color:var(--muted);font-size:12px">MRP ₹${d.mrp || '—'}</div>
+          <div style="font-weight:700;color:var(--muted);font-size:12px">MRP ₹${o.mrp || '—'}</div>
         </div>`;
       });
     }
 
-    if (!available.length && !outOfStock.length && !orderable.length) {
-      html += `<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">
-        No alternatives found with the same active ingredient.
+    if (exactCount === 0) {
+      html += `<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">
+        No exact composition matches found.
+      </div>`;
+    }
+
+    // ── SECTION 2: Combinations / Broader Formulations ────────
+    html += `<div style="padding:10px 14px;background:var(--faint);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-weight:800;font-size:11px;color:var(--text);text-transform:uppercase;letter-spacing:0.5px">
+      🧪 Combinations containing ${data.key_ingredients?.join(' or ') || 'it'}
+    </div>`;
+
+    let combCount = 0;
+
+    if (combAvailable.length > 0) {
+      html += `<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--green);background:var(--green-dim)">
+        ✅ IN YOUR SHOP — Ready to dispense
+      </div>`;
+      combAvailable.forEach(d => {
+        combCount++;
+        html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:13px">${d.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${d.brand || ''} · ${d.composition || ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700;color:var(--text)">₹${d.mrp_per_strip || 0}</div>
+            <div style="font-size:10px;color:var(--green);font-weight:700">${d.stock_tablets} tabs</div>
+          </div>
+          ${onSelect ? `<button class="btn btn-primary btn-sm" onclick="__subSelect(${d.id})">Bill This</button>` : ''}
+        </div>`;
+      });
+    }
+
+    if (combOutOfStock.length > 0) {
+      html += `<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--warn);background:var(--warn-dim)">
+        ⚠️ ALSO IN SHOP — Currently out of stock
+      </div>`;
+      combOutOfStock.forEach(d => {
+        combCount++;
+        html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px;opacity:0.7">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:13px">${d.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${d.brand || ''} · ${d.composition || ''}</div>
+          </div>
+          <div style="font-size:10px;color:var(--danger);font-weight:700">Out of stock</div>
+        </div>`;
+      });
+    }
+
+    if (combOrderable.length > 0) {
+      html += `<div style="padding:6px 14px;font-size:10px;font-weight:700;color:var(--info);background:var(--info-dim)">
+        📋 CAN BE ORDERED — Not in shop stock
+      </div>`;
+      combOrderable.slice(0, 10).forEach(o => {
+        combCount++;
+        html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px">${o.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${o.composition || ''} · ${o.manufacturer || ''}</div>
+          </div>
+          <div style="font-weight:700;color:var(--muted);font-size:12px">MRP ₹${o.mrp || '—'}</div>
+        </div>`;
+      });
+    }
+
+    if (combCount === 0) {
+      html += `<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">
+        No combination matches found.
       </div>`;
     }
 
@@ -114,7 +191,7 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
     // Wire up select handler
     if (onSelect) {
       window.__subSelect = (id) => {
-        const drug = (data.in_stock || []).find(d => d.id === id);
+        const drug = [...exactInStock, ...combInStock].find(d => d.id === id);
         if (drug) onSelect(drug);
       };
     }

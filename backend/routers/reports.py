@@ -51,20 +51,69 @@ def sales_summary(from_date: str = "", to_date: str = ""):
     if not to_date:
         to_date = date.today().isoformat()
     with get_db() as conn:
-        rows = conn.execute("""
-            SELECT date(b.created_at) as day,
+        bills_rows = conn.execute("""
+            SELECT date(created_at) as day,
                    COUNT(*) as bill_count,
-                   SUM(b.subtotal) as subtotal,
-                   SUM(b.discount_amt) as discount,
-                   SUM(b.gst_amt) as gst,
-                   SUM(b.total) as total,
-                   SUM(CASE WHEN b.payment_mode='Cash' THEN b.total ELSE 0 END) as cash,
-                   SUM(CASE WHEN b.payment_mode='UPI'  THEN b.total ELSE 0 END) as upi,
-                   SUM(CASE WHEN b.payment_mode='Card' THEN b.total ELSE 0 END) as card
-            FROM bills b
-            WHERE date(b.created_at) BETWEEN ? AND ?
-            GROUP BY date(b.created_at)
-            ORDER BY day""", (from_date, to_date)).fetchall()
+                   SUM(subtotal) as subtotal,
+                   SUM(discount_amt) as discount,
+                   SUM(gst_amt) as gst,
+                   SUM(total) as total,
+                   SUM(CASE WHEN payment_mode='Cash' THEN total ELSE 0 END) as cash,
+                   SUM(CASE WHEN payment_mode='UPI'  THEN total ELSE 0 END) as upi,
+                   SUM(CASE WHEN payment_mode='Card' THEN total ELSE 0 END) as card
+            FROM bills
+            WHERE date(created_at) BETWEEN ? AND ?
+            GROUP BY date(created_at)""", (from_date, to_date)).fetchall()
+            
+        returns_rows = conn.execute("""
+            SELECT date(created_at) as day,
+                   COUNT(*) as return_count,
+                   SUM(total_refund) as total_refund,
+                   SUM(CASE WHEN refund_mode='Cash' THEN total_refund ELSE 0 END) as cash_refund,
+                   SUM(CASE WHEN refund_mode='UPI'  THEN total_refund ELSE 0 END) as upi_refund,
+                   SUM(CASE WHEN refund_mode='Card' THEN total_refund ELSE 0 END) as card_refund
+            FROM bill_returns
+            WHERE date(created_at) BETWEEN ? AND ?
+            GROUP BY date(created_at)""", (from_date, to_date)).fetchall()
+            
+        days_data = {}
+        for r in bills_rows:
+            day = r["day"]
+            days_data[day] = {
+                "day": day,
+                "bill_count": r["bill_count"],
+                "subtotal": r["subtotal"] or 0.0,
+                "discount": r["discount"] or 0.0,
+                "gst": r["gst"] or 0.0,
+                "total": r["total"] or 0.0,
+                "cash": r["cash"] or 0.0,
+                "upi": r["upi"] or 0.0,
+                "card": r["card"] or 0.0
+            }
+        for r in returns_rows:
+            day = r["day"]
+            if day not in days_data:
+                days_data[day] = {
+                    "day": day,
+                    "bill_count": 0,
+                    "subtotal": 0.0,
+                    "discount": 0.0,
+                    "gst": 0.0,
+                    "total": 0.0,
+                    "cash": 0.0,
+                    "upi": 0.0,
+                    "card": 0.0
+                }
+            refund = r["total_refund"] or 0.0
+            days_data[day]["subtotal"] = max(0.0, days_data[day]["subtotal"] - refund / 1.12)
+            days_data[day]["gst"] = max(0.0, days_data[day]["gst"] - (refund - (refund / 1.12)))
+            days_data[day]["total"] = max(0.0, days_data[day]["total"] - refund)
+            days_data[day]["cash"] = max(0.0, days_data[day]["cash"] - (r["cash_refund"] or 0.0))
+            days_data[day]["upi"] = max(0.0, days_data[day]["upi"] - (r["upi_refund"] or 0.0))
+            days_data[day]["card"] = max(0.0, days_data[day]["card"] - (r["card_refund"] or 0.0))
+            
+        rows_list = sorted(days_data.values(), key=lambda x: x["day"])
+        
         summary = conn.execute("""
             SELECT COUNT(*) as total_bills,
                    COALESCE(SUM(subtotal),0) as gross,
@@ -73,7 +122,25 @@ def sales_summary(from_date: str = "", to_date: str = ""):
                    COALESCE(SUM(total),0) as net
             FROM bills WHERE date(created_at) BETWEEN ? AND ?""",
             (from_date, to_date)).fetchone()
-        return {"rows": rows_to_list(rows), "summary": dict(summary),
+            
+        ret_summary = conn.execute("""
+            SELECT COALESCE(SUM(total_refund),0) as total_refund
+            FROM bill_returns WHERE date(created_at) BETWEEN ? AND ?""",
+            (from_date, to_date)).fetchone()
+            
+        refund_total = ret_summary["total_refund"] or 0.0
+        gross_val = max(0.0, (summary["gross"] or 0) - refund_total / 1.12)
+        gst_val = max(0.0, (summary["gst"] or 0) - (refund_total - refund_total / 1.12))
+        net_val = max(0.0, (summary["net"] or 0) - refund_total)
+        
+        summary_dict = {
+            "total_bills": summary["total_bills"] or 0,
+            "gross": round(gross_val, 2),
+            "discount": round(summary["discount"] or 0, 2),
+            "gst": round(gst_val, 2),
+            "net": round(net_val, 2)
+        }
+        return {"rows": rows_list, "summary": summary_dict,
                 "from_date": from_date, "to_date": to_date}
 
 
@@ -86,16 +153,33 @@ def drug_wise(from_date: str = "", to_date: str = ""):
         to_date = date.today().isoformat()
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT d.name, d.brand, d.category,
-                   SUM(bi.tablets_qty) as tablets_sold,
-                   SUM(bi.amount) as revenue,
-                   COUNT(DISTINCT bi.bill_id) as bill_count
-            FROM bill_items bi
-            JOIN drugs d ON d.id=bi.drug_id
-            JOIN bills b ON b.id=bi.bill_id
-            WHERE date(b.created_at) BETWEEN ? AND ?
-            GROUP BY bi.drug_id
-            ORDER BY revenue DESC""", (from_date, to_date)).fetchall()
+            SELECT drug_name as name, brand, category,
+                   SUM(qty) as tablets_sold,
+                   SUM(amt) as revenue,
+                   COUNT(DISTINCT bill_id) as bill_count
+            FROM (
+                SELECT d.name as drug_name, d.brand, d.category,
+                       bi.tablets_qty as qty,
+                       bi.amount as amt,
+                       bi.bill_id
+                FROM bill_items bi
+                JOIN drugs d ON d.id=bi.drug_id
+                JOIN bills b ON b.id=bi.bill_id
+                WHERE date(b.created_at) BETWEEN ? AND ?
+                
+                UNION ALL
+                
+                SELECT d.name as drug_name, d.brand, d.category,
+                       -bri.tablets_qty as qty,
+                       -bri.amount as amt,
+                       br.bill_id
+                FROM bill_return_items bri
+                JOIN bill_returns br ON br.id=bri.return_id
+                JOIN drugs d ON d.id=bri.drug_id
+                WHERE date(br.created_at) BETWEEN ? AND ?
+            )
+            GROUP BY drug_name, brand, category
+            ORDER BY revenue DESC""", (from_date, to_date, from_date, to_date)).fetchall()
         return rows_to_list(rows)
 
 
@@ -131,23 +215,46 @@ def profit_loss(from_date: str = "", to_date: str = ""):
                    COALESCE(SUM(subtotal - discount_amt),0) as taxable
             FROM bills WHERE date(created_at) BETWEEN ? AND ?""",
             (from_date, to_date)).fetchone()
-        cogs = conn.execute("""
-            SELECT COALESCE(SUM(bi.tablets_qty * (b.cost_per_strip / NULLIF(d.tablets_per_strip,0))),0) as cogs
-            FROM bill_items bi
-            JOIN drugs d ON d.id=bi.drug_id
-            LEFT JOIN batches b ON b.id=bi.batch_id
-            JOIN bills bl ON bl.id=bi.bill_id
-            WHERE date(bl.created_at) BETWEEN ? AND ?""",
+            
+        returns_summary = conn.execute("""
+            SELECT COALESCE(SUM(total_refund),0) as total_refund
+            FROM bill_returns WHERE date(created_at) BETWEEN ? AND ?""",
             (from_date, to_date)).fetchone()
-        net_rev  = revenue["net_revenue"] or 0
-        cogs_val = cogs["cogs"] or 0
+            
+        net_rev = (revenue["net_revenue"] or 0) - (returns_summary["total_refund"] or 0)
+        ratio = (revenue["taxable"] / revenue["net_revenue"]) if revenue["net_revenue"] else 1.0
+        taxable_val = (revenue["taxable"] or 0) - (returns_summary["total_refund"] or 0) * ratio
+        
+        cogs = conn.execute("""
+            SELECT COALESCE(SUM(qty * cost_per_tab),0) as cogs
+            FROM (
+                SELECT bi.tablets_qty as qty,
+                       (b.cost_per_strip / NULLIF(d.tablets_per_strip,0)) as cost_per_tab
+                FROM bill_items bi
+                JOIN drugs d ON d.id=bi.drug_id
+                LEFT JOIN batches b ON b.id=bi.batch_id
+                JOIN bills bl ON bl.id=bi.bill_id
+                WHERE date(bl.created_at) BETWEEN ? AND ?
+                
+                UNION ALL
+                
+                SELECT -bri.tablets_qty as qty,
+                       (b.cost_per_strip / NULLIF(d.tablets_per_strip,0)) as cost_per_tab
+                FROM bill_return_items bri
+                JOIN bill_returns br ON br.id=bri.return_id
+                JOIN drugs d ON d.id=bri.drug_id
+                LEFT JOIN batches b ON b.id=bri.batch_id
+                WHERE date(br.created_at) BETWEEN ? AND ?
+            )""", (from_date, to_date, from_date, to_date)).fetchone()
+            
+        cogs_val = cogs["cogs"] or 0.0
         gross_profit = net_rev - cogs_val
         margin_val = (gross_profit / net_rev * 100) if net_rev else 0.0
         margin = float(f"{margin_val:.1f}")
         return {
-            "net_revenue": net_rev,
-            "cogs": cogs_val,
-            "gross_profit": gross_profit,
+            "net_revenue": round(net_rev, 2),
+            "cogs": round(cogs_val, 2),
+            "gross_profit": round(gross_profit, 2),
             "margin_pct": margin,
             "from_date": from_date,
             "to_date": to_date,

@@ -20,10 +20,18 @@ def get_dashboard():
         today_str = date.today().isoformat()
         m = date.today().month
         y = date.today().year
-        warn_mo   = (m + 3 - 1) % 12 + 1
-        warn_year = y + (1 if m > 9 else 0)
-        warn_date = f"{warn_year}-{warn_mo:02d}"
         month_start = f"{y}-{m:02d}-01"
+
+        # Fetch warning months from shop_config
+        warn_row = conn.execute("SELECT value FROM shop_config WHERE key='expiry_warn_months'").fetchone()
+        warn_months = int(warn_row["value"]) if warn_row else 3
+        
+        warn_mo = m + warn_months
+        warn_year = y
+        while warn_mo > 12:
+            warn_mo -= 12
+            warn_year += 1
+        warn_date = f"{warn_year}-{warn_mo:02d}"
 
         today_revenue = conn.execute(
             "SELECT COALESCE(SUM(total),0) FROM bills WHERE date(created_at)=?", (today_str,)).fetchone()[0]
@@ -86,6 +94,30 @@ def get_dashboard():
             HAVING stock_tablets < d.reorder_level
             ORDER BY stock_tablets ASC LIMIT 8""").fetchall())
 
+        near_expiry = rows_to_list(conn.execute("""
+            SELECT d.id as drug_id, d.name, d.brand, b.batch_no, b.expiry, b.full_strips, d.box_id
+            FROM batches b JOIN drugs d ON d.id=b.drug_id
+            WHERE b.expiry <= ? AND (b.full_strips > 0 OR EXISTS(SELECT 1 FROM trays t WHERE t.batch_id=b.id AND t.closed=0))
+            ORDER BY b.expiry ASC LIMIT 8""", (warn_date,)).fetchall())
+
+        # Daily reorder alerts (items sold today)
+        daily_reorder = rows_to_list(conn.execute("""
+            SELECT d.id, d.name, d.brand, d.box_id,
+              COALESCE(SUM(b.full_strips*d.tablets_per_strip),0)+
+              COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0)
+              AS stock_tablets,
+              COALESCE((SELECT SUM(bi.tablets_qty) FROM bill_items bi JOIN bills bl ON bl.id=bi.bill_id
+                        WHERE bi.drug_id=d.id AND date(bl.created_at)=?),0) as sold_today,
+              d.mrp_per_strip, d.tablets_per_strip
+            FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
+            WHERE d.id IN (
+                SELECT DISTINCT bi.drug_id
+                FROM bill_items bi JOIN bills bl ON bl.id=bi.bill_id
+                WHERE date(bl.created_at)=?
+            )
+            GROUP BY d.id
+            ORDER BY d.name ASC""", (today_str, today_str)).fetchall())
+
         return {
             "today_revenue": today_revenue, "today_bills": today_bills,
             "yesterday_revenue": yesterday_revenue,
@@ -99,6 +131,8 @@ def get_dashboard():
             "open_pos": open_pos,
             "week_revenue": week_rev,
             "reorder_alerts": reorder,
+            "near_expiry_alerts": near_expiry,
+            "daily_reorder_alerts": daily_reorder,
         }
 
 

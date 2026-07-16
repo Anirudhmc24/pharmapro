@@ -26,7 +26,12 @@ def import_data():
             manufacturer TEXT,
             composition TEXT,
             mrp REAL,
-            description TEXT
+            hsn TEXT,
+            description TEXT,
+            indications TEXT,
+            side_effects TEXT,
+            administration TEXT,
+            age_suitability TEXT
         )
     """)
     

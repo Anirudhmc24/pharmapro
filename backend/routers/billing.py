@@ -27,10 +27,41 @@ def next_tray_id(conn) -> str:
     return f"T-{n+1:03d}"
 
 
+def validate_unexpired_stock(conn, items):
+    today_ym = date.today().strftime("%Y-%m")
+    for item in items:
+        drug = conn.execute("SELECT tablets_per_strip FROM drugs WHERE id = ?", (item.drug_id,)).fetchone()
+        tps = drug["tablets_per_strip"] if drug else 10
+        
+        unexpired_batches_stock = conn.execute("""
+            SELECT COALESCE(SUM(full_strips * ?), 0) 
+            FROM batches 
+            WHERE drug_id = ? AND expiry >= ?
+        """, (tps, item.drug_id, today_ym)).fetchone()[0]
+        
+        unexpired_trays_stock = conn.execute("""
+            SELECT COALESCE(SUM(t.tablets_remaining), 0)
+            FROM trays t
+            JOIN batches b ON b.id = t.batch_id
+            WHERE t.drug_id = ? AND t.closed = 0 AND b.expiry >= ?
+        """, (item.drug_id, today_ym)).fetchone()[0]
+        
+        total_unexpired = unexpired_batches_stock + unexpired_trays_stock
+        
+        if item.tablets_qty > total_unexpired:
+            has_expired = conn.execute("""
+                SELECT COUNT(*) FROM batches 
+                WHERE drug_id = ? AND expiry < ? AND (full_strips > 0 OR EXISTS(SELECT 1 FROM trays WHERE batch_id=batches.id AND closed=0))
+            """, (item.drug_id, today_ym)).fetchone()[0]
+            if has_expired > 0:
+                raise HTTPException(status_code=400, detail="Cannot bill drug: requested quantity exceeds available unexpired stock")
+
+
 @router.post("")
 def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
     user = get_current_user(x_token)
     with get_db() as conn:
+        validate_unexpired_stock(conn, bill.items)
         # Resolve customer or create dynamically
         resolved_customer_id = bill.customer_id
         if bill.phone:
@@ -67,16 +98,12 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
         # Determine GST slab
         cfg_row  = conn.execute("SELECT value FROM shop_config WHERE key='gst_slab'").fetchone()
         gst_slab = float(cfg_row["value"] if cfg_row else 12)
-        # If GST inclusive prices are provided, back-calculate base subtotal
+        # If GST inclusive prices are provided, calculate total and back-calculate GST
         if bill.gst_inclusive:
-            # Convert inclusive subtotal to exclusive base amount
-            base_subtotal = round(subtotal / (1 + gst_slab / 100), 2)
-            # Recalculate discount on base amount
-            pct_disc_amt = round(float(base_subtotal * bill.discount_pct) / 100.0, 2)
+            pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
             disc_amt = pct_disc_amt + points_disc_amt
-            taxable = base_subtotal - disc_amt
-            gst_amt = round(taxable * gst_slab / 100, 2)
-            total = round(base_subtotal - disc_amt + gst_amt, 2)
+            total = round(subtotal - disc_amt, 2)
+            gst_amt = round(float(total * gst_slab) / (100.0 + gst_slab), 2)
         else:
             pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
             disc_amt = pct_disc_amt + points_disc_amt
@@ -230,7 +257,8 @@ def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Option
 def get_bills(limit: int = 50):
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT b.*, c.name as customer_name, u.display_name as cashier
+            SELECT b.*, c.name as customer_name, u.display_name as cashier,
+                   EXISTS(SELECT 1 FROM bill_returns br WHERE br.bill_id=b.id) as is_returned
             FROM bills b
             LEFT JOIN customers c ON c.id=b.customer_id
             LEFT JOIN users u ON u.id=b.created_by
@@ -242,7 +270,8 @@ def get_bills(limit: int = 50):
 def get_bill(bill_id: int):
     with get_db() as conn:
         bill = row_to_dict(conn.execute("""
-            SELECT b.*, c.name as customer_name, c.phone as customer_phone, c.loyalty_points as customer_loyalty_points, u.display_name as cashier
+            SELECT b.*, c.name as customer_name, c.phone as customer_phone, c.loyalty_points as customer_loyalty_points, u.display_name as cashier,
+                   EXISTS(SELECT 1 FROM bill_returns br WHERE br.bill_id=b.id) as is_returned
             FROM bills b
             LEFT JOIN customers c ON c.id=b.customer_id
             LEFT JOIN users u ON u.id=b.created_by
@@ -349,6 +378,7 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
                     resolved_customer_id = cur_cust.lastrowid
 
         # 4. Calculate New Totals
+        validate_unexpired_stock(conn, bill.items)
         subtotal = sum(
             i.tablets_qty * conn.execute(
                 "SELECT mrp_per_tablet FROM drugs WHERE id=?", (i.drug_id,)
@@ -364,12 +394,10 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
         gst_slab = float(cfg_row["value"] if cfg_row else 12)
         
         if bill.gst_inclusive:
-            base_subtotal = round(subtotal / (1 + gst_slab / 100), 2)
-            pct_disc_amt = round(float(base_subtotal * bill.discount_pct) / 100.0, 2)
+            pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
             disc_amt = pct_disc_amt + points_disc_amt
-            taxable = base_subtotal - disc_amt
-            gst_amt = round(taxable * gst_slab / 100, 2)
-            total = round(base_subtotal - disc_amt + gst_amt, 2)
+            total = round(subtotal - disc_amt, 2)
+            gst_amt = round(float(total * gst_slab) / (100.0 + gst_slab), 2)
         else:
             pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
             disc_amt = pct_disc_amt + points_disc_amt
@@ -601,10 +629,13 @@ def get_bill_pdf(bill_id: int):
         pdf.cell(30, 6, f"-Rs.{disc_amt:.2f}", align="R")
         pdf.ln()
         
-    pdf.cell(130)
-    pdf.cell(30, 6, "GST:", align="R")
-    pdf.cell(30, 6, f"Rs.{bill.get('gst_amt', 0.0):.2f}", align="R")
-    pdf.ln()
+    # Backwards compatibility check: only render GST row if it is not GST-inclusive
+    is_inclusive = abs(bill.get("total", 0.0) - (bill.get("subtotal", 0.0) - bill.get("discount_amt", 0.0))) < 0.1
+    if not is_inclusive:
+        pdf.cell(130)
+        pdf.cell(30, 6, "GST:", align="R")
+        pdf.cell(30, 6, f"Rs.{bill.get('gst_amt', 0.0):.2f}", align="R")
+        pdf.ln()
     
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(130)
@@ -623,3 +654,107 @@ def get_bill_pdf(bill_id: int):
     return Response(content=pdf_bytes, media_type="application/pdf", headers={
         "Content-Disposition": f"attachment; filename=Bill_{bill['bill_no']}.pdf"
     })
+
+
+@router.delete("/clear_day")
+def clear_day_bills(date: str, x_token: Optional[str] = Header(default=None)):
+    from backend.routers.auth import require_admin
+    require_admin(x_token)
+    
+    with get_db() as conn:
+        # Fetch all bills matching the date string
+        bills = rows_to_list(conn.execute(
+            "SELECT * FROM bills WHERE date(created_at) = ?", (date,)
+        ).fetchall())
+        
+        for b in bills:
+            bill_id = b["id"]
+            
+            # Fetch bill items to restore stock
+            items = rows_to_list(conn.execute(
+                "SELECT * FROM bill_items WHERE bill_id = ?", (bill_id,)
+            ).fetchall())
+            
+            for item in items:
+                drug = conn.execute(
+                    "SELECT tablets_per_strip, box_id FROM drugs WHERE id = ?", (item["drug_id"],)
+                ).fetchone()
+                tps = drug["tablets_per_strip"] if drug else 10
+                
+                full_strips = item["tablets_qty"] // tps
+                leftover = item["tablets_qty"] % tps
+                
+                # Restore full strips back to batches
+                if full_strips > 0 and item["batch_id"]:
+                    conn.execute(
+                        "UPDATE batches SET full_strips = full_strips + ? WHERE id = ?",
+                        (full_strips, item["batch_id"])
+                    )
+                
+                # Restore leftover to trays
+                if leftover > 0 and item["batch_id"]:
+                    existing = conn.execute("""
+                        SELECT * FROM trays WHERE batch_id = ? AND closed = 0
+                        ORDER BY tablets_remaining DESC LIMIT 1
+                    """, (item["batch_id"],)).fetchone()
+                    if existing:
+                        conn.execute(
+                            "UPDATE trays SET tablets_remaining = tablets_remaining + ?, closed = 0 WHERE id = ?",
+                            (leftover, existing["id"])
+                        )
+                    else:
+                        n = conn.execute("SELECT COUNT(*) FROM trays").fetchone()[0]
+                        tid = f"T-{n+1:03d}"
+                        conn.execute("""
+                            INSERT INTO trays(tray_id, drug_id, batch_id, tablets_remaining, box_id)
+                            VALUES(?,?,?,?,?)
+                        """, (tid, item["drug_id"], item["batch_id"], leftover, drug["box_id"] if drug else None))
+                
+                # Insert details into stock logs
+                conn.execute("""
+                    INSERT INTO stock_log(drug_id, batch_id, action, qty_change, note)
+                    VALUES(?, ?, ?, ?, ?)
+                """, (item["drug_id"], item["batch_id"], "cancel_bill", item["tablets_qty"], f"Admin Cleared Day {date}"))
+            
+            # Reverse customer credit and loyalty points if customer is linked
+            if b["customer_id"]:
+                pts_earned = int(b["total"])
+                
+                # Estimate points redeemed from total discount
+                subtotal = b["subtotal"] or 0
+                discount_pct = b["discount_pct"] or 0
+                discount_amt = b["discount_amt"] or 0
+                pct_disc_amt = round(subtotal * discount_pct / 100.0, 2)
+                points_disc_amt = max(0.0, discount_amt - pct_disc_amt)
+                points_redeemed = int(round(points_disc_amt * 100))
+                
+                conn.execute("""
+                    UPDATE customers
+                    SET loyalty_points = COALESCE(loyalty_points, 0) + ? - ?,
+                        credit_balance = CASE
+                            WHEN ? = 'Credit' THEN COALESCE(credit_balance, 0) - ?
+                            ELSE COALESCE(credit_balance, 0)
+                        END
+                    WHERE id = ?
+                """, (points_redeemed, pts_earned, b["payment_mode"], b["total"], b["customer_id"]))
+                
+                if b["payment_mode"] == "Credit":
+                    conn.execute(
+                        "DELETE FROM credit_ledger WHERE bill_id = ?", (bill_id,)
+                    )
+            
+            # Delete references
+            conn.execute("DELETE FROM prescriptions WHERE bill_id = ?", (bill_id,))
+            conn.execute("DELETE FROM schedule_log WHERE bill_id = ?", (bill_id,))
+            conn.execute("DELETE FROM bill_items WHERE bill_id = ?", (bill_id,))
+            
+            # Revert billing returns if exist
+            ret_rows = conn.execute("SELECT id FROM bill_returns WHERE bill_id = ?", (bill_id,)).fetchall()
+            for ret in ret_rows:
+                conn.execute("DELETE FROM bill_return_items WHERE return_id = ?", (ret["id"],))
+            conn.execute("DELETE FROM bill_returns WHERE bill_id = ?", (bill_id,))
+            
+            # Delete the bill itself
+            conn.execute("DELETE FROM bills WHERE id = ?", (bill_id,))
+            
+    return {"ok": True, "message": f"Successfully cleared bills for {date}"}

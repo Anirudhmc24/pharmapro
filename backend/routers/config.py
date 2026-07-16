@@ -56,6 +56,12 @@ def save_config(cfg: ShopConfigIn, x_token: Optional[str] = Header(default=None)
             if v is not None:
                 if k == "gdrive_folder_id":
                     v = extract_gdrive_folder_id(str(v))
+                if k == "low_stock_alert_limit":
+                    old_limit_row = conn.execute("SELECT value FROM shop_config WHERE key='low_stock_alert_limit'").fetchone()
+                    old_limit = int(old_limit_row["value"]) if old_limit_row else 20
+                    new_limit = int(v)
+                    if old_limit != new_limit:
+                        conn.execute("UPDATE drugs SET reorder_level = ? WHERE reorder_level = ?", (new_limit, old_limit))
                 conn.execute("INSERT OR REPLACE INTO shop_config(key,value) VALUES(?,?)", (k, str(v)))
         conn.execute("INSERT OR REPLACE INTO shop_config(key,value) VALUES('setup_done','1')")
     return {"ok": True}
