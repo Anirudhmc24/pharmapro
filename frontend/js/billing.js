@@ -187,38 +187,82 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     </div>
 
     <!-- Quick Bill Calculator -->
-    <details id="quick-calc-details" style="margin-top:14px;" ${window._calcOpen ? 'open' : ''}>
+    <style>
+      #quick-calc-details {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 999;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        width: 48px;
+        height: 48px;
+        transition: width 0.2s ease, height 0.2s ease;
+        overflow: hidden;
+      }
+      #quick-calc-details[open] {
+        width: 380px;
+        height: auto;
+      }
+      #quick-calc-details summary::-webkit-details-marker {
+        display: none !important;
+      }
+      #quick-calc-details summary {
+        list-style: none !important;
+        outline: none;
+      }
+      #quick-calc-details:not([open]) summary {
+        justify-content: center !important;
+      }
+      #quick-calc-details:not([open]) .calc-summary-text,
+      #quick-calc-details:not([open]) .calc-summary-hint {
+        display: none !important;
+      }
+      #quick-calc-details[open] .calc-summary-text {
+        display: inline-block !important;
+      }
+      #quick-calc-details[open] .calc-summary-hint {
+        display: inline-block !important;
+      }
+      #quick-calc-details[open] summary {
+        justify-content: flex-start !important;
+        border-bottom: 1px solid var(--border);
+      }
+    </style>
+    <details id="quick-calc-details" ${window._calcOpen ? 'open' : ''}>
       <summary onclick="window._calcOpen = !document.getElementById('quick-calc-details').open"
-        style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;
-          padding:10px 16px;background:var(--surface);border:1px solid var(--border);
-          border-radius:10px;font-weight:700;font-size:14px;color:var(--accent);
-          user-select:none;transition:background .15s"
+        style="cursor:pointer;display:flex;align-items:center;
+          width:100%;height:48px;color:var(--accent);
+          user-select:none;transition:background .15s;padding:0;"
         onmouseover="this.style.background='var(--accent-dim)'"
         onmouseout="this.style.background='var(--surface)'">
-        <span>🧮</span> Quick Bill Calculator
-        <span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:400">Enter MRP + discount → instant total</span>
+        <span style="font-size:22px;display:flex;align-items:center;justify-content:center;width:48px;height:48px;flex-shrink:0;">🧮</span>
+        <span class="calc-summary-text" style="display:none;font-weight:700;">Calculator</span>
+        <span class="calc-summary-hint" style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:400;display:none;padding-right:16px;">MRP + discount → total</span>
       </summary>
-      <div style="padding:14px 16px;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;background:var(--surface)">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:flex-end;flex-wrap:wrap" class="calc-row">
+      <div style="padding:14px 16px;background:var(--surface)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px" class="calc-row">
           <div class="field" style="margin:0">
-            <label style="font-size:11px">MRP (₹)</label>
+            <label style="font-size:11px;font-weight:700">MRP (₹)</label>
             <input class="input" id="calc-mrp" type="number" min="0" step="0.01" placeholder="e.g. 100"
               oninput="window.runQuickCalc()">
           </div>
           <div class="field" style="margin:0">
-            <label style="font-size:11px">Discount (%)</label>
+            <label style="font-size:11px;font-weight:700">Discount (%)</label>
             <input class="input" id="calc-disc" type="number" min="0" max="100" step="0.1" placeholder="e.g. 10"
               oninput="window.runQuickCalc()">
           </div>
           <div class="field" style="margin:0">
-            <label style="font-size:11px">GST (%)</label>
+            <label style="font-size:11px;font-weight:700">GST (%)</label>
             <input class="input" id="calc-gst" type="number" min="0" max="28" step="0.5" placeholder="12 (if excl)"
               oninput="window.runQuickCalc()">
           </div>
-          <div style="display:flex;gap:6px">
-            <label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap;cursor:pointer">
+          <div style="display:flex;align-items:center;justify-content:center;padding-top:14px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;cursor:pointer;font-weight:700;color:var(--accent)">
               <input type="checkbox" id="calc-inclusive" checked onchange="window.runQuickCalc()"
-                style="width:14px;height:14px;accent-color:var(--accent)">
+                style="width:16px;height:16px;accent-color:var(--accent)">
               GST Incl.
             </label>
           </div>
