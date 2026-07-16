@@ -39,3 +39,20 @@ def pay_supplier(supplier_id: int, p: PaymentIn, x_token: Optional[str] = Header
     with get_db() as conn:
         conn.execute("UPDATE suppliers SET due = COALESCE(due, 0) - ? WHERE id=?", (p.amount, supplier_id))
     return {"ok": True}
+
+
+@router.delete("/{supplier_id}")
+def delete_supplier(supplier_id: int, x_token: Optional[str] = Header(default=None)):
+    from fastapi import HTTPException
+    get_current_user(x_token)
+    with get_db() as conn:
+        has_pos = conn.execute("SELECT 1 FROM purchase_orders WHERE supplier_id=?", (supplier_id,)).fetchone()
+        if has_pos:
+            raise HTTPException(400, "Cannot delete supplier with transaction history (Purchase Orders exist).")
+            
+        has_returns = conn.execute("SELECT 1 FROM expiry_returns WHERE supplier_id=?", (supplier_id,)).fetchone()
+        if has_returns:
+            raise HTTPException(400, "Cannot delete supplier with transaction history (Expiry Returns exist).")
+            
+        conn.execute("DELETE FROM suppliers WHERE id=?", (supplier_id,))
+    return {"ok": True}

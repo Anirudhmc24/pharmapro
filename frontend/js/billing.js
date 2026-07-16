@@ -686,6 +686,33 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       toast('Error: ' + err.message, 'error');
     }
   };
+
+  window.shareBillOnWhatsapp = (billId, patientName, billNo, total, customerPhone) => {
+    let phone = (customerPhone || '').replace(/\D/g, '');
+    if (!phone) {
+      phone = prompt("This bill does not have a customer phone number linked. Enter a 10-digit phone number to send via WhatsApp:");
+      if (!phone) return;
+      phone = phone.replace(/\D/g, '');
+    }
+    if (phone.length < 10) {
+      alert("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    const waPhone = phone.length === 10 ? '91' + phone : phone;
+    const msg = `Thank you for your purchase in Shrivari Medicals! Here is your invoice no ${billNo} amounting to Rs. ${total.toFixed(2)}.`;
+    const pdfUrl = `${window.location.origin}/api/bills/${billId}/pdf`;
+    
+    if (window.AndroidBridge && window.AndroidBridge.shareBillPdf) {
+      window.AndroidBridge.shareBillPdf(pdfUrl, waPhone, msg);
+    } else {
+      const waUrl = `https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(msg)}`;
+      if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+        window.AndroidBridge.openExternalUrl(waUrl);
+      } else {
+        window.open(waUrl, '_blank');
+      }
+    }
+  };
   
   // Keyboard Wedge Barcode Scanner Listener
   let barcodeBuf = "";
@@ -794,6 +821,7 @@ window.printBill = (data) => {
 <body>
   <div class="no-print" style="max-width:650px;margin: 0 auto 20px auto;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center;font-family:'Segoe UI',system-ui,sans-serif;">
     <button onclick="window.history.back() || (window.location.href='/')" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">← Back to App</button>
+    <button onclick="shareInvoiceFromPrint()" style="padding:8px 16px;background:#25d366;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">💬 WhatsApp</button>
     <span style="font-size:12px;color:#475569;font-weight:600">Print page loaded.</span>
     <button onclick="window.close()" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">Close Tab ✕</button>
   </div>
@@ -912,7 +940,43 @@ window.printBill = (data) => {
     </div>
   </div>
   <script>
-    window.onload = function() { window.print(); window.close(); }
+    window.onload = function() { window.print(); };
+    function shareInvoiceFromPrint() {
+      const billId = ${res.id};
+      const patientName = '${(res.patient_name || '').replace(/'/g, "\\'")}';
+      const billNo = '${res.bill_no}';
+      const total = ${totalVal};
+      let phone = '${cust?.phone || res.customer_phone || ''}';
+      
+      if (window.opener && window.opener.shareBillOnWhatsapp) {
+        window.opener.shareBillOnWhatsapp(billId, patientName, billNo, total, phone);
+      } else {
+        phone = phone.replace(/[^0-9]/g, '');
+        if (!phone) {
+          phone = prompt("Enter a 10-digit phone number to send via WhatsApp:");
+          if (!phone) return;
+          phone = phone.replace(/[^0-9]/g, '');
+        }
+        if (phone.length < 10) {
+          alert("Please enter a valid 10-digit mobile number.");
+          return;
+        }
+        const waPhone = phone.length === 10 ? '91' + phone : phone;
+        const msg = "Thank you for your purchase in Shrivari Medicals! Here is your invoice no " + billNo + " amounting to Rs. " + total.toFixed(2) + ".";
+        const pdfUrl = window.location.origin + "/api/bills/" + billId + "/pdf";
+        
+        if (window.AndroidBridge && window.AndroidBridge.shareBillPdf) {
+          window.AndroidBridge.shareBillPdf(pdfUrl, waPhone, msg);
+        } else {
+          const waUrl = "https://api.whatsapp.com/send?phone=" + waPhone + "&text=" + encodeURIComponent(msg);
+          if (window.AndroidBridge && window.AndroidBridge.openExternalUrl) {
+            window.AndroidBridge.openExternalUrl(waUrl);
+          } else {
+            window.open(waUrl, "_blank");
+          }
+        }
+      }
+    }
   </script>
 </body>
 </html>

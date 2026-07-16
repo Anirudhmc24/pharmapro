@@ -1,5 +1,5 @@
 // customers.js — Customer list and purchase history
-import { GET, POST } from './api.js';
+import { GET, POST, DELETE } from './api.js';
 import { tag, toast, modal, closeModal, formatDate } from './utils.js';
 
 export async function renderCustomers(c, APP) {
@@ -166,7 +166,7 @@ export async function renderCustomers(c, APP) {
 
 // suppliers.js — Supplier list
 export async function renderSuppliers(c, APP) {
-  const { GET: _GET, POST: _POST } = await import('./api.js');
+  const { GET: _GET, POST: _POST, DELETE: _DELETE } = await import('./api.js');
   const { toast: _toast, modal: _modal, closeModal: _close } = await import('./utils.js');
   let sups = await _GET('/suppliers');
 
@@ -181,12 +181,13 @@ export async function renderSuppliers(c, APP) {
       <div class="gap-12">${sups.map(s => `<div class="card">
         <div class="flex-between">
           <div><div style="font-weight:800;font-size:15px;margin-bottom:4px">${s.name}</div>
-            <div style="color:var(--muted);font-size:12px">👤 ${s.contact || '—'} · 📱 ${s.phone || '—'} · GST: ${s.gstin || '—'}</div></div>
+            <div style="color:var(--muted);font-size:12px">👤 ${s.contact || '—'} · 📱 ${s.phone || '—'} · ✉️ ${s.email || '—'} · GST: ${s.gstin || '—'}</div></div>
           <div style="text-align:right">
             <div style="font-size:18px;font-weight:900;color:${(s.due || 0) > 0 ? 'var(--warn)' : 'var(--green)'}">₹${(s.due || 0).toLocaleString('en-IN')}</div>
             <div style="font-size:10px;color:var(--muted)">Amount Due</div>
-            <div style="margin-top:6px">
+            <div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end;align-items:center">
               ${(s.due || 0) > 0 ? `<button class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:10px" onclick="showPaySupplier(${s.id}, '${s.name}', ${s.due})">💳 Pay Balance</button>` : `<span class="tag tag-green">Settled</span>`}
+              <button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:10px;border-color:var(--red);color:var(--red)" onclick="deleteSupplier(${s.id}, '${s.name.replace(/'/g, "\\'")}')">🗑️ Delete</button>
             </div>
           </div>
         </div>
@@ -202,7 +203,8 @@ export async function renderSuppliers(c, APP) {
       <div class="grid-2">
         <div class="field"><label>Phone</label><input class="input" id="as-phone" type="tel"></div>
         <div class="field"><label>GSTIN</label><input class="input" id="as-gstin" placeholder="GST Number"></div>
-      </div>`,
+      </div>
+      <div class="field"><label>Email</label><input class="input" id="as-email" type="email" placeholder="email@example.com"></div>`,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" style="flex:1" onclick="saveSupplier()">Add</button>`
     );
@@ -211,7 +213,13 @@ export async function renderSuppliers(c, APP) {
   window.saveSupplier = async () => {
     const name = document.getElementById('as-name')?.value?.trim();
     if (!name) { _toast('Name required', 'warn'); return; }
-    await _POST('/suppliers', { name, contact: document.getElementById('as-contact')?.value || '', phone: document.getElementById('as-phone')?.value || '', gstin: document.getElementById('as-gstin')?.value || '' });
+    await _POST('/suppliers', {
+      name,
+      contact: document.getElementById('as-contact')?.value || '',
+      phone: document.getElementById('as-phone')?.value || '',
+      gstin: document.getElementById('as-gstin')?.value || '',
+      email: document.getElementById('as-email')?.value || ''
+    });
     _close(); _toast('Supplier added ✅', 'success');
     sups = await _GET('/suppliers'); c.innerHTML = html();
   };
@@ -240,6 +248,22 @@ export async function renderSuppliers(c, APP) {
     } catch(e) {
       _toast(e.message, 'error');
       btn.disabled = false; btn.textContent = 'Settle Amount';
+    }
+  };
+
+  window.deleteSupplier = async (id, name) => {
+    if (!confirm(`Are you sure you want to delete supplier "${name}"?`)) return;
+    try {
+      const res = await _DELETE(`/suppliers/${id}`);
+      if (res.ok) {
+        _toast('Supplier deleted ✅', 'success');
+        sups = await _GET('/suppliers');
+        c.innerHTML = html();
+      } else {
+        throw new Error(res.error || 'Failed to delete supplier');
+      }
+    } catch (e) {
+      _toast(e.message, 'error');
     }
   };
 }

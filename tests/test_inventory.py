@@ -108,3 +108,57 @@ def test_search_by_problem(client, auth_headers):
     assert match[0]["indications"] == "migraine, severe headache, tension headache"
     assert match[0]["side_effects"] == "stomach upset, insomnia"
     assert match[0]["administration"] == "Take 1 tablet after food every 6 hours"
+
+def test_delete_drug_without_billing_history(client, auth_headers):
+    # 1. Add a drug
+    resp = client.post("/api/drugs", json={"name": "DeleteMe 500mg", "tablets_per_strip": 10}, headers=auth_headers)
+    assert resp.status_code == 200
+    drug_id = resp.json()["id"]
+
+    # 2. Add batch which creates stock log
+    batch_data = {
+        "drug_id": drug_id,
+        "batch_no": "DEL-B1",
+        "expiry": "2028-12",
+        "strips": 5
+    }
+    client.post("/api/batches", json=batch_data, headers=auth_headers)
+
+    # 3. Try to delete the drug
+    del_resp = client.delete(f"/api/drugs/{drug_id}", headers=auth_headers)
+    assert del_resp.status_code == 200
+
+    # 4. Verify drug no longer exists
+    get_resp = client.get(f"/api/drugs/{drug_id}", headers=auth_headers)
+    assert get_resp.status_code == 404
+
+def test_delete_drug_fails_with_billing_history(client, auth_headers):
+    # 1. Add a drug
+    resp = client.post("/api/drugs", json={"name": "KeepMe 500mg", "tablets_per_strip": 10}, headers=auth_headers)
+    drug_id = resp.json()["id"]
+
+    # 2. Add batch
+    batch_data = {
+        "drug_id": drug_id,
+        "batch_no": "KEEP-B1",
+        "expiry": "2028-12",
+        "strips": 5
+    }
+    client.post("/api/batches", json=batch_data, headers=auth_headers)
+
+    # 3. Create a bill referencing this drug
+    bill_data = {
+        "patient_name": "Test Customer",
+        "phone": "9999999999",
+        "items": [{"drug_id": drug_id, "tablets_qty": 5}],
+        "discount_pct": 0.0,
+        "payment_mode": "Cash",
+        "points_redeemed": 0
+    }
+    bill_resp = client.post("/api/bills", json=bill_data, headers=auth_headers)
+    assert bill_resp.status_code == 200
+
+    # 4. Try to delete the drug
+    del_resp = client.delete(f"/api/drugs/{drug_id}", headers=auth_headers)
+    assert del_resp.status_code == 400
+    assert "billing history" in del_resp.json()["detail"]

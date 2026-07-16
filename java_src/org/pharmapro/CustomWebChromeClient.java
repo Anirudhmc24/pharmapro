@@ -102,16 +102,17 @@ public class CustomWebChromeClient extends WebChromeClient {
         } catch (Exception e) {
             android.util.Log.e("PharmaPro", "Failed to share database: " + e.getMessage(), e);
         }
-    }
-
-    @android.webkit.JavascriptInterface
+    }    @android.webkit.JavascriptInterface
     public void shareBillPdf(final String pdfUrl, final String phoneNumber, final String captionText) {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                java.net.HttpURLConnection cn = null;
+                java.io.InputStream in = null;
+                java.io.FileOutputStream out = null;
                 try {
                     java.net.URL url = new java.net.URL(pdfUrl);
-                    java.net.HttpURLConnection cn = (java.net.HttpURLConnection) url.openConnection();
+                    cn = (java.net.HttpURLConnection) url.openConnection();
                     cn.setConnectTimeout(6000);
                     cn.setReadTimeout(12000);
                     cn.connect();
@@ -139,15 +140,17 @@ public class CustomWebChromeClient extends WebChromeClient {
                     String fileName = "Invoice_" + System.currentTimeMillis() + ".pdf";
                     File tempFile = new File(cacheDir, fileName);
                     
-                    java.io.InputStream in = cn.getInputStream();
-                    java.io.FileOutputStream out = new java.io.FileOutputStream(tempFile);
+                    in = cn.getInputStream();
+                    out = new java.io.FileOutputStream(tempFile);
                     byte[] buf = new byte[1024];
                     int len;
                     while ((len = in.read(buf)) > 0) {
                         out.write(buf, 0, len);
                     }
                     in.close();
+                    in = null;
                     out.close();
+                    out = null;
                     
                     Uri tempUri = null;
                     try {
@@ -155,6 +158,10 @@ public class CustomWebChromeClient extends WebChromeClient {
                         java.lang.reflect.Method m = fp.getMethod("getUriForFile", android.content.Context.class, String.class, File.class);
                         tempUri = (Uri) m.invoke(null, mActivity, mActivity.getPackageName() + ".fileprovider", tempFile);
                     } catch (Exception e) {
+                        try {
+                            android.os.StrictMode.VmPolicy.Builder StrictBuilder = new android.os.StrictMode.VmPolicy.Builder();
+                            android.os.StrictMode.setVmPolicy(StrictBuilder.build());
+                        } catch (Exception ignored) {}
                         tempUri = Uri.fromFile(tempFile);
                     }
                     final Uri fileUri = tempUri;
@@ -179,7 +186,8 @@ public class CustomWebChromeClient extends WebChromeClient {
                                 intent.putExtra("jid", jid);
                                 intent.setPackage("com.whatsapp");
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                // Clear top forces WhatsApp to reload its UI with the new intent if it's already running
+                                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
 
                                 // Explicitly grant URI permission to WhatsApp package
                                 try {
@@ -198,7 +206,7 @@ public class CustomWebChromeClient extends WebChromeClient {
                                         intent.setClipData(android.content.ClipData.newRawUri("", fileUri));
                                     }
                                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                     
                                     mActivity.startActivity(Intent.createChooser(intent, "Send Invoice"));
                                 } catch (Exception ex) {
@@ -209,10 +217,20 @@ public class CustomWebChromeClient extends WebChromeClient {
                     });
                 } catch (Exception e) {
                     android.util.Log.e("PharmaPro", "Failed in shareBillPdf async work: " + e.getMessage(), e);
+                } finally {
+                    if (in != null) {
+                        try { in.close(); } catch (Exception ignored) {}
+                    }
+                    if (out != null) {
+                        try { out.close(); } catch (Exception ignored) {}
+                    }
+                    if (cn != null) {
+                        try { cn.disconnect(); } catch (Exception ignored) {}
+                    }
                 }
             }
         }).start();
-    }
+    } }
 
     /**
      * Configure WebView settings for camera/mic access via getUserMedia.

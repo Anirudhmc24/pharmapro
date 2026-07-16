@@ -279,6 +279,11 @@ def delete_drug(drug_id: int, x_token: Optional[str] = Header(default=None)):
             
         # Delete from associated tables
         conn.execute("DELETE FROM trays WHERE drug_id=?", (drug_id,))
+        conn.execute("DELETE FROM stock_log WHERE drug_id=?", (drug_id,))
+        conn.execute("DELETE FROM po_items WHERE drug_id=?", (drug_id,))
+        conn.execute("DELETE FROM backorders WHERE drug_id=?", (drug_id,))
+        conn.execute("DELETE FROM expiry_returns WHERE drug_id=?", (drug_id,))
+        conn.execute("DELETE FROM schedule_log WHERE drug_id=?", (drug_id,))
         conn.execute("DELETE FROM batches WHERE drug_id=?", (drug_id,))
         conn.execute("DELETE FROM drugs WHERE id=?", (drug_id,))
     return {"ok": True}
