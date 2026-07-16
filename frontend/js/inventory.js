@@ -467,6 +467,10 @@ export async function renderInventory(c, APP) {
             <input type="checkbox" id="ad-elderly-ok" checked style="width:16px;height:16px;accent-color:var(--accent)"> Seniors / Elderly
           </label>
         </div>
+      </div>
+      <div style="margin-top:14px;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:8px">
+        <input type="checkbox" id="ad-auto-enrich" checked style="width:16px;height:16px;accent-color:var(--accent)">
+        <label for="ad-auto-enrich" style="cursor:pointer;font-weight:700;font-size:13px;color:var(--accent)">✨ Auto-fill composition & clinical details with AI after saving</label>
       </div>`,
       `<button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
        <button class="btn btn-primary" style="flex:1" onclick="saveDrug()">Add Drug</button>`
@@ -612,6 +616,27 @@ export async function renderInventory(c, APP) {
 
     closeModal();
     toast('Drug added ✅', 'success');
+
+    // Background AI enrichment if checkbox is ticked
+    const autoEnrich = document.getElementById('ad-auto-enrich')?.checked;
+    if (autoEnrich && res.id) {
+      toast('✨ AI enriching details in background…', 'info');
+      const drugName = name;
+      const drugBrand = document.getElementById('ad-brand')?.value || '';
+      const drugComp  = document.getElementById('ad-comp')?.value || '';
+      // Fire-and-forget — don't await so the UI stays instant
+      POST('/drugs/enrich_single', { drug_id: res.id, name: drugName, brand: drugBrand, composition: drugComp })
+        .then(enriched => {
+          if (enriched && enriched.ok) {
+            toast('✅ AI enrichment complete for ' + drugName, 'success');
+            // Patch the local list so the detail view reflects the new data without a full reload
+            const idx = drugs.findIndex(d => d.id === res.id);
+            if (idx !== -1) Object.assign(drugs[idx], enriched.data || {});
+          }
+        })
+        .catch(() => { /* silent fail — user can enrich later */ });
+    }
+
     if (window._onDrugAdded) {
       window._onDrugAdded(newDrug);
       window._onDrugAdded = null;

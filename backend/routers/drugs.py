@@ -680,3 +680,67 @@ def enrich_master_item(body: MasterEnrichIn, x_token: Optional[str] = Header(def
         import traceback
         traceback.print_exc()
         return {"ok": False, "message": str(e)}
+
+
+class EnrichSingleIn(BaseModel):
+    drug_id: int
+    name: str
+    brand: Optional[str] = ""
+    composition: Optional[str] = ""
+
+
+@router.post("/enrich_single")
+def enrich_single_drug(body: EnrichSingleIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
+    """Enrich a single drug (by id) with AI-generated clinical data. Runs synchronously (fast, 1 API call)."""
+    get_current_user(x_token)
+    
+    from backend.routers.scan import get_gemini_key
+    key = get_gemini_key()
+    if not key:
+        return {"ok": False, "message": "Gemini API key not configured. Go to Settings to add your key."}
+    
+    from scripts.populate_indications import enrich_medicine
+    try:
+        data = enrich_medicine(key, body.name, body.brand or "", body.composition or "")
+        
+        age_suitability = json.dumps({
+            "child":           {"ok": bool(data.get("child_ok", True)),             "dose": data.get("child_dose", "")},
+            "middle_aged_men": {"ok": bool(data.get("middle_aged_men_ok", True)),   "dose": data.get("middle_aged_men_dose", "")},
+            "middle_aged_women":{"ok": bool(data.get("middle_aged_women_ok", True)),"dose": data.get("middle_aged_women_dose", "")},
+            "elderly_men":     {"ok": bool(data.get("elderly_men_ok", True)),       "dose": data.get("elderly_men_dose", "")},
+            "elderly_women":   {"ok": bool(data.get("elderly_women_ok", True)),     "dose": data.get("elderly_women_dose", "")}
+        })
+        
+        with get_db() as conn:
+            conn.execute("""
+                UPDATE drugs
+                SET indications    = ?,
+                    side_effects   = ?,
+                    administration = ?,
+                    age_suitability = ?
+                WHERE id = ?
+            """, (
+                data.get("indications", ""),
+                data.get("side_effects", ""),
+                data.get("administration", ""),
+                age_suitability,
+                body.drug_id
+            ))
+            
+            # Also patch composition if Gemini returned one and ours was empty
+            if data.get("composition") and not body.composition:
+                conn.execute("UPDATE drugs SET composition = ? WHERE id = ?",
+                             (data["composition"], body.drug_id))
+            conn.commit()
+        
+        return {"ok": True, "data": {
+            "indications":    data.get("indications", ""),
+            "side_effects":   data.get("side_effects", ""),
+            "administration": data.get("administration", ""),
+            "age_suitability": age_suitability
+        }}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "message": str(e)}
+
