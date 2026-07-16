@@ -230,7 +230,7 @@ public class CustomWebChromeClient extends WebChromeClient {
                 }
             }
         }).start();
-    } }
+    }
 
     /**
      * Configure WebView settings for camera/mic access via getUserMedia.
