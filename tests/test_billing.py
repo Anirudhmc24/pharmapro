@@ -22,6 +22,41 @@ def test_search_functionality(client, auth_headers):
     results = resp.json()
     assert any(d["name"] == "Searchamol" for d in results)
 
+    # Add a custom drug with specific MRP to test first-letter + MRP search
+    mrp_drug = {
+        "name": "Paracetamol-MRP",
+        "brand": "MRPBrand",
+        "composition": "Para",
+        "mrp_per_strip": 22.35
+    }
+    client.post("/api/drugs", json=mrp_drug, headers=auth_headers)
+
+    # Test search by prefix + MRP
+    # 1. Test case-insensitive ('P' or 'p') prefix and MRP search in get_drugs
+    resp = client.get("/api/drugs?q=p%2B22.35", headers=auth_headers)
+    assert resp.status_code == 200
+    results = resp.json()
+    assert any(d["name"] == "Paracetamol-MRP" for d in results)
+
+    # 2. Test spaces inside query (e.g. 'P + 22.35')
+    resp = client.get("/api/drugs?q=P%20%2B%2022.35", headers=auth_headers)
+    assert resp.status_code == 200
+    results = resp.json()
+    assert any(d["name"] == "Paracetamol-MRP" for d in results)
+
+    # 3. Test master search by prefix + MRP
+    # Adding the drug above syncs it to master_drugs. Let's verify master_search finds it.
+    resp = client.get("/api/drugs/master_search?q=p%2B22.35", headers=auth_headers)
+    assert resp.status_code == 200
+    results = resp.json()
+    assert any(d["name"] == "Paracetamol-MRP" for d in results)
+
+    # 4. Test search_by_problem by prefix + MRP
+    resp = client.get("/api/drugs/search_by_problem?q=p%2B22.35", headers=auth_headers)
+    assert resp.status_code == 200
+    results = resp.json()
+    assert any(d["name"] == "Paracetamol-MRP" for d in results)
+
 def test_invoice_generation_and_stock_deduction(client, auth_headers):
     # 1. Setup inventory
     drug_data = {

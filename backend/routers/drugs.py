@@ -15,19 +15,35 @@ from typing import Optional
 router = APIRouter(prefix="/api/drugs", tags=["drugs"])
 
 
+import re
+
 @router.get("")
 def get_drugs(q: str = ""):
     with get_db() as conn:
         if q:
-            like = f"%{q}%"
-            rows = conn.execute("""
-                SELECT d.*,
-                  COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
-                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
-                  (SELECT b2.cost_per_strip FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0 ORDER BY b2.expiry ASC LIMIT 1) as cost_per_strip
-                FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
-                WHERE d.name LIKE ? OR d.brand LIKE ? OR d.composition LIKE ?
-                GROUP BY d.id ORDER BY d.name LIMIT 20""", (like, like, like)).fetchall()
+            match = re.match(r"^\s*([a-zA-Z])\s*\+\s*(\d+(?:\.\d+)?)\s*$", q)
+            if match:
+                letter = match.group(1).lower()
+                mrp_val = float(match.group(2))
+                like = f"{letter}%"
+                rows = conn.execute("""
+                    SELECT d.*,
+                      COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+                      COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
+                      (SELECT b2.cost_per_strip FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0 ORDER BY b2.expiry ASC LIMIT 1) as cost_per_strip
+                    FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
+                    WHERE d.name LIKE ? AND ABS(d.mrp_per_strip - ?) < 0.01
+                    GROUP BY d.id ORDER BY d.name LIMIT 20""", (like, mrp_val)).fetchall()
+            else:
+                like = f"%{q}%"
+                rows = conn.execute("""
+                    SELECT d.*,
+                      COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+                      COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
+                      (SELECT b2.cost_per_strip FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0 ORDER BY b2.expiry ASC LIMIT 1) as cost_per_strip
+                    FROM drugs d LEFT JOIN batches b ON b.drug_id=d.id
+                    WHERE d.name LIKE ? OR d.brand LIKE ? OR d.composition LIKE ?
+                    GROUP BY d.id ORDER BY d.name LIMIT 20""", (like, like, like)).fetchall()
         else:
             rows = conn.execute("""
                 SELECT d.*,
@@ -45,7 +61,24 @@ def get_drugs(q: str = ""):
 def master_search(q: str = ""):
     """Search the 250k master drug database by name prefix."""
     with get_db() as conn:
-        if not q or len(q) < 2:
+        if not q:
+            return []
+        match = re.match(r"^\s*([a-zA-Z])\s*\+\s*(\d+(?:\.\d+)?)\s*$", q)
+        if match:
+            letter = match.group(1).lower()
+            mrp_val = float(match.group(2))
+            like = f"{letter}%"
+            rows = conn.execute("""
+                SELECT name, manufacturer, composition, mrp, hsn, description,
+                       indications, side_effects, administration, age_suitability
+                FROM master_drugs
+                WHERE name LIKE ? AND ABS(mrp - ?) < 0.01
+                ORDER BY name
+                LIMIT 30
+            """, (like, mrp_val)).fetchall()
+            return rows_to_list(rows)
+
+        if len(q) < 2:
             # Return empty if query too short
             return []
         like = f"{q}%"
@@ -63,9 +96,32 @@ def master_search(q: str = ""):
 @router.get("/search_by_problem")
 def search_by_problem(q: str = ""):
     """Search drugs in the shop database by indications, category, composition, or name."""
-    if not q or len(q) < 2:
+    if not q:
         return []
+    match = re.match(r"^\s*([a-zA-Z])\s*\+\s*(\d+(?:\.\d+)?)\s*$", q)
     with get_db() as conn:
+        if match:
+            letter = match.group(1).lower()
+            mrp_val = float(match.group(2))
+            like = f"{letter}%"
+            rows = conn.execute("""
+                SELECT d.*,
+                  COALESCE(SUM(b.full_strips * d.tablets_per_strip),0) +
+                  COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0) AS stock_tablets,
+                  (SELECT MIN(b2.expiry) FROM batches b2 WHERE b2.drug_id=d.id AND b2.full_strips>0) as nearest_expiry,
+                  (SELECT COUNT(*) FROM trays t2 WHERE t2.drug_id=d.id AND t2.closed=0) as open_trays,
+                  (SELECT b3.cost_per_strip FROM batches b3 WHERE b3.drug_id=d.id AND b3.full_strips>0 ORDER BY b3.expiry ASC LIMIT 1) as cost_per_strip
+                FROM drugs d 
+                LEFT JOIN batches b ON b.drug_id=d.id
+                WHERE d.name LIKE ? AND ABS(d.mrp_per_strip - ?) < 0.01
+                GROUP BY d.id 
+                ORDER BY stock_tablets DESC, d.name 
+                LIMIT 30
+            """, (like, mrp_val)).fetchall()
+            return rows_to_list(rows)
+
+        if len(q) < 2:
+            return []
         like = f"%{q}%"
         rows = conn.execute("""
             SELECT d.*,

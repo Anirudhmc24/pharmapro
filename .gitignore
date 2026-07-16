@@ -49,3 +49,6 @@ Thumbs.db
 
 # Project specific
 uploads/
+dist_apk/
+signing/
+tmp/
