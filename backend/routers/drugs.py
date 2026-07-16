@@ -729,6 +729,15 @@ def enrich_master_item(body: MasterEnrichIn, x_token: Optional[str] = Header(def
                 age_suitability,
                 body.name
             ))
+            
+            # Patch composition if it was missing in master or local drugs
+            if data.get("composition"):
+                if not body.composition or not body.composition.strip():
+                    conn.execute("UPDATE master_drugs SET composition = ? WHERE LOWER(name) = LOWER(?)",
+                                 (data["composition"], body.name))
+                    conn.execute("UPDATE drugs SET composition = ? WHERE LOWER(name) = LOWER(?)",
+                                 (data["composition"], body.name))
+            
             conn.commit()
             
         return {"ok": True, "data": data}

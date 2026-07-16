@@ -251,6 +251,7 @@ def test_enrich_master_item(client, auth_headers, monkeypatch):
     # Mock enrich_medicine to return fake data
     from scripts import populate_indications
     fake_clinical = {
+        "composition": "Paracetamol 500mg",
         "indications": "test headache",
         "side_effects": "test nausea",
         "administration": "test dose",
@@ -270,16 +271,21 @@ def test_enrich_master_item(client, auth_headers, monkeypatch):
     from backend.database import get_db
     with get_db() as conn:
         conn.execute("DELETE FROM master_drugs WHERE name = 'EnrichTest 500mg'")
+        conn.execute("DELETE FROM drugs WHERE name = 'EnrichTest 500mg'")
         conn.execute("""
             INSERT INTO master_drugs(name, composition, mrp)
             VALUES(?, ?, ?)
-        """, ("EnrichTest 500mg", "Paracetamol 500mg", 15.0))
+        """, ("EnrichTest 500mg", "", 15.0))
+        conn.execute("""
+            INSERT INTO drugs(name, composition, tablets_per_strip, mrp_per_strip)
+            VALUES(?, ?, ?, ?)
+        """, ("EnrichTest 500mg", "", 10, 15.0))
         conn.commit()
 
     resp = client.post("/api/drugs/enrich_master_item", json={
         "name": "EnrichTest 500mg",
         "manufacturer": "TestLab",
-        "composition": "Paracetamol 500mg"
+        "composition": ""
     }, headers=auth_headers)
     
     assert resp.status_code == 200
@@ -289,6 +295,10 @@ def test_enrich_master_item(client, auth_headers, monkeypatch):
 
     # Verify database was updated
     with get_db() as conn:
-        row = conn.execute("SELECT indications, age_suitability FROM master_drugs WHERE name='EnrichTest 500mg'").fetchone()
+        row = conn.execute("SELECT indications, composition, age_suitability FROM master_drugs WHERE name='EnrichTest 500mg'").fetchone()
         assert row["indications"] == "test headache"
+        assert row["composition"] == "Paracetamol 500mg"
         assert "child" in row["age_suitability"]
+
+        row_local = conn.execute("SELECT composition FROM drugs WHERE name='EnrichTest 500mg'").fetchone()
+        assert row_local["composition"] == "Paracetamol 500mg"

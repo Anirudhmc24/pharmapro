@@ -96,6 +96,7 @@ Composition: {composition or "N/A"}
 Please provide complete, accurate clinical details in JSON format.
 You must respond with ONLY a valid JSON object matching the following structure:
 {{
+  "composition": "The active pharmaceutical ingredient(s) of the medicine in generic names (e.g. 'Paracetamol' or 'Ibuprofen + Domperidone')",
   "indications": "Plain text string listing symptoms, causes, or problems this medicine treats (e.g. 'fever, mild to moderate pain, headache, toothache')",
   "side_effects": "Plain text string listing common side effects (e.g. 'nausea, stomach irritation, allergic reaction')",
   "administration": "Plain text string containing general dosage/consumption instructions (e.g. 'Take with or after food. Do not exceed recommended dosage.')",
@@ -193,6 +194,14 @@ def run(force=False):
                 age_suitability,
                 drug['name']
             ))
+            
+            # Patch composition if it was missing
+            if data.get("composition") and (not drug['composition'] or not drug['composition'].strip()):
+                conn.execute("UPDATE drugs SET composition = ? WHERE id = ?",
+                             (data["composition"], drug['id']))
+                conn.execute("UPDATE master_drugs SET composition = ? WHERE name = ?",
+                             (data["composition"], drug['name']))
+
             conn.commit()
             print(f"  -> Successfully enriched: {drug['name']}")
             success_count += 1
