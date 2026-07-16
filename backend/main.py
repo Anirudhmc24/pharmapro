@@ -90,21 +90,48 @@ init_db()
 
 if __name__ == "__main__":
     import uvicorn
-    import webbrowser
     import threading
     import time
 
-    def open_browser():
-        time.sleep(2)  # Wait for server to start
-        webbrowser.open("http://127.0.0.1:8503")
+    # Try importing webview for native window interface
+    has_webview = False
+    try:
+        import webview
+        has_webview = True
+    except ImportError:
+        import webbrowser
 
     print("\n" + "="*50)
     print("  PharmaPro v2.0 Starting…")
-    print("  Open browser at: http://localhost:8503")
     print("  Default login: admin / admin123")
     print("="*50 + "\n")
 
-    # Start browser in a separate thread
-    threading.Thread(target=open_browser, daemon=True).start()
-    
-    uvicorn.run(app, host="0.0.0.0", port=8503, log_config=None)
+    if has_webview:
+        # Start server in background thread
+        server_thread = threading.Thread(
+            target=lambda: uvicorn.run(app, host="127.0.0.1", port=8503, log_config=None),
+            daemon=True
+        )
+        server_thread.start()
+        
+        # Give server a second to start up
+        time.sleep(1)
+        
+        # Launch dedicated desktop window
+        webview.create_window(
+            "PharmaPro",
+            "http://127.0.0.1:8503",
+            width=1280,
+            height=720,
+            resizable=True
+        )
+        webview.start()
+    else:
+        # Fallback to webbrowser
+        def open_browser():
+            time.sleep(2)
+            webbrowser.open("http://127.0.0.1:8503")
+            
+        print("  Webview not found. Falling back to default browser at: http://localhost:8503")
+        threading.Thread(target=open_browser, daemon=True).start()
+        uvicorn.run(app, host="0.0.0.0", port=8503, log_config=None)
