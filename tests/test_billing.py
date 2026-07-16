@@ -314,7 +314,7 @@ def test_clear_day_billing(client, auth_headers):
     import datetime
     today = datetime.date.today().isoformat()
     
-    clear_resp = client.delete(f"/api/bills/clear_day?date={today}", headers=auth_headers)
+    clear_resp = client.delete(f"/api/bills/clear_day?date={today}&password=admin123", headers=auth_headers)
     assert clear_resp.status_code == 200
     assert clear_resp.json()["ok"] is True
 

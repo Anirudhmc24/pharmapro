@@ -657,11 +657,15 @@ def get_bill_pdf(bill_id: int):
 
 
 @router.delete("/clear_day")
-def clear_day_bills(date: str, x_token: Optional[str] = Header(default=None)):
-    from backend.routers.auth import require_admin
-    require_admin(x_token)
+def clear_day_bills(date: str, password: str, x_token: Optional[str] = Header(default=None)):
+    from backend.routers.auth import require_admin, _verify_password
+    user = require_admin(x_token)
     
     with get_db() as conn:
+        admin_row = conn.execute("SELECT password_hash FROM users WHERE id = ?", (user["id"],)).fetchone()
+        if not admin_row or not _verify_password(password, admin_row["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid admin password")
+        
         # Fetch all bills matching the date string
         bills = rows_to_list(conn.execute(
             "SELECT * FROM bills WHERE date(created_at) = ?", (date,)

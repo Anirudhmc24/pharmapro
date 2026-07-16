@@ -628,17 +628,13 @@ export async function renderBillHistory(c, APP) {
   </div>`;
 
   window.clearDayBills = async (dayString) => {
-    if (!confirm(`⚠️ WARNING: You are about to DELETE all ${billsByDay[dayString].length} bills on ${dayString} and restore their quantities back to inventory.\n\nAre you sure you want to proceed?`)) {
-      return;
-    }
-    const doubleCheck = prompt(`Type "CLEAR ${dayString}" to confirm this action:`);
-    if (doubleCheck !== `CLEAR ${dayString}`) {
-      _toast('Confirmation mismatch. Operation canceled.', 'warn');
+    const password = prompt(`⚠️ WARNING: You are about to DELETE all ${billsByDay[dayString].length} bills on ${dayString} and restore their quantities back to inventory.\n\nEnter admin password to confirm:`);
+    if (!password) {
       return;
     }
     
     try {
-      const res = await fetch('/api/bills/clear_day?date=' + encodeURIComponent(dayString), {
+      const res = await fetch('/api/bills/clear_day?date=' + encodeURIComponent(dayString) + '&password=' + encodeURIComponent(password), {
         method: 'DELETE',
         headers: {
           'X-Token': localStorage.getItem('pp_token') || ''
