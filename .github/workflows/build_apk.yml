@@ -44,13 +44,14 @@ jobs:
       - name: Auto-increment version code
         run: |
           sed -i -E 's/version = ([0-9]+\.[0-9]+\.[0-9]+)/version = \1.${{ github.run_number }}/g' buildozer.spec
+          sed -i 's/android.private_storage = True/android.private_storage = True\nandroid.numeric_version = ${{ github.run_number }}/g' buildozer.spec
 
       - name: Generate and Commit Debug Keystore if missing
         run: |
           mkdir -p signing
           if [ ! -f signing/debug.keystore ]; then
             echo "Generating new persistent debug keystore..."
-            keytool -genkey -v -keystore signing/debug.keystore -storepass pharmapro123 -keypass pharmapro123 -alias pharmapro -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=PharmaPro, OU=Development, O=PharmaPro, L=Bangalore, S=Karnataka, C=IN"
+            keytool -genkey -v -keystore signing/debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=PharmaPro, OU=Development, O=PharmaPro, L=Bangalore, S=Karnataka, C=IN"
             
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
