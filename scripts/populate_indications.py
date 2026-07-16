@@ -140,8 +140,7 @@ def run(force=False):
     else:
         drugs = conn.execute("""
             SELECT id, name, brand, composition FROM drugs 
-            WHERE indications IS NULL OR indications = '' 
-               OR age_suitability IS NULL OR age_suitability = ''
+            WHERE COALESCE(ai_enriched, 0) = 0
         """).fetchall()
         
     if not drugs:
@@ -171,7 +170,8 @@ def run(force=False):
                 SET indications = ?,
                     side_effects = ?,
                     administration = ?,
-                    age_suitability = ?
+                    age_suitability = ?,
+                    ai_enriched = 1
                 WHERE id = ?
             """, (
                 data.get("indications", ""),
@@ -185,7 +185,8 @@ def run(force=False):
                 SET indications = ?,
                     side_effects = ?,
                     administration = ?,
-                    age_suitability = ?
+                    age_suitability = ?,
+                    ai_enriched = 1
                 WHERE name = ?
             """, (
                 data.get("indications", ""),

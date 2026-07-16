@@ -658,8 +658,7 @@ def get_enrichment_status(x_token: Optional[str] = Header(default=None)):
         total = conn.execute("SELECT COUNT(*) FROM drugs").fetchone()[0]
         missing = conn.execute("""
             SELECT COUNT(*) FROM drugs 
-            WHERE indications IS NULL OR indications = '' 
-               OR age_suitability IS NULL OR age_suitability = ''
+            WHERE COALESCE(ai_enriched, 0) = 0
         """).fetchone()[0]
     
     ENRICHMENT_STATUS["total"] = total
@@ -704,7 +703,8 @@ def enrich_master_item(body: MasterEnrichIn, x_token: Optional[str] = Header(def
                 SET indications = ?,
                     side_effects = ?,
                     administration = ?,
-                    age_suitability = ?
+                    age_suitability = ?,
+                    ai_enriched = 1
                 WHERE LOWER(name) = LOWER(?)
             """, (
                 data.get("indications", ""),
@@ -720,7 +720,8 @@ def enrich_master_item(body: MasterEnrichIn, x_token: Optional[str] = Header(def
                 SET indications = ?,
                     side_effects = ?,
                     administration = ?,
-                    age_suitability = ?
+                    age_suitability = ?,
+                    ai_enriched = 1
                 WHERE LOWER(name) = LOWER(?)
             """, (
                 data.get("indications", ""),
@@ -782,7 +783,8 @@ def enrich_single_drug(body: EnrichSingleIn, background_tasks: BackgroundTasks, 
                 SET indications    = ?,
                     side_effects   = ?,
                     administration = ?,
-                    age_suitability = ?
+                    age_suitability = ?,
+                    ai_enriched    = 1
                 WHERE id = ?
             """, (
                 data.get("indications", ""),

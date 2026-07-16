@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS drugs (
     side_effects      TEXT,
     administration    TEXT,
     age_suitability   TEXT,
+    ai_enriched       INTEGER DEFAULT 0,
     created_at        TEXT DEFAULT (datetime('now'))
 );
 
@@ -371,7 +372,8 @@ CREATE TABLE IF NOT EXISTS master_drugs (
     indications TEXT,
     side_effects TEXT,
     administration TEXT,
-    age_suitability TEXT
+    age_suitability TEXT,
+    ai_enriched INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_master_name ON master_drugs(name);
@@ -472,6 +474,12 @@ def init_db():
         except sqlite3.OperationalError: pass
 
         try: conn.execute("ALTER TABLE customers ADD COLUMN last_purchase_date TEXT DEFAULT ''")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE drugs ADD COLUMN ai_enriched INTEGER DEFAULT 0")
+        except sqlite3.OperationalError: pass
+
+        try: conn.execute("ALTER TABLE master_drugs ADD COLUMN ai_enriched INTEGER DEFAULT 0")
         except sqlite3.OperationalError: pass
 
         # Seed default admin user
