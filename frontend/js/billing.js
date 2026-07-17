@@ -3,32 +3,151 @@ import { GET, POST } from './api.js';
 import { fmt, fmtI, tag, stripVis, toast, modal, closeModal } from './utils.js';
 import { showSubstitutesModal } from './substitutes.js';
 
+// Module-level persistent state (persists across navigations)
+let bills = [];
+let activeBillId = null;
+let nextBillSeq = 1;
+
+function addBillTab() {
+  if (bills.length >= 10) {
+    toast('Maximum limit of 10 bills on hold reached. Please clear, complete, or close existing bills first.', 'error');
+    return null;
+  }
+  const newId = nextBillSeq++;
+  const newBill = {
+    id: newId,
+    name: `Bill ${newId}`,
+    cart: [],
+    customer: null,
+    discount: 0,
+    payMode: 'Cash',
+    redeemPoints: false,
+    gstInclusive: true,
+    doctor: '',
+    rxNo: '',
+    rxPath: '',
+    rxFileName: '',
+    interactions: []
+  };
+  bills.push(newBill);
+  activeBillId = newId;
+  return newBill;
+}
+
 export async function renderBilling(c, APP) {
-  let cart = [], customer = null, discount = 0, payMode = 'Cash', redeemPoints = false, gstInclusive = true;
-  let interactions = [];
+  if (bills.length === 0) {
+    addBillTab();
+  }
+
+  const getActiveBill = () => {
+    let b = bills.find(x => x.id === activeBillId);
+    if (!b) {
+      if (bills.length === 0) addBillTab();
+      b = bills[0];
+      activeBillId = b.id;
+    }
+    return b;
+  };
+
+  let cart, customer, discount, payMode, redeemPoints, gstInclusive;
+  let interactions;
+
+  function loadActiveBillState() {
+    const b = getActiveBill();
+    cart = b.cart;
+    customer = b.customer;
+    discount = b.discount;
+    payMode = b.payMode;
+    redeemPoints = b.redeemPoints;
+    gstInclusive = b.gstInclusive;
+    interactions = b.interactions || [];
+  }
+
+  function saveActiveBillState() {
+    const b = getActiveBill();
+    b.cart = cart;
+    b.customer = customer;
+    b.discount = discount;
+    b.payMode = payMode;
+    b.redeemPoints = redeemPoints;
+    b.gstInclusive = gstInclusive;
+    b.interactions = interactions;
+    
+    // Save current input field values to the active bill state object
+    const docEl = document.getElementById('bill-doctor');
+    const rxEl = document.getElementById('bill-rx');
+    const rxPathEl = document.getElementById('bill-rx-path');
+    if (docEl) b.doctor = docEl.value.trim();
+    if (rxEl) b.rxNo = rxEl.value.trim();
+    if (rxPathEl) b.rxPath = rxPathEl.value;
+  }
+
+  // Load state upon initial render
+  loadActiveBillState();
 
   window.toggleRedeem = (checked) => { redeemPoints = checked; window.billApplyState(); };
-window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billApplyState(); };
+  window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billApplyState(); };
   
   window.checkInteractionsAsync = async () => {
     if (cart.length < 2) {
-      if (interactions.length > 0) { interactions = []; c.innerHTML = billHTML(); }
+      if (interactions.length > 0) {
+        interactions = [];
+        getActiveBill().interactions = [];
+        c.innerHTML = billHTML();
+      }
       return;
     }
     const ids = cart.map(i => i.id).join(',');
     const res = await GET(`/drugs/check_interactions?drug_ids=${ids}`);
     if (JSON.stringify(res) !== JSON.stringify(interactions)) {
       interactions = res;
+      getActiveBill().interactions = res;
       c.innerHTML = billHTML();
     }
   };
 
   window.billApplyState = () => {
+    saveActiveBillState();
     c.innerHTML = billHTML();
     window.checkInteractionsAsync();
   };
 
+  window.switchBill = (billId) => {
+    saveActiveBillState();
+    activeBillId = billId;
+    loadActiveBillState();
+    window.billApplyState();
+  };
+
+  window.addBillTab = () => {
+    saveActiveBillState();
+    const newBill = addBillTab();
+    if (newBill) {
+      loadActiveBillState();
+      window.billApplyState();
+    }
+  };
+
+  window.closeBill = (billId) => {
+    saveActiveBillState();
+    bills = bills.filter(x => x.id !== billId);
+    if (bills.length === 0) {
+      addBillTab();
+    } else if (activeBillId === billId) {
+      activeBillId = bills[0].id;
+    }
+    loadActiveBillState();
+    window.billApplyState();
+  };
+
+  window.updateBillField = (field, value) => {
+    const b = getActiveBill();
+    if (field === 'doctor') b.doctor = value;
+    if (field === 'rxNo') b.rxNo = value;
+  };
+
   function billHTML() {
+    const activeBill = getActiveBill();
     const ptsRedeemed = (customer && redeemPoints) ? customer.loyalty_points : 0;
     const subtotal = cart.reduce((s, item) => {
       let activeQty = item.qty;
@@ -49,139 +168,178 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     if (!gstInclusive) {
       summaryLines.push(['GST (12%)', '+' + fmt(gst)]);
     }
-    return `
-    <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;height:calc(100vh - 130px)" class="billing-layout">
-      <div class="gap-12" style="overflow:hidden;display:flex;flex-direction:column">
-        <div style="display:flex; gap:10px; align-items:center">
-          <div class="search-wrap" style="flex:1">
-            <span class="search-icon">🔍</span>
-            <input class="input" id="bill-search" placeholder="Search drug by name, brand or composition…" autocomplete="off" oninput="billSearch(this.value)">
-            <div class="search-drop" id="bill-drop" style="display:none"></div>
-          </div>
-          <button class="btn btn-outline" onclick="window.showCustomDrugModal('')" style="white-space:nowrap; padding:9px 14px; display:flex; align-items:center; gap:6px;">
-            <span>➕</span> <span>Custom Item</span>
-          </button>
-        </div>
-        ${interactions.length > 0 ? `
-          <div style="padding:0 12px">
-            ${interactions.map(x => `
-              <div class="alert-strip ${x.severity.toLowerCase() === 'critical' ? 'danger' : x.severity.toLowerCase() === 'major' ? 'warn' : 'info'}" style="margin-bottom:8px">
-                <b style="text-transform:uppercase">${x.severity} INTERACTION:</b> <b>${x.drugs.join(' + ')}</b><br/>${x.message}
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
-        <div class="card" style="flex:1;overflow:auto;padding:0;margin-top:0">
-          ${cart.length === 0 ? `<div style="height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:8px"><span style="font-size:36px">💊</span><span>Search and add medicines above</span></div>` : `
-          <table class="tbl">
-            <thead><tr><th>Medicine</th><th>Qty</th><th>Breakdown</th><th>Rate</th><th style="text-align:right">Amount</th><th></th></tr></thead>
-            <tbody>${cart.map((item, i) => {
-              const tps        = item.tablets_per_strip || 10;
-              const fullStrips = Math.floor(item.qty / tps), loose = item.qty % tps;
-              
-              let activeQty = item.qty;
-              let isBogo = item.offer_type === 'BOGO';
-              if (isBogo) activeQty = item.qty - Math.floor(item.qty / 2);
-              
-              const amt = activeQty * item.mrp_per_tablet;
-              return `<tr>
-                <td><div style="font-weight:700;color:var(--text)">${item.name} ${isBogo ? tag('BOGO', 'tag-amber') : ''}</div>
-                    <div style="font-size:11px;color:var(--muted)">${item.brand || ''} · ${tag(item.schedule === 'Rx' ? 'Rx' : 'OTC', item.schedule === 'Rx' ? 'tag-red' : 'tag-green')} · Cost: <b>₹${item.cost_per_strip || (item.batches && item.batches.length ? item.batches[0].cost_per_strip : 0)}</b>/strip</div></td>
-                <td><div class="qty-ctrl">
-                  <button class="qty-btn" onclick="cartQty(${i},${item.qty-1})">−</button>
-                  <input class="qty-val" type="number" value="${item.qty}" min="1" onchange="cartQty(${i},+this.value)">
-                  <button class="qty-btn" onclick="cartQty(${i},${item.qty+1})">+</button>
-                </div></td>
-                <td><div style="font-size:12px;color:var(--accent);font-weight:700">${fullStrips > 0 ? fullStrips + ' ' + (item.pack_type || 'Strip').toLowerCase() + (fullStrips > 1 ? 's' : '') : ''}${loose > 0 ? (fullStrips ? ' +' : '') + ' ' + loose + ' loose' : ''}</div></td>
-                <td style="font-weight:700">${fmt(item.mrp_per_tablet)}</td>
-                <td style="text-align:right;font-weight:800;color:var(--accent)">${fmt(amt)}</td>
-                <td><button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px" onclick="cartRemove(${i})">✕</button></td>
-              </tr>`;
-            }).join('')}</tbody>
-          </table>`}
-        </div>
+
+    const tabsHtml = `
+      <div class="bill-tabs" style="display:flex; align-items:center; gap:6px; margin: 4px 0 16px 0; padding-bottom:10px; border-bottom:1px solid var(--border); overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch;">
+        ${bills.map((b, idx) => {
+          const isActive = b.id === activeBillId;
+          const label = b.customer ? b.customer.name : (b.doctor ? `Dr. ${b.doctor.split(' ')[0]}` : `Bill ${idx + 1}`);
+          return `
+            <div onclick="window.switchBill(${b.id})" style="
+              display:inline-flex; align-items:center; gap:8px; 
+              padding:6px 12px; border-radius:6px; 
+              cursor:pointer; font-weight:700; font-size:12px;
+              border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};
+              background:${isActive ? 'var(--accent-dim)' : 'var(--surface)'};
+              color:${isActive ? 'var(--accent)' : 'var(--text)'};
+              transition: all 0.15s; white-space:nowrap;
+            ">
+              <span>${label}</span>
+              ${bills.length > 1 ? `
+                <span onclick="event.stopPropagation(); window.closeBill(${b.id})" style="
+                  color:var(--danger); font-size:11px; cursor:pointer; 
+                  display:inline-flex; align-items:center; justify-content:center;
+                  width:14px; height:14px; border-radius:50%; margin-left:4px;
+                " onmouseover="this.style.background='var(--danger-dim)'" onmouseout="this.style.background='transparent'">✕</span>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+        <button class="btn btn-outline btn-sm" onclick="window.addBillTab()" style="padding:4px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; font-size:12px; margin-left:8px; height: 28px; white-space:nowrap;">
+          <span>➕</span> <span>Hold & New (Alt+N)</span>
+        </button>
       </div>
+    `;
 
-      <div class="gap-12">
-        <div class="card">
-          <div class="section-title">Customer & Prescription</div>
-          ${customer ? `
-            <div class="flex-between" style="align-items:flex-start">
-              <div style="flex:1">
-                <div style="font-weight:700">${customer.name}</div>
-                ${customer.id === null ? `
-                  <div class="field" style="margin-top:6px;margin-bottom:0">
-                    <label style="font-size:10px;margin-bottom:2px">Phone Number</label>
-                    <input class="input" id="cust-walkin-phone" placeholder="10-digit number" value="${customer.phone || ''}" oninput="window.setWalkinPhone(this.value)" type="tel" style="font-size:12px;padding:4px 8px">
-                  </div>
-                ` : `
-                  <div style="font-size:11px;color:var(--muted)">${customer.phone || 'No phone'} · 🎯 ${customer.loyalty_points || 0} pts ${customer.agreed_discount > 0 ? `· 🏷️ ${customer.agreed_discount}% Off` : ''}</div>
-                  ${customer.custom_id ? `<div style="font-size:10px;color:var(--muted);font-family:monospace;margin-top:2px">ID: ${customer.custom_id}</div>` : ''}
-                `}
+    return `
+    <div style="display:flex; flex-direction:column; height:calc(100vh - 130px)">
+      ${tabsHtml}
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;flex:1;overflow:hidden" class="billing-layout">
+        <div class="gap-12" style="overflow:hidden;display:flex;flex-direction:column">
+          <div style="display:flex; gap:10px; align-items:center">
+            <div class="search-wrap" style="flex:1">
+              <span class="search-icon">🔍</span>
+              <input class="input" id="bill-search" placeholder="Search drug by name, brand or composition…" autocomplete="off" oninput="billSearch(this.value)">
+              <div class="search-drop" id="bill-drop" style="display:none"></div>
+            </div>
+            <button class="btn btn-outline" onclick="window.showCustomDrugModal('')" style="white-space:nowrap; padding:9px 14px; display:flex; align-items:center; gap:6px;">
+              <span>➕</span> <span>Custom Item</span>
+            </button>
+            <button class="btn btn-outline" onclick="window.showKeyboardShortcutsHandbook()" style="white-space:nowrap; padding:9px 14px; display:flex; align-items:center; gap:6px;" title="Keyboard Shortcuts (Alt+K)">
+              <span>⌨️</span> <span>Shortcuts</span>
+            </button>
+          </div>
+          ${interactions.length > 0 ? `
+            <div style="padding:0 12px">
+              ${interactions.map(x => `
+                <div class="alert-strip ${x.severity.toLowerCase() === 'critical' ? 'danger' : x.severity.toLowerCase() === 'major' ? 'warn' : 'info'}" style="margin-bottom:8px">
+                  <b style="text-transform:uppercase">${x.severity} INTERACTION:</b> <b>${x.drugs.join(' + ')}</b><br/>${x.message}
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          <div class="card" style="flex:1;overflow:auto;padding:0;margin-top:0">
+            ${cart.length === 0 ? `<div style="height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:8px"><span style="font-size:36px">💊</span><span>Search and add medicines above</span></div>` : `
+            <table class="tbl">
+              <thead><tr><th>Medicine</th><th>Qty</th><th>Breakdown</th><th>Rate</th><th style="text-align:right">Amount</th><th></th></tr></thead>
+              <tbody>${cart.map((item, i) => {
+                const tps        = item.tablets_per_strip || 10;
+                const fullStrips = Math.floor(item.qty / tps), loose = item.qty % tps;
+                
+                let activeQty = item.qty;
+                let isBogo = item.offer_type === 'BOGO';
+                if (isBogo) activeQty = item.qty - Math.floor(item.qty / 2);
+                
+                const amt = activeQty * item.mrp_per_tablet;
+                return `<tr>
+                  <td><div style="font-weight:700;color:var(--text)">${item.name} ${isBogo ? tag('BOGO', 'tag-amber') : ''}</div>
+                      <div style="font-size:11px;color:var(--muted)">${item.brand || ''} · ${tag(item.schedule === 'Rx' ? 'Rx' : 'OTC', item.schedule === 'Rx' ? 'tag-red' : 'tag-green')} · Cost: <b>₹${item.cost_per_strip || (item.batches && item.batches.length ? item.batches[0].cost_per_strip : 0)}</b>/strip</div></td>
+                  <td><div class="qty-ctrl">
+                    <button class="qty-btn" onclick="cartQty(${i},${item.qty-1})">−</button>
+                    <input class="qty-val" type="number" value="${item.qty}" min="1" onchange="cartQty(${i},+this.value)">
+                    <button class="qty-btn" onclick="cartQty(${i},${item.qty+1})">+</button>
+                  </div></td>
+                  <td><div style="font-size:12px;color:var(--accent);font-weight:700">${fullStrips > 0 ? fullStrips + ' ' + (item.pack_type || 'Strip').toLowerCase() + (fullStrips > 1 ? 's' : '') : ''}${loose > 0 ? (fullStrips ? ' +' : '') + ' ' + loose + ' loose' : ''}</div></td>
+                  <td style="font-weight:700">${fmt(item.mrp_per_tablet)}</td>
+                  <td style="text-align:right;font-weight:800;color:var(--accent)">${fmt(amt)}</td>
+                  <td><button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px" onclick="cartRemove(${i})">✕</button></td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>`}
+          </div>
+        </div>
+  
+        <div class="gap-12">
+          <div class="card">
+            <div class="section-title">Customer & Prescription</div>
+            ${customer ? `
+              <div class="flex-between" style="align-items:flex-start">
+                <div style="flex:1">
+                  <div style="font-weight:700">${customer.name}</div>
+                  ${customer.id === null ? `
+                    <div class="field" style="margin-top:6px;margin-bottom:0">
+                      <label style="font-size:10px;margin-bottom:2px">Phone Number</label>
+                      <input class="input" id="cust-walkin-phone" placeholder="10-digit number" value="${customer.phone || ''}" oninput="window.setWalkinPhone(this.value)" type="tel" style="font-size:12px;padding:4px 8px">
+                    </div>
+                  ` : `
+                    <div style="font-size:11px;color:var(--muted)">${customer.phone || 'No phone'} · 🎯 ${customer.loyalty_points || 0} pts ${customer.agreed_discount > 0 ? `· 🏷️ ${customer.agreed_discount}% Off` : ''}</div>
+                    ${customer.custom_id ? `<div style="font-size:10px;color:var(--muted);font-family:monospace;margin-top:2px">ID: ${customer.custom_id}</div>` : ''}
+                  `}
+                </div>
+                <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" onclick="billClearCustomer()">✕</button>
               </div>
-              <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" onclick="billClearCustomer()">✕</button>
+            ` : `
+            <div class="search-wrap">
+              <span class="search-icon">👤</span>
+              <input class="input" id="cust-search" placeholder="Search by name, phone or ID…" autocomplete="off" oninput="custSearch(this.value)">
+              <div class="search-drop" id="cust-drop" style="display:none"></div>
+            </div>`}
+            
+            <div style="display:flex;gap:12px;margin-top:12px">
+              <div class="field" style="flex:1"><label>Doctor</label>
+                <input class="input" id="bill-doctor" placeholder="Dr. Name" value="${activeBill.doctor || ''}" oninput="window.updateBillField('doctor', this.value)"></div>
+              <div class="field"><label>Rx No</label>
+                <input class="input" id="bill-rx" placeholder="Optional" value="${activeBill.rxNo || ''}" oninput="window.updateBillField('rxNo', this.value)"></div>
             </div>
-          ` : `
-          <div class="search-wrap">
-            <span class="search-icon">👤</span>
-            <input class="input" id="cust-search" placeholder="Search by name, phone or ID…" autocomplete="off" oninput="custSearch(this.value)">
-            <div class="search-drop" id="cust-drop" style="display:none"></div>
-          </div>`}
-          
-          <div style="display:flex;gap:12px;margin-top:12px">
-            <div class="field" style="flex:1"><label>Doctor</label>
-              <input class="input" id="bill-doctor" placeholder="Dr. Name"></div>
-            <div class="field"><label>Rx No</label>
-              <input class="input" id="bill-rx" placeholder="Optional"></div>
-          </div>
-          <div class="field" style="margin-top:12px">
-            <label>Upload Prescription (Image)</label>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button type="button" class="btn btn-outline btn-sm" onclick="var f=document.getElementById('bill-rx-file');f.value='';f.click()">📷 Choose Image</button>
-              <span id="rx-file-name" style="font-size:11px;color:var(--muted)"></span>
-            </div>
-            <input type="file" id="bill-rx-file" accept="image/*" capture="environment" class="file-input-hidden" onchange="uploadRx(this.files[0]); var nameEl=document.getElementById('rx-file-name'); if(nameEl && this.files[0]) nameEl.textContent=this.files[0].name">
-            <input type="hidden" id="bill-rx-path">
-            <div id="rx-upload-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-          </div>
-        </div>
-
-        <div class="card" style="flex:1">
-          <div class="section-title">Bill Summary</div>
-          <div class="gap-12">
-            ${summaryLines.map(([k, v]) =>
-              `<div class="flex-between" style="font-size:13px;color:var(--muted)"><span>${k}</span><span style="color:var(--text)">${v}</span></div>`
-            ).join('')}
-            <div class="flex-between" style="font-size:20px;font-weight:900;border-top:1px solid var(--border);padding-top:10px">
-              <span>Total</span><span style="color:var(--accent)">${fmtI(total)}</span>
+            <div class="field" style="margin-top:12px">
+              <label>Upload Prescription (Image)</label>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <button type="button" class="btn btn-outline btn-sm" onclick="var f=document.getElementById('bill-rx-file');f.value='';f.click()">📷 Choose Image</button>
+                <span id="rx-file-name" style="font-size:11px;color:var(--muted)">${activeBill.rxFileName || ''}</span>
+              </div>
+              <input type="file" id="bill-rx-file" accept="image/*" capture="environment" class="file-input-hidden" onchange="uploadRx(this.files[0]); var nameEl=document.getElementById('rx-file-name'); if(nameEl && this.files[0]) nameEl.textContent=this.files[0].name">
+              <input type="hidden" id="bill-rx-path" value="${activeBill.rxPath || ''}">
+              <div id="rx-upload-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
             </div>
           </div>
-          <div class="field" style="margin-top:14px"><label>Discount %</label>
-            <input class="input" type="number" min="0" max="30" value="${discount}" oninput="billDiscount(+this.value)"/>
-            <div style="margin-top:8px;display:flex;align-items:center;gap:6px;">
-              <input type="checkbox" id="gst-inclusive-cb" ${gstInclusive ? 'checked' : ''} onchange="toggleGstInclusive(this.checked)" style="width:16px;height:16px;accent-color:var(--accent)"/>
-              <label for="gst-inclusive-cb" style="cursor:pointer;font-weight:700;color:var(--accent)">Prices include GST</label>
+  
+          <div class="card" style="flex:1">
+            <div class="section-title">Bill Summary</div>
+            <div class="gap-12">
+              ${summaryLines.map(([k, v]) =>
+                `<div class="flex-between" style="font-size:13px;color:var(--muted)"><span>${k}</span><span style="color:var(--text)">${v}</span></div>`
+              ).join('')}
+              <div class="flex-between" style="font-size:20px;font-weight:900;border-top:1px solid var(--border);padding-top:10px">
+                <span>Total</span><span style="color:var(--accent)">${fmtI(total)}</span>
+              </div>
+            </div>
+            <div class="field" style="margin-top:14px"><label>Discount %</label>
+              <input class="input" type="number" min="0" max="30" value="${discount}" oninput="billDiscount(+this.value)"/>
+              <div style="margin-top:8px;display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" id="gst-inclusive-cb" ${gstInclusive ? 'checked' : ''} onchange="toggleGstInclusive(this.checked)" style="width:16px;height:16px;accent-color:var(--accent)"/>
+                <label for="gst-inclusive-cb" style="cursor:pointer;font-weight:700;color:var(--accent)">Prices include GST</label>
+              </div>
+            </div>
+            ${customer && customer.loyalty_points > 0 ? `
+            <div style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:13px;padding:8px;background:var(--accent-dim);border-radius:6px;border:1px solid var(--accent)">
+              <input type="checkbox" id="redeem-cb" ${redeemPoints ? 'checked' : ''} onchange="toggleRedeem(this.checked)" style="width:16px;height:16px;accent-color:var(--accent)">
+              <label for="redeem-cb" style="cursor:pointer;font-weight:700;color:var(--accent)">Redeem ${customer.loyalty_points} Points (− ₹${(customer.loyalty_points * 0.01).toFixed(2)})</label>
+            </div>` : ''}
+            <div style="margin-top:12px">
+              <div class="section-title">Payment Mode</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                ${['Cash', 'UPI', 'Card', 'Credit'].map(m => `
+                <button onclick="billPayMode('${m}')" style="flex:1;padding:9px 0;border-radius:8px;border:1px solid ${payMode === m ? 'var(--accent)' : 'var(--border)'};background:${payMode === m ? 'var(--accent-dim)' : 'var(--surface)'};color:${payMode === m ? 'var(--accent)' : 'var(--muted)'};font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">${m}</button>`).join('')}
+              </div>
             </div>
           </div>
-          ${customer && customer.loyalty_points > 0 ? `
-          <div style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:13px;padding:8px;background:var(--accent-dim);border-radius:6px;border:1px solid var(--accent)">
-            <input type="checkbox" id="redeem-cb" ${redeemPoints ? 'checked' : ''} onchange="toggleRedeem(this.checked)" style="width:16px;height:16px;accent-color:var(--accent)">
-            <label for="redeem-cb" style="cursor:pointer;font-weight:700;color:var(--accent)">Redeem ${customer.loyalty_points} Points (− ₹${(customer.loyalty_points * 0.01).toFixed(2)})</label>
-          </div>` : ''}
-          <div style="margin-top:12px">
-            <div class="section-title">Payment Mode</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              ${['Cash', 'UPI', 'Card', 'Credit'].map(m => `
-              <button onclick="billPayMode('${m}')" style="flex:1;padding:9px 0;border-radius:8px;border:1px solid ${payMode === m ? 'var(--accent)' : 'var(--border)'};background:${payMode === m ? 'var(--accent-dim)' : 'var(--surface)'};color:${payMode === m ? 'var(--accent)' : 'var(--muted)'};font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">${m}</button>`).join('')}
-            </div>
+  
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline" onclick="billClear()">Clear</button>
+            <button class="btn btn-primary" style="flex:1" onclick="billGenerate()" id="bill-gen-btn">
+              ${cart.length ? 'Generate Bill · ' + fmtI(total) : 'Generate Bill'}
+            </button>
           </div>
-        </div>
-
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-outline" onclick="billClear()">Clear</button>
-          <button class="btn btn-primary" style="flex:1" onclick="billGenerate()" id="bill-gen-btn">
-            ${cart.length ? 'Generate Bill · ' + fmtI(total) : 'Generate Bill'}
-          </button>
         </div>
       </div>
     </div>
@@ -742,6 +900,16 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       const fullBill = await GET('/bills/' + b.bill_id);
       window._lastBillData = { res: fullBill, items: fullBill.items, cust: customer, disc: fullBill.discount_pct, pay: fullBill.payment_mode };
       
+      // Close the successfully generated bill tab
+      const currentId = activeBillId;
+      bills = bills.filter(x => x.id !== currentId);
+      if (bills.length === 0) {
+        addBillTab();
+      } else {
+        activeBillId = bills[0].id;
+      }
+      loadActiveBillState();
+
       modal(`✅ Transaction Complete: ${b.bill_no}`, `
         <div style="text-align:center;padding:24px 0">
           <div style="font-size:36px;margin-bottom:12px">🧾</div>
@@ -851,10 +1019,9 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
     }
   };
   
-  // Keyboard Wedge Barcode Scanner Listener
+  // Keyboard Wedge Barcode Scanner Listener & Billing Shortcuts
   let barcodeBuf = "";
   let barcodeTimer = null;
-  c._lb_cleanup = () => { window.removeEventListener('keydown', handleBarcode); };
   
   function handleBarcode(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -878,7 +1045,82 @@ window.toggleGstInclusive = (checked) => { gstInclusive = checked; window.billAp
       barcodeTimer = setTimeout(() => { barcodeBuf = ""; }, 50); // wedge scanners type fast
     }
   }
+
+  function handleBillingShortcuts(e) {
+    if (!e.altKey) return;
+    const key = e.key.toLowerCase();
+    if (key === 'k') {
+      e.preventDefault();
+      window.showKeyboardShortcutsHandbook();
+    } else if (key === 'n') {
+      e.preventDefault();
+      window.addBillTab();
+    } else if (key === 'w') {
+      e.preventDefault();
+      if (bills.length > 1) {
+        window.closeBill(activeBillId);
+      } else {
+        toast('Cannot close the only active bill', 'warn');
+      }
+    } else if (key === 's') {
+      e.preventDefault();
+      const el = document.getElementById('bill-search');
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    } else if (key === 'c') {
+      e.preventDefault();
+      if (confirm('Are you sure you want to clear current bill?')) {
+        window.billClear();
+      }
+    } else if (key === 'g' || e.key === 'Enter') {
+      e.preventDefault();
+      window.billGenerate();
+    } else if (e.key >= '1' && e.key <= '9') {
+      const idx = parseInt(e.key) - 1;
+      if (idx < bills.length) {
+        e.preventDefault();
+        window.switchBill(bills[idx].id);
+      }
+    }
+  }
+
+  window.showKeyboardShortcutsHandbook = () => {
+    const modalHtml = `
+      <div style="font-family: inherit; font-size:14px; line-height: 1.6; color: var(--text);">
+        <p style="color: var(--muted); margin-bottom: 16px; font-size:12px;">Use these keys at any time to navigate the billing screen quickly.</p>
+        <table class="tbl" style="margin-bottom: 12px; width: 100%;">
+          <thead>
+            <tr>
+              <th style="padding: 6px 12px; text-align: left;">Shortcut</th>
+              <th style="padding: 6px 12px; text-align: left;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + N</kbd></td><td>Hold current bill & start new bill</td></tr>
+            <tr><td><kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + W</kbd></td><td>Close current bill tab</td></tr>
+            <tr><td><kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + [1-9]</kbd></td><td>Switch directly to tab 1 - 9</td></tr>
+            <tr><td><kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + S</kbd></td><td>Focus medicine search input</td></tr>
+            <tr><td><kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + C</kbd></td><td>Clear current bill (cart & patient)</td></tr>
+            <tr><td><kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + G</kbd> or <kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + Enter</kbd></td><td>Generate bill & checkout</td></tr>
+            <tr><td><kbd style="background:var(--border); padding:2px 6px; border-radius:4px; font-weight:700;">Alt + K</kbd></td><td>Open this shortcuts handbook</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+    modal('⌨️ Keyboard Shortcuts Handbook', modalHtml, `
+      <button class="btn btn-primary" style="flex:1" onclick="closeModal()">Got it</button>
+    `);
+  };
+
+  c._lb_cleanup = () => {
+    window.removeEventListener('keydown', handleBarcode);
+    window.removeEventListener('keydown', handleBillingShortcuts);
+  };
+
   window.addEventListener('keydown', handleBarcode);
+  window.addEventListener('keydown', handleBillingShortcuts);
 }
 
 window.printBill = (data) => {
