@@ -333,3 +333,46 @@ def staff_performance(from_date: str = "", to_date: str = ""):
         """, (from_date, to_date)).fetchall()
         return rows_to_list(rows)
 
+
+@router.get("/non_moving")
+def non_moving_report(days: int = 90):
+    from datetime import date, timedelta
+    cutoff_date = (date.today() - timedelta(days=days)).isoformat()
+    
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT d.id, d.name, d.brand, d.category, d.composition, d.box_id, d.mrp_per_strip, d.mrp_per_tablet,
+                   COALESCE((
+                       SELECT SUM(b.full_strips) FROM batches b WHERE b.drug_id = d.id AND b.full_strips > 0
+                   ), 0) as full_strips,
+                   COALESCE((
+                       SELECT SUM(b.full_strips * d.tablets_per_strip) FROM batches b WHERE b.drug_id = d.id AND b.full_strips > 0
+                   ), 0) +
+                   COALESCE((
+                       SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id = d.id AND t.closed = 0
+                   ), 0) as stock_tablets,
+                   COALESCE((
+                       SELECT MAX(bl.created_at)
+                       FROM bill_items bi
+                       JOIN bills bl ON bl.id = bi.bill_id
+                       WHERE bi.drug_id = d.id
+                   ), '') as last_sold_date,
+                   COALESCE((
+                       SELECT MAX(b2.received_on)
+                       FROM batches b2
+                       WHERE b2.drug_id = d.id
+                   ), '') as latest_received_on
+            FROM drugs d
+            WHERE (
+                EXISTS(SELECT 1 FROM batches b3 WHERE b3.drug_id = d.id AND b3.full_strips > 0)
+                OR EXISTS(SELECT 1 FROM trays t2 WHERE t2.drug_id = d.id AND t2.closed = 0 AND t2.tablets_remaining > 0)
+            )
+            GROUP BY d.id
+            HAVING (last_sold_date = '' OR date(last_sold_date) < date(?))
+               AND (latest_received_on = '' OR date(latest_received_on) < date(?))
+            ORDER BY last_sold_date ASC, d.name ASC
+        """, (cutoff_date, cutoff_date)).fetchall()
+        
+        return rows_to_list(rows)
+
+

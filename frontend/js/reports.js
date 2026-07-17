@@ -1,8 +1,29 @@
 // reports.js — All reports with CSV download
 import { GET } from './api.js';
-import { fmt, fmtI, fmtExp, expiryTag, expiryColor, formatDate, csvDownload } from './utils.js';
+import { fmt, fmtI, fmtExp, expiryTag, expiryColor, formatDate, csvDownload, modal, closeModal, toast } from './utils.js';
 
 export async function renderReports(c, APP) {
+  if (!window.locateDrug) {
+    window.locateDrug = async (id) => {
+      try {
+        const res = await GET('/drugs/' + id + '/locate');
+        if (res.found) {
+          modal('📍 Drug Location', `
+            <div class="alert-strip info" style="font-size:16px;text-align:center;padding:24px;background:var(--surface)">
+              <div><span style="font-size:32px">🗺️</span></div>
+              <div style="font-weight:900;margin-top:12px;color:var(--accent)">${res.path}</div>
+              <div style="color:var(--muted);font-size:12px;margin-top:6px">Map Coordinates: X: ${res.x}, Y: ${res.y}</div>
+            </div>
+          `, `<button class="btn btn-primary" style="width:100%" onclick="closeModal()">Got it</button>`);
+        } else {
+          toast('Location not set for this drug', 'warn');
+        }
+      } catch (e) {
+        toast('Failed to locate drug: ' + e.message, 'error');
+      }
+    };
+  }
+
   const thisMonth = new Date().toISOString().slice(0, 7);
   const today     = new Date().toISOString().slice(0, 10);
   const monthStart = today.slice(0, 7) + '-01';
@@ -19,6 +40,7 @@ export async function renderReports(c, APP) {
         { icon: '🧾', name: 'GSTR-1', desc: 'GST return — all taxable bills', color: 'var(--warn)', id: 'gstr1' },
         { icon: '⏰', name: 'Expiry Report', desc: 'Expired & near-expiry batches', color: 'var(--danger)', id: 'expiry' },
         { icon: '🔐', name: 'Schedule H/X Log', desc: 'Controlled substances register', color: 'var(--purple)', id: 'schedule_log' },
+        { icon: '📭', name: 'Non-Moving Stock', desc: 'Identify dead stock with no sales', color: 'var(--danger)', id: 'non_moving' },
         { icon: '🔒', name: 'Day Close', desc: 'Z-report · Cash reconciliation', color: 'var(--accent)', id: 'dayclose' },
       ].map(r => `<div class="card" style="cursor:pointer;transition:all .2s;border-color:transparent"
         onmouseenter="this.style.borderColor='${r.color}55';this.style.transform='translateY(-2px)'"
@@ -219,7 +241,82 @@ export async function renderReports(c, APP) {
         <div style="font-size:28px;font-weight:900;color:var(--accent)">₹${d.net_cash?.toFixed(2) || '0.00'}</div>
       </div>
       <button class="btn btn-primary" style="margin-top:16px" onclick="toast('Z-Report Printed')">🖨️ Print Z-Report</button>`;
+    } else if (id === 'non_moving') {
+      const data = await GET('/reports/non_moving?days=90');
+      window.renderNonMovingReport(data, 90);
     }
+  };
+
+  window.renderNonMovingReport = (data, selectedDays) => {
+    const out = document.getElementById('report-output');
+    let totalMrpValue = 0;
+    data.forEach(r => {
+      totalMrpValue += (r.full_strips * r.mrp_per_strip) || 0;
+    });
+
+    out.innerHTML = `<div class="card gap-12">
+      <div class="flex-between">
+        <div>
+          <div class="section-title">Non-Moving Inventory (Dead Stock)</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">Medicines in stock with no sales and no restocks for a long period</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="csvDl('non_moving')">⬇ CSV</button>
+      </div>
+      
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;background:var(--faint);padding:10px 14px;border-radius:10px;border:1px solid var(--border)">
+        <label style="font-weight:700;font-size:13px;color:var(--text)">Cutoff Period:</label>
+        <select class="select" id="non-moving-days" style="max-width:180px;height:32px;padding:4px 8px;font-size:12px" onchange="window.changeNonMovingPeriod(this.value)">
+          <option value="30" ${selectedDays == 30 ? 'selected' : ''}>30 Days</option>
+          <option value="60" ${selectedDays == 60 ? 'selected' : ''}>60 Days</option>
+          <option value="90" ${selectedDays == 90 ? 'selected' : ''}>90 Days (Default)</option>
+          <option value="180" ${selectedDays == 180 ? 'selected' : ''}>180 Days (6 Months)</option>
+          <option value="365" ${selectedDays == 365 ? 'selected' : ''}>1 Year</option>
+        </select>
+        <div style="margin-left:auto;font-size:13px">
+          Locked Capital (MRP): <strong style="color:var(--danger)">${fmt(totalMrpValue)}</strong>
+        </div>
+      </div>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Medicine Name</th>
+            <th>Category</th>
+            <th>Last Sold</th>
+            <th>Latest Restock</th>
+            <th>Stock Strip/Tab</th>
+            <th>MRP Value Locked</th>
+            <th>Location</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(r => {
+            const age = r.last_sold_date ? r.last_sold_date.slice(0,10) : 'Never sold';
+            const rec = r.latest_received_on ? r.latest_received_on.slice(0,10) : '—';
+            const itemsVal = (r.full_strips * r.mrp_per_strip) || 0;
+            return `<tr>
+              <td><div style="font-weight:700">${r.name}</div><div style="font-size:11px;color:var(--muted)">${r.brand || ''}</div></td>
+              <td style="font-size:12px">${r.category || '—'}</td>
+              <td style="font-family:monospace;font-size:12px">${age}</td>
+              <td style="font-family:monospace;font-size:12px;color:var(--muted)">${rec}</td>
+              <td><span style="font-weight:700">${r.full_strips} strips</span> <span style="font-size:10px;color:var(--muted)">(${r.stock_tablets} tabs)</span></td>
+              <td style="font-weight:700;color:var(--danger)">${fmt(itemsVal)}</td>
+              <td><button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:10px" onclick="locateDrug(${r.id})">📍 Locate</button></td>
+            </tr>`;
+          }).join('')}
+          ${!data.length ? '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">No dead stock found matching this filter.</td></tr>' : ''}
+        </tbody>
+      </table>
+    </div>`;
+
+    window._reportData = { rows: data, headers: ['id', 'name', 'brand', 'category', 'composition', 'last_sold_date', 'latest_received_on', 'full_strips', 'stock_tablets', 'mrp_per_strip'] };
+  };
+
+  window.changeNonMovingPeriod = async (days) => {
+    const out = document.getElementById('report-output');
+    out.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:20px;color:var(--muted)"><div class="spinner"></div> Generating…</div>';
+    const data = await GET(`/reports/non_moving?days=${days}`);
+    window.renderNonMovingReport(data, days);
   };
 
   window.csvDl = (type) => {

@@ -207,7 +207,7 @@ export async function renderStockEntry(c, APP) {
       <div class="grid-3">
         <div class="field"><label>Supplier</label><select class="select" id="sf-sup">${supOpts()}</select></div>
         <div class="field"><label>MRP Override (₹)</label><input class="input" type="number" id="sf-mrp" value="${drug.mrp_per_strip || 0}" step="0.5" title="MRP for this specific batch"></div>
-        <div class="field"><label>GST %</label><select class="select" id="sf-gst"><option value="0">0%</option><option value="5" ${APP.config.gst_slab=='5'?'selected':''}>5%</option><option value="12" ${APP.config.gst_slab=='12'?'selected':''}>12%</option><option value="18" ${APP.config.gst_slab=='18'?'selected':''}>18%</option></select></div>
+        <div class="field"><label>GST %</label><select class="select" id="sf-gst"><option value="0">0%</option><option value="5" ${(APP.config.gst_slab || '5')=='5'?'selected':''}>5%</option><option value="12" ${APP.config.gst_slab=='12'?'selected':''}>12%</option><option value="18" ${APP.config.gst_slab=='18'?'selected':''}>18%</option></select></div>
       </div>
       <div class="section-title" style="margin-top:10px;margin-bottom:0px">Physical Placement</div>
       <div class="grid-3" style="margin-bottom:10px">
@@ -348,7 +348,7 @@ export async function renderStockEntry(c, APP) {
       </div>
       <div class="grid-3">
         <div class="field"><label>Supplier</label><select class="select" id="me-sup">${supOpts()}</select></div>
-        <div class="field"><label>GST %</label><select class="select" id="me-gst"><option value="0">0%</option><option value="5">5%</option><option value="12" selected>12%</option><option value="18">18%</option></select></div>
+        <div class="field"><label>GST %</label><select class="select" id="me-gst"><option value="0">0%</option><option value="5" selected>5%</option><option value="12">12%</option><option value="18">18%</option></select></div>
       </div>
       <div class="section-title" style="margin-top:10px;margin-bottom:0px">Physical Placement <span style="font-size:10px;color:var(--muted);font-weight:400">(optional — you can set this later)</span></div>
       <div class="grid-3" style="margin-bottom:10px">

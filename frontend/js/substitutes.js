@@ -9,7 +9,7 @@ import { toast } from './utils.js';
  * @param {object} opts         - { drug_id, name, composition }
  * @param {function} onSelect   - called with a shop drug object when user picks one (optional)
  */
-export async function renderSubstitutes(containerId, opts = {}, onSelect = null) {
+export async function renderSubstitutes(containerId, opts = {}, onSelect = null, genericOnly = false) {
   const el = document.getElementById(containerId);
   if (!el) return;
 
@@ -34,13 +34,18 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
       return;
     }
 
-    const exactInStock  = data.exact_in_stock  || [];
-    const exactOrderable = data.exact_orderable || [];
+    let exactInStock  = data.exact_in_stock  || [];
+    let exactOrderable = data.exact_orderable || [];
+    let combInStock  = data.comb_in_stock  || [];
+    let combOrderable = data.comb_orderable || [];
+
+    if (genericOnly) {
+      exactInStock = exactInStock.filter(d => (d.category || '').toLowerCase() === 'generic');
+      combInStock = combInStock.filter(d => (d.category || '').toLowerCase() === 'generic');
+    }
+
     const exactAvailable = exactInStock.filter(d => d.available);
     const exactOutOfStock = exactInStock.filter(d => !d.available);
-
-    const combInStock  = data.comb_in_stock  || [];
-    const combOrderable = data.comb_orderable || [];
     const combAvailable = combInStock.filter(d => d.available);
     const combOutOfStock = combInStock.filter(d => !d.available);
 
@@ -71,7 +76,7 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
         html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px">
           <div style="flex:1">
             <div style="font-weight:700;font-size:13px">${d.name}</div>
-            <div style="font-size:11px;color:var(--muted)">${d.brand || ''} · ${d.composition || ''}</div>
+            <div style="font-size:11px;color:var(--muted)">${d.brand || ''} · ${d.composition || ''} · <span class="tag tag-blue" style="font-size:10px;padding:2px 6px">${d.category || 'Ethical'}</span></div>
           </div>
           <div style="text-align:right">
             <div style="font-weight:700;color:var(--text)">₹${d.mrp_per_strip || 0}</div>
@@ -136,7 +141,7 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
         html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border)22;display:flex;align-items:center;gap:10px">
           <div style="flex:1">
             <div style="font-weight:700;font-size:13px">${d.name}</div>
-            <div style="font-size:11px;color:var(--muted)">${d.brand || ''} · ${d.composition || ''}</div>
+            <div style="font-size:11px;color:var(--muted)">${d.brand || ''} · ${d.composition || ''} · <span class="tag tag-blue" style="font-size:10px;padding:2px 6px">${d.category || 'Ethical'}</span></div>
           </div>
           <div style="text-align:right">
             <div style="font-weight:700;color:var(--text)">₹${d.mrp_per_strip || 0}</div>
@@ -205,24 +210,36 @@ export async function renderSubstitutes(containerId, opts = {}, onSelect = null)
  * Quick inline substitutes lookup — creates a modal with alternatives.
  * Call this from anywhere: showSubstitutesModal({ name, composition })
  */
-export function showSubstitutesModal(opts = {}, onSelect = null) {
+export function showSubstitutesModal(opts = {}, onSelect = null, genericOnly = false) {
   // Create modal container
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'sub-modal-overlay';
   overlay.innerHTML = `
     <div class="modal" style="max-width:560px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div class="modal-title" style="margin-bottom:0">💊 Find Alternative Medicines</div>
         <button onclick="document.getElementById('sub-modal-overlay').remove()"
           style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">×</button>
+      </div>
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="sub-generic-toggle" ${genericOnly ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--accent)" onchange="window.toggleSubGeneric()">
+        <label for="sub-generic-toggle" style="font-weight:700;font-size:13px;cursor:pointer;color:var(--text)">Show Generic Alternates Only</label>
       </div>
       <div id="sub-modal-body"></div>
     </div>`;
   document.body.appendChild(overlay);
 
+  window.toggleSubGeneric = () => {
+    const isChecked = document.getElementById('sub-generic-toggle').checked;
+    renderSubstitutes('sub-modal-body', opts, (drug) => {
+      overlay.remove();
+      if (onSelect) onSelect(drug);
+    }, isChecked);
+  };
+
   renderSubstitutes('sub-modal-body', opts, (drug) => {
     overlay.remove();
     if (onSelect) onSelect(drug);
-  });
+  }, genericOnly);
 }

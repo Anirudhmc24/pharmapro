@@ -11,14 +11,29 @@ export async function renderInventory(c, APP) {
   window._layout = layoutData;
   let filter = '';
   let activeTab = 'stock';
+  let activeCategoryFilter = 'All';
   let problemQuery = '';
   let problemResults = [];
   let activeSegment = 'middle_aged_men';
 
   function filteredDrugs() {
-    if (!filter) return drugs;
+    let list = drugs;
+    if (activeCategoryFilter !== 'All') {
+      const cat = activeCategoryFilter.toLowerCase();
+      list = list.filter(d => {
+        const dcat = (d.category || '').toLowerCase();
+        if (cat === 'ointments') {
+          return dcat === 'ointment' || dcat === 'ointments';
+        }
+        if (cat === 'creams') {
+          return dcat === 'cream' || dcat === 'creams';
+        }
+        return dcat === cat;
+      });
+    }
+    if (!filter) return list;
     const q = filter.toLowerCase();
-    return drugs.filter(d => (d.name + (d.brand || '') + (d.category || '') + (d.rack || '')).toLowerCase().includes(q));
+    return list.filter(d => (d.name + (d.brand || '') + (d.category || '') + (d.rack || '')).toLowerCase().includes(q));
   }
 
   function html() {
@@ -49,6 +64,13 @@ export async function renderInventory(c, APP) {
         <div class="search-wrap">
           <span class="search-icon">🔍</span>
           <input class="input" id="inv-filter" placeholder="Filter by name, brand, category, rack…" value="${filter}" oninput="invFilter(this.value)">
+        </div>
+        <div style="display:flex;gap:6px;margin-top:12px;margin-bottom:6px;flex-wrap:wrap">
+          ${['All', 'Ethical', 'Generic', 'Ointments', 'Creams'].map(cat => `
+            <button onclick="setInventoryCategory('${cat}')" class="btn ${activeCategoryFilter === cat ? 'btn-primary' : 'btn-outline'}" style="padding:4px 10px;font-size:11px;border-radius:14px;font-weight:700;box-shadow:none">
+              ${cat}
+            </button>
+          `).join('')}
         </div>
         <div class="card" style="padding:0;overflow:auto;margin-top:12px">
           <table class="tbl" id="inv-table">
@@ -360,6 +382,11 @@ export async function renderInventory(c, APP) {
   };
 
   window.invFilter = (v) => { filter = v; document.getElementById('inv-tab-content').innerHTML = renderTabContent(); };
+ 
+  window.setInventoryCategory = (cat) => {
+    activeCategoryFilter = cat;
+    document.getElementById('inv-tab-content').innerHTML = renderTabContent();
+  };
 
   window.setInventoryTab = (tab) => {
     activeTab = tab;
@@ -412,7 +439,14 @@ export async function renderInventory(c, APP) {
       </div>
       <div class="field"><label>Composition</label><input class="input" id="ad-comp" placeholder="Composition" value="${prefill.composition || ''}"></div>
       <div class="grid-2">
-        <div class="field"><label>Category</label><input class="input" id="ad-cat" placeholder="Category" value="${prefill.category || ''}"></div>
+        <div class="field"><label>Category</label>
+          <select class="select" id="ad-cat">
+            <option value="Ethical" ${(prefill.category || 'Ethical') === 'Ethical' ? 'selected' : ''}>Ethical</option>
+            <option value="Generic" ${prefill.category === 'Generic' ? 'selected' : ''}>Generic</option>
+            <option value="Ointment" ${prefill.category === 'Ointment' ? 'selected' : ''}>Ointment</option>
+            <option value="Cream" ${prefill.category === 'Cream' ? 'selected' : ''}>Cream</option>
+          </select>
+        </div>
         <div class="field"><label>HSN Code</label>
           <input class="input" id="ad-hsn" value="${prefill.hsn || '30049099'}" list="hsn-codes">
           <datalist id="hsn-codes">

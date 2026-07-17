@@ -1,6 +1,6 @@
 // dashboard.js — Dashboard page
 import { GET } from './api.js';
-import { fmt, fmtI, today, expiryColor, fmtExp, monthsLeft, tag } from './utils.js';
+import { fmt, fmtI, today, expiryColor, fmtExp, monthsLeft, tag, toast } from './utils.js';
 
 function statCard(icon, lbl, val, color, sub, trend) {
   let trendHtml = '';
@@ -22,7 +22,11 @@ function statCard(icon, lbl, val, color, sub, trend) {
 }
 
 export async function renderDashboard(c, APP) {
-  const d = await GET('/dashboard');
+  const [d, drugs] = await Promise.all([
+    GET('/dashboard'),
+    GET('/drugs')
+  ]);
+  const genericInStock = (drugs || []).filter(g => (g.category || '').toLowerCase() === 'generic' && g.stock_tablets > 0);
   const maxRev = Math.max(...(d.week_revenue || [{ revenue: 1 }]).map(r => r.revenue || 1), 1);
 
   c.innerHTML = `
@@ -76,6 +80,43 @@ export async function renderDashboard(c, APP) {
         <button class="btn btn-outline" style="width:100%" onclick="APP.navigate('stock_entry')">📥 Add Stock</button>
         <button class="btn btn-outline" style="width:100%" onclick="APP.navigate('purchase_orders')">📋 Purchase Orders</button>
         <button class="btn btn-outline" style="width:100%" onclick="APP.navigate('reports')">📊 Reports</button>
+      </div>
+    </div>
+
+    <!-- Quick Bill Generic Items Container -->
+    <div class="card" style="margin-top:16px">
+      <div class="flex-between" style="margin-bottom:14px">
+        <div>
+          <div class="section-title" style="color:var(--accent);display:flex;align-items:center;gap:6px">⚡ Quick Bill Generic Items</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">One-click billing for generic medicines in stock</div>
+        </div>
+      </div>
+      <div style="max-height:220px;overflow-y:auto">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Medicine Name</th>
+              <th>Composition</th>
+              <th>Stock Left</th>
+              <th>MRP / Strip</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${genericInStock.map(g => `
+              <tr>
+                <td><div style="font-weight:700">${g.name}</div><div style="font-size:11px;color:var(--muted)">${g.brand || ''}</div></td>
+                <td style="font-size:12px;color:var(--text);font-family:monospace">${g.composition || '—'}</td>
+                <td><strong style="color:var(--accent)">${g.stock_tablets || 0}</strong> tabs</td>
+                <td>₹${g.mrp_per_strip || 0}</td>
+                <td>
+                  <button class="btn btn-primary btn-sm" onclick="quickBillGeneric(${g.id}, '${g.name.replace(/'/g, "\\'")}')">➕ Bill</button>
+                </td>
+              </tr>
+            `).join('')}
+            ${!genericInStock.length ? '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">No generic medicines in stock.</td></tr>' : ''}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -233,6 +274,19 @@ export async function renderDashboard(c, APP) {
     // Pass reorder drugs to PO creation via sessionStorage
     sessionStorage.setItem('po_preload', JSON.stringify(selected));
     APP.navigate('purchase_orders');
+  };
+
+  window.quickBillGeneric = (id, name) => {
+    let preload = [];
+    try {
+      preload = JSON.parse(sessionStorage.getItem('bill_preload') || '[]');
+    } catch(e) {}
+    if (!preload.includes(id)) {
+      preload.push(id);
+    }
+    sessionStorage.setItem('bill_preload', JSON.stringify(preload));
+    toast(`Added ${name} to billing queue!`, 'success');
+    APP.navigate('billing');
   };
 
   window.locateDrug = async (id) => {

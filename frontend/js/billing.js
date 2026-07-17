@@ -498,6 +498,7 @@ export async function renderBilling(c, APP) {
               ? `<div style="color:var(--warn);font-size:11px;font-weight:700">🔔 Notify me</div>`
               : `<div style="font-weight:800;color:var(--accent)">${fmt(d.mrp_per_tablet)}/item</div>`}
             <button class="btn btn-outline" style="padding:2px 6px;margin-top:4px;font-size:10px" onclick="event.stopPropagation(); showSubstitutes(${d.id}, '${d.name.replace(/'/g,"\\'")}')">View Alts</button>
+            <button class="btn btn-outline" style="padding:2px 6px;margin-top:4px;font-size:10px" onclick="event.stopPropagation(); showSubstitutes(${d.id}, '${d.name.replace(/'/g,"\\'")}', null, true)">Gen Alts</button>
           </div>
         </div>`;
       }).join('');
@@ -763,7 +764,7 @@ export async function renderBilling(c, APP) {
     }
   };
 
-  window.showSubstitutes = (drugId, drugName, composition) => {
+  window.showSubstitutes = (drugId, drugName, composition, genericOnly = false) => {
     document.getElementById('bill-drop').style.display = 'none';
     showSubstitutesModal(
       { drug_id: drugId || 0, name: drugName || '', composition: composition || '' },
@@ -771,7 +772,8 @@ export async function renderBilling(c, APP) {
         // User picked an alternative — add it to the bill
         billAddDrug(selectedDrug.id);
         toast('Alternative added: ' + selectedDrug.name, 'success');
-      }
+      },
+      genericOnly
     );
   };
 
@@ -1121,6 +1123,17 @@ export async function renderBilling(c, APP) {
 
   window.addEventListener('keydown', handleBarcode);
   window.addEventListener('keydown', handleBillingShortcuts);
+
+  // Check for preloaded drugs from dashboard quick-bill actions
+  const preload = JSON.parse(sessionStorage.getItem('bill_preload') || 'null');
+  if (preload?.length) {
+    sessionStorage.removeItem('bill_preload');
+    setTimeout(async () => {
+      for (const drugId of preload) {
+        await window.billAddDrug(drugId);
+      }
+    }, 100);
+  }
 }
 
 window.printBill = (data) => {
