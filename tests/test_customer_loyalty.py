@@ -159,3 +159,70 @@ def test_reminders_logic(client, auth_headers):
     match = matches[0]
     assert match["phone"] == "4445556667"
     assert match["status"] in ("Running Out", "Completed")
+
+
+def test_reminders_odd_quantity(client, auth_headers):
+    # Setup drug
+    drug_data = {
+        "name": "OddQtyMeds",
+        "tablets_per_strip": 10,
+        "mrp_per_tablet": 5.0
+    }
+    resp = client.post("/api/drugs", json=drug_data, headers=auth_headers)
+    drug_id = resp.json()["id"]
+
+    batch_data = {
+        "drug_id": drug_id,
+        "batch_no": "REM-ODD",
+        "expiry": "2029-12",
+        "strips": 50
+    }
+    client.post("/api/batches", json=batch_data, headers=auth_headers)
+
+    # Register customer
+    cust_data = {
+        "name": "Odd Customer",
+        "phone": "9998887776",
+        "custom_id": "ODD-1"
+    }
+    resp_cust = client.post("/api/customers", json=cust_data, headers=auth_headers)
+    cust_id = resp_cust.json()["id"]
+
+    # Bill them for 5 tablets (assumed at 2 tabs/day = course completes in 2 days)
+    bill_data = {
+        "customer_id": cust_id,
+        "patient_name": "Odd Customer",
+        "phone": "9998887776",
+        "discount_pct": 0.0,
+        "gst_inclusive": False,
+        "items": [{"drug_id": drug_id, "tablets_qty": 5}]
+    }
+    client.post("/api/bills", json=bill_data, headers=auth_headers)
+
+    # Get reminders; should not raise TypeError (float timedelta issue)
+    resp_rem = client.get("/api/customers/reminders/active", headers=auth_headers)
+    assert resp_rem.status_code == 200
+    rems = resp_rem.json()
+    matches = [r for r in rems if r["customer_name"] == "Odd Customer" and r["drug_name"] == "OddQtyMeds"]
+    assert len(matches) > 0
+
+
+def test_session_persistence(client, auth_headers):
+    # Log in to create a session
+    resp = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert resp.status_code == 200
+    token = resp.json()["token"]
+    
+    # Verify we can access a protected route with the token
+    resp_me = client.get("/api/auth/me", headers={"X-Token": token})
+    assert resp_me.status_code == 200
+    
+    # Simulate a backend restart by clearing in-memory _sessions dict in auth module
+    from backend.routers.auth import _sessions
+    _sessions.clear()
+    
+    # Verify we can STILL access the protected route because of database session lookup
+    resp_me_again = client.get("/api/auth/me", headers={"X-Token": token})
+    assert resp_me_again.status_code == 200
+    assert resp_me_again.json()["username"] == "admin"
+

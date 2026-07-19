@@ -39,9 +39,28 @@ def _verify_password(plain: str, hashed: str) -> bool:
 
 
 def get_current_user(x_token: Optional[str] = Header(default=None)):
-    if not x_token or x_token not in _sessions:
+    if not x_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return _sessions[x_token]
+    if x_token in _sessions:
+        return _sessions[x_token]
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT u.id, u.username, u.display_name, u.role
+            FROM sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.token = ? AND u.active = 1
+        """, (x_token,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        user_dict = {
+            "id": row["id"],
+            "username": row["username"],
+            "display_name": row["display_name"],
+            "role": row["role"],
+            "token": x_token,
+        }
+        _sessions[x_token] = user_dict
+        return user_dict
 
 
 def require_admin(x_token: Optional[str] = Header(default=None)):
@@ -67,13 +86,18 @@ def login(body: LoginIn):
         "role": user["role"],
         "token": token,
     }
+    with get_db() as conn:
+        conn.execute("INSERT OR REPLACE INTO sessions(token, user_id) VALUES(?,?)", (token, user["id"]))
     return {"token": token, "user": {k: _sessions[token][k] for k in ("id","username","display_name","role")}}
 
 
 @router.post("/logout")
 def logout(x_token: Optional[str] = Header(default=None)):
-    if x_token and x_token in _sessions:
-        del _sessions[x_token]
+    if x_token:
+        if x_token in _sessions:
+            del _sessions[x_token]
+        with get_db() as conn:
+            conn.execute("DELETE FROM sessions WHERE token = ?", (x_token,))
     return {"ok": True}
 
 

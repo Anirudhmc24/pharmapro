@@ -59,7 +59,7 @@ def get_reminders(x_token: Optional[str] = Header(default=None)):
                 continue
             
             qty = r["tablets_qty"] or 10
-            days_dose = qty / 2.0  # assume 2 tablets per day
+            days_dose = int(qty / 2.0)  # assume 2 tablets per day
             completion_date = purchase_date + timedelta(days=days_dose)
             days_left = (completion_date - today).days
             
