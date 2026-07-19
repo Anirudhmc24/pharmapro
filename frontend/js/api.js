@@ -1,28 +1,30 @@
 // api.js — fetch wrapper + auth token management
 const API = '/api';
 
-let _token = localStorage.getItem('pp_token') || '';
-let _user  = JSON.parse(localStorage.getItem('pp_user') || 'null');
-
 export function setSession(token, user) {
-  _token = token; _user = user;
   localStorage.setItem('pp_token', token);
   localStorage.setItem('pp_user', JSON.stringify(user));
 }
 
 export function clearSession() {
-  _token = ''; _user = null;
   localStorage.removeItem('pp_token');
   localStorage.removeItem('pp_user');
 }
 
-export function getUser()  { return _user; }
-export function getToken() { return _token; }
-export function isLoggedIn() { return !!_token; }
+export function getUser()  {
+  return JSON.parse(localStorage.getItem('pp_user') || 'null');
+}
+export function getToken() {
+  return localStorage.getItem('pp_token') || '';
+}
+export function isLoggedIn() {
+  return !!localStorage.getItem('pp_token');
+}
 
 export async function api(method, path, body, requireAuth = true) {
+  const token = getToken();
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (requireAuth && _token) opts.headers['X-Token'] = _token;
+  if (requireAuth && token) opts.headers['X-Token'] = token;
   if (body !== undefined) opts.body = JSON.stringify(body);
   const r = await fetch(API + path, opts);
   if (r.status === 401) {
