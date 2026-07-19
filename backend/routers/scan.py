@@ -264,7 +264,7 @@ def ai_reorder():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT d.id, d.name, d.brand, d.category, d.box_id,
-              d.reorder_level, d.strips_per_box, d.mrp_per_strip,
+              d.tablets_per_strip, d.reorder_level, d.strips_per_box, d.mrp_per_strip,
               COALESCE(SUM(b.full_strips*d.tablets_per_strip),0)+
               COALESCE((SELECT SUM(t.tablets_remaining) FROM trays t WHERE t.drug_id=d.id AND t.closed=0),0)
               AS stock_tablets,

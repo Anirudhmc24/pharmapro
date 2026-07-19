@@ -321,7 +321,7 @@ def staff_performance(from_date: str = "", to_date: str = ""):
         
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT u.id, u.username, u.name,
+            SELECT u.id, u.username, u.display_name as name,
                    COUNT(b.id) as bills_count,
                    COALESCE(SUM(b.total), 0) as total_sales,
                    COALESCE(SUM(b.discount_amt), 0) as total_discounts
