@@ -60,197 +60,210 @@ def validate_unexpired_stock(conn, items):
 @router.post("")
 def create_bill(bill: BillIn, background_tasks: BackgroundTasks, x_token: Optional[str] = Header(default=None)):
     user = get_current_user(x_token)
-    with get_db() as conn:
-        validate_unexpired_stock(conn, bill.items)
-        # Resolve customer or create dynamically
-        resolved_customer_id = bill.customer_id
-        if bill.phone:
-            cleaned_phone = "".join(filter(str.isdigit, bill.phone))
-            if cleaned_phone:
-                cust_row = conn.execute("SELECT id FROM customers WHERE phone=?", (cleaned_phone,)).fetchone()
-                if cust_row:
-                    resolved_customer_id = cust_row["id"]
-                else:
-                    custom_id = cleaned_phone[-6:] if len(cleaned_phone) >= 6 else cleaned_phone
-                    base_id = custom_id
-                    idx = 1
-                    while conn.execute("SELECT id FROM customers WHERE custom_id=?", (custom_id,)).fetchone() is not None:
-                         custom_id = f"{base_id}_{idx}"
-                         idx += 1
-                    
-                    cur_cust = conn.execute("""
-                        INSERT INTO customers(name, phone, custom_id, loyalty_points, last_purchase_date, purchased_medicines)
-                        VALUES(?, ?, ?, ?, ?, ?)
-                    """, (bill.patient_name, cleaned_phone, custom_id, 0, date.today().isoformat(), ""))
-                    resolved_customer_id = cur_cust.lastrowid
+    import sqlite3
+    import time
+    import random
+    
+    last_err = None
+    for attempt in range(10):
+        try:
+            with get_db() as conn:
+                validate_unexpired_stock(conn, bill.items)
+                # Resolve customer or create dynamically
+                resolved_customer_id = bill.customer_id
+                if bill.phone:
+                    cleaned_phone = "".join(filter(str.isdigit, bill.phone))
+                    if cleaned_phone:
+                        cust_row = conn.execute("SELECT id FROM customers WHERE phone=?", (cleaned_phone,)).fetchone()
+                        if cust_row:
+                            resolved_customer_id = cust_row["id"]
+                        else:
+                            custom_id = cleaned_phone[-6:] if len(cleaned_phone) >= 6 else cleaned_phone
+                            base_id = custom_id
+                            idx = 1
+                            while conn.execute("SELECT id FROM customers WHERE custom_id=?", (custom_id,)).fetchone() is not None:
+                                 custom_id = f"{base_id}_{idx}"
+                                 idx += 1
+                            
+                            cur_cust = conn.execute("""
+                                INSERT INTO customers(name, phone, custom_id, loyalty_points, last_purchase_date, purchased_medicines)
+                                VALUES(?, ?, ?, ?, ?, ?)
+                            """, (bill.patient_name, cleaned_phone, custom_id, 0, date.today().isoformat(), ""))
+                            resolved_customer_id = cur_cust.lastrowid
 
-        bill_no  = next_bill_no(conn)
-        subtotal = sum(
-            i.tablets_qty * conn.execute(
-                "SELECT mrp_per_tablet FROM drugs WHERE id=?", (i.drug_id,)
-            ).fetchone()[0]
-            for i in bill.items
-        )
-        pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
-        points_disc_amt = float(bill.points_redeemed) * 0.01 if bill.points_redeemed else 0.0
-        disc_amt = pct_disc_amt + points_disc_amt
-        
-        # Determine GST slab
-        cfg_row  = conn.execute("SELECT value FROM shop_config WHERE key='gst_slab'").fetchone()
-        gst_slab = float(cfg_row["value"] if cfg_row else 12)
-        # If GST inclusive prices are provided, calculate total and back-calculate GST
-        if bill.gst_inclusive:
-            pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
-            disc_amt = pct_disc_amt + points_disc_amt
-            total = round(subtotal - disc_amt, 2)
-            gst_amt = round(float(total * gst_slab) / (100.0 + gst_slab), 2)
-        else:
-            pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
-            disc_amt = pct_disc_amt + points_disc_amt
-            gst_amt = round(float((subtotal - disc_amt) * gst_slab) / 100.0, 2)
-            total = round(float(subtotal - disc_amt + gst_amt), 2)
-
-        cur = conn.execute("""
-            INSERT INTO bills(bill_no,customer_id,patient_name,doctor,rx_no,
-            subtotal,discount_pct,discount_amt,gst_amt,total,payment_mode,created_by)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (bill_no, resolved_customer_id, bill.patient_name, bill.doctor, bill.rx_no,
-             subtotal, bill.discount_pct, disc_amt, gst_amt, total, bill.payment_mode, user["id"]))
-        bill_id = cur.lastrowid
-        
-        if bill.rx_no or bill.rx_image_path:
-            import time
-            rx_val = bill.rx_no or f"RX-{int(time.time())}"
-            conn.execute("""
-                INSERT INTO prescriptions(rx_no, patient, doctor, rx_date, bill_id, image_path)
-                VALUES(?,?,?,?,?,?)
-            """, (rx_val, bill.patient_name, bill.doctor, date.today().isoformat(), bill_id, bill.rx_image_path))
-
-
-        for item in bill.items:
-            drug = row_to_dict(conn.execute("SELECT * FROM drugs WHERE id=?", (item.drug_id,)).fetchone())
-            mrp  = drug["mrp_per_tablet"]
-            tps  = drug["tablets_per_strip"]
-
-            # FEFO stock deduction
-            remaining = item.tablets_qty
-            trays = rows_to_list(conn.execute("""
-                SELECT t.*, b.expiry FROM trays t JOIN batches b ON b.id=t.batch_id
-                WHERE t.drug_id=? AND t.closed=0 ORDER BY b.expiry ASC""", (item.drug_id,)).fetchall())
-            for tray in trays:
-                if remaining <= 0:
-                    break
-                use     = min(remaining, tray["tablets_remaining"])
-                new_qty = tray["tablets_remaining"] - use
-                if new_qty == 0:
-                    conn.execute("UPDATE trays SET tablets_remaining=0,closed=1 WHERE id=?", (tray["id"],))
-                else:
-                    conn.execute("UPDATE trays SET tablets_remaining=? WHERE id=?", (new_qty, tray["id"]))
+                bill_no  = next_bill_no(conn)
+                subtotal = sum(
+                    i.tablets_qty * conn.execute(
+                        "SELECT mrp_per_tablet FROM drugs WHERE id=?", (i.drug_id,)
+                    ).fetchone()[0]
+                    for i in bill.items
+                )
+                pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
+                points_disc_amt = float(bill.points_redeemed) * 0.01 if bill.points_redeemed else 0.0
+                disc_amt = pct_disc_amt + points_disc_amt
                 
-                # Insert bill item for this tray deduction
-                amt = round(mrp * use, 2)
-                conn.execute("""
-                    INSERT INTO bill_items(bill_id,drug_id,batch_id,tray_id,tablets_qty,mrp_per_tab,amount)
-                    VALUES(?,?,?,?,?,?,?)""",
-                    (bill_id, item.drug_id, tray["batch_id"], tray["id"], use, mrp, amt))
-                
-                remaining -= use
+                # Determine GST slab
+                cfg_row  = conn.execute("SELECT value FROM shop_config WHERE key='gst_slab'").fetchone()
+                gst_slab = float(cfg_row["value"] if cfg_row else 12)
+                # If GST inclusive prices are provided, calculate total and back-calculate GST
+                if bill.gst_inclusive:
+                    pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
+                    disc_amt = pct_disc_amt + points_disc_amt
+                    total = round(subtotal - disc_amt, 2)
+                    gst_amt = round(float(total * gst_slab) / (100.0 + gst_slab), 2)
+                else:
+                    pct_disc_amt = round(float(subtotal * bill.discount_pct) / 100.0, 2)
+                    disc_amt = pct_disc_amt + points_disc_amt
+                    gst_amt = round(float((subtotal - disc_amt) * gst_slab) / 100.0, 2)
+                    total = round(float(subtotal - disc_amt + gst_amt), 2)
 
-            if remaining > 0:
-                batches = rows_to_list(conn.execute("""
-                    SELECT * FROM batches WHERE drug_id=? AND full_strips>0
-                    ORDER BY expiry ASC""", (item.drug_id,)).fetchall())
-                for batch in batches:
-                    if remaining <= 0:
-                        break
-                    strips_needed = (int(remaining) + int(tps) - 1) // int(tps)
-                    strips_use    = min(strips_needed, batch["full_strips"])
-                    tablets_from  = strips_use * tps
-                    leftover      = tablets_from - remaining
-                    conn.execute("UPDATE batches SET full_strips=full_strips-? WHERE id=?",
-                                 (strips_use, batch["id"]))
-                    
-                    use = tablets_from - leftover
-                    amt = round(mrp * use, 2)
+                cur = conn.execute("""
+                    INSERT INTO bills(bill_no,customer_id,patient_name,doctor,rx_no,
+                    subtotal,discount_pct,discount_amt,gst_amt,total,payment_mode,created_by)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (bill_no, resolved_customer_id, bill.patient_name, bill.doctor, bill.rx_no,
+                     subtotal, bill.discount_pct, disc_amt, gst_amt, total, bill.payment_mode, user["id"]))
+                bill_id = cur.lastrowid
+                
+                if bill.rx_no or bill.rx_image_path:
+                    rx_val = bill.rx_no or f"RX-{int(time.time())}"
                     conn.execute("""
-                        INSERT INTO bill_items(bill_id,drug_id,batch_id,tray_id,tablets_qty,mrp_per_tab,amount)
-                        VALUES(?,?,?,?,?,?,?)""",
-                        (bill_id, item.drug_id, batch["id"], None, use, mrp, amt))
+                        INSERT INTO prescriptions(rx_no, patient, doctor, rx_date, bill_id, image_path)
+                        VALUES(?,?,?,?,?,?)
+                    """, (rx_val, bill.patient_name, bill.doctor, date.today().isoformat(), bill_id, bill.rx_image_path))
 
-                    remaining -= use
+                for item in bill.items:
+                    drug = row_to_dict(conn.execute("SELECT * FROM drugs WHERE id=?", (item.drug_id,)).fetchone())
+                    mrp  = drug["mrp_per_tablet"]
+                    tps  = drug["tablets_per_strip"]
 
-                    if leftover > 0:
-                        tid = next_tray_id(conn)
+                    # FEFO stock deduction
+                    remaining = item.tablets_qty
+                    trays = rows_to_list(conn.execute("""
+                        SELECT t.*, b.expiry FROM trays t JOIN batches b ON b.id=t.batch_id
+                        WHERE t.drug_id=? AND t.closed=0 ORDER BY b.expiry ASC""", (item.drug_id,)).fetchall())
+                    for tray in trays:
+                        if remaining <= 0:
+                            break
+                        use     = min(remaining, tray["tablets_remaining"])
+                        new_qty = tray["tablets_remaining"] - use
+                        if new_qty == 0:
+                            conn.execute("UPDATE trays SET tablets_remaining=0,closed=1 WHERE id=?", (tray["id"],))
+                        else:
+                            conn.execute("UPDATE trays SET tablets_remaining=? WHERE id=?", (new_qty, tray["id"]))
+                        
+                        # Insert bill item for this tray deduction
+                        amt = round(mrp * use, 2)
                         conn.execute("""
-                            INSERT INTO trays(tray_id,drug_id,batch_id,tablets_remaining,box_id)
-                            VALUES(?,?,?,?,?)""",
-                            (tid, item.drug_id, batch["id"], leftover, drug["box_id"]))
-                        remaining = 0
+                            INSERT INTO bill_items(bill_id,drug_id,batch_id,tray_id,tablets_qty,mrp_per_tab,amount)
+                            VALUES(?,?,?,?,?,?,?)""",
+                            (bill_id, item.drug_id, tray["batch_id"], tray["id"], use, mrp, amt))
+                        
+                        remaining -= use
 
-            # If there's still remaining (or if the drug had no stock at all), record it as a bill item
-            if remaining > 0:
-                # Find any batch for this drug as a fallback
-                fallback_batch = conn.execute("SELECT id FROM batches WHERE drug_id=? ORDER BY expiry DESC LIMIT 1", (item.drug_id,)).fetchone()
-                fb_batch_id = fallback_batch["id"] if fallback_batch else None
-                amt = round(mrp * remaining, 2)
-                conn.execute("""
-                    INSERT INTO bill_items(bill_id,drug_id,batch_id,tray_id,tablets_qty,mrp_per_tab,amount)
-                    VALUES(?,?,?,?,?,?,?)""",
-                    (bill_id, item.drug_id, fb_batch_id, None, remaining, mrp, amt))
+                    if remaining > 0:
+                        batches = rows_to_list(conn.execute("""
+                            SELECT * FROM batches WHERE drug_id=? AND full_strips>0
+                            ORDER BY expiry ASC""", (item.drug_id,)).fetchall())
+                        for batch in batches:
+                            if remaining <= 0:
+                                break
+                            strips_needed = (int(remaining) + int(tps) - 1) // int(tps)
+                            strips_use    = min(strips_needed, batch["full_strips"])
+                            tablets_from  = strips_use * tps
+                            leftover      = tablets_from - remaining
+                            conn.execute("UPDATE batches SET full_strips=full_strips-? WHERE id=?",
+                                         (strips_use, batch["id"]))
+                            
+                            use = tablets_from - leftover
+                            amt = round(mrp * use, 2)
+                            conn.execute("""
+                                INSERT INTO bill_items(bill_id,drug_id,batch_id,tray_id,tablets_qty,mrp_per_tab,amount)
+                                VALUES(?,?,?,?,?,?,?)""",
+                                (bill_id, item.drug_id, batch["id"], None, use, mrp, amt))
 
+                            remaining -= use
 
-        if resolved_customer_id:
-            # Earn 1 point per 1 rupee spent
-            pts_earned = int(total)
-            
-            # Read existing purchased medicines
-            cust_row = conn.execute("SELECT purchased_medicines FROM customers WHERE id=?", (resolved_customer_id,)).fetchone()
-            existing_meds = set()
-            if cust_row and cust_row["purchased_medicines"]:
-                existing_meds = {m.strip() for m in cust_row["purchased_medicines"].split(",") if m.strip()}
-            
-            # Add current bill items' drug names
-            for item in bill.items:
-                drug_row = conn.execute("SELECT name FROM drugs WHERE id=?", (item.drug_id,)).fetchone()
-                if drug_row:
-                    existing_meds.add(drug_row["name"])
-            
-            new_purchased_meds = ", ".join(sorted(existing_meds))
-            
-            conn.execute("""
-                UPDATE customers 
-                SET loyalty_points = COALESCE(loyalty_points, 0) - ? + ?,
-                    last_purchase_date = ?,
-                    purchased_medicines = ?
-                WHERE id=?
-            """, (bill.points_redeemed, pts_earned, date.today().isoformat(), new_purchased_meds, resolved_customer_id))
-            
-            # Credit payment — debit customer balance
-            if bill.payment_mode == "Credit":
-                conn.execute("UPDATE customers SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id=?", (total, resolved_customer_id))
-                conn.execute("INSERT INTO credit_ledger(customer_id,bill_id,type,amount,note) VALUES(?,?,?,?,?)",
-                             (resolved_customer_id, bill_id, "debit", total, "Credit Bill Generated"))
+                            if leftover > 0:
+                                tid = next_tray_id(conn)
+                                conn.execute("""
+                                    INSERT INTO trays(tray_id,drug_id,batch_id,tablets_remaining,box_id)
+                                    VALUES(?,?,?,?,?)""",
+                                    (tid, item.drug_id, batch["id"], leftover, drug["box_id"]))
+                                remaining = 0
 
-        # Schedule H/X auto-log
-        for item in bill.items:
-            sch = conn.execute(
-                "SELECT schedule FROM drugs WHERE id=?", (item.drug_id,)).fetchone()
-            if sch and sch["schedule"] in ("H", "X"):
-                conn.execute("""
-                    INSERT INTO schedule_log(drug_id, bill_id, patient, doctor, rx_no, qty_tabs)
-                    VALUES(?,?,?,?,?,?)""",
-                    (item.drug_id, bill_id, bill.patient_name, bill.doctor,
-                     bill.rx_no, item.tablets_qty))
+                    # If there's still remaining (or if the drug had no stock at all), record it as a bill item
+                    if remaining > 0:
+                        # Find any batch for this drug as a fallback
+                        fallback_batch = conn.execute("SELECT id FROM batches WHERE drug_id=? ORDER BY expiry DESC LIMIT 1", (item.drug_id,)).fetchone()
+                        fb_batch_id = fallback_batch["id"] if fallback_batch else None
+                        amt = round(mrp * remaining, 2)
+                        conn.execute("""
+                            INSERT INTO bill_items(bill_id,drug_id,batch_id,tray_id,tablets_qty,mrp_per_tab,amount)
+                            VALUES(?,?,?,?,?,?,?)""",
+                            (bill_id, item.drug_id, fb_batch_id, None, remaining, mrp, amt))
 
-        conn.execute("INSERT INTO stock_log(drug_id,action,qty_change,note) VALUES(?,?,?,?)",
-                     (bill.items[0].drug_id if bill.items else None, "sale",
-                      -sum(i.tablets_qty for i in bill.items), f"Bill {bill_no}"))
+                if resolved_customer_id:
+                    # Earn 1 point per 1 rupee spent
+                    pts_earned = int(total)
+                    
+                    # Read existing purchased medicines
+                    cust_row = conn.execute("SELECT purchased_medicines FROM customers WHERE id=?", (resolved_customer_id,)).fetchone()
+                    existing_meds = set()
+                    if cust_row and cust_row["purchased_medicines"]:
+                        existing_meds = {m.strip() for m in cust_row["purchased_medicines"].split(",") if m.strip()}
+                    
+                    # Add current bill items' drug names
+                    for item in bill.items:
+                        drug_row = conn.execute("SELECT name FROM drugs WHERE id=?", (item.drug_id,)).fetchone()
+                        if drug_row:
+                            existing_meds.add(drug_row["name"])
+                    
+                    new_purchased_meds = ", ".join(sorted(existing_meds))
+                    
+                    conn.execute("""
+                        UPDATE customers 
+                        SET loyalty_points = COALESCE(loyalty_points, 0) - ? + ?,
+                            last_purchase_date = ?,
+                            purchased_medicines = ?
+                        WHERE id=?
+                    """, (bill.points_redeemed, pts_earned, date.today().isoformat(), new_purchased_meds, resolved_customer_id))
+                    
+                    # Credit payment — debit customer balance
+                    if bill.payment_mode == "Credit":
+                        conn.execute("UPDATE customers SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id=?", (total, resolved_customer_id))
+                        conn.execute("INSERT INTO credit_ledger(customer_id,bill_id,type,amount,note) VALUES(?,?,?,?,?)",
+                                     (resolved_customer_id, bill_id, "debit", total, "Credit Bill Generated"))
 
-    # Auto-backup
-    auto_trigger_backup(background_tasks)
+                # Schedule H/X auto-log
+                for item in bill.items:
+                    sch = conn.execute(
+                        "SELECT schedule FROM drugs WHERE id=?", (item.drug_id,)).fetchone()
+                    if sch and sch["schedule"] in ("H", "X"):
+                        conn.execute("""
+                            INSERT INTO schedule_log(drug_id, bill_id, patient, doctor, rx_no, qty_tabs)
+                            VALUES(?,?,?,?,?,?)""",
+                            (item.drug_id, bill_id, bill.patient_name, bill.doctor,
+                             bill.rx_no, item.tablets_qty))
 
-    return {"bill_no": bill_no, "bill_id": bill_id, "total": total,
-            "subtotal": subtotal, "discount_amt": disc_amt, "gst_amt": gst_amt}
+                conn.execute("INSERT INTO stock_log(drug_id,action,qty_change,note) VALUES(?,?,?,?)",
+                             (bill.items[0].drug_id if bill.items else None, "sale",
+                              -sum(i.tablets_qty for i in bill.items), f"Bill {bill_no}"))
+
+            # Auto-backup
+            auto_trigger_backup(background_tasks)
+
+            return {"bill_no": bill_no, "bill_id": bill_id, "total": total,
+                    "subtotal": subtotal, "discount_amt": disc_amt, "gst_amt": gst_amt}
+        except (sqlite3.IntegrityError, sqlite3.OperationalError) as e:
+            last_err = e
+            if attempt < 9:
+                time.sleep(random.uniform(0.02, 0.08))
+                continue
+            raise
+    if last_err is not None:
+        raise last_err
+    raise HTTPException(status_code=500, detail="Database transaction failed")
 
 
 @router.get("")
