@@ -99,7 +99,7 @@ export async function renderInventory(c, APP) {
           </div>
         </div>
 
-        <div class="card" style="padding:0;overflow:auto;margin-top:12px">
+        <div class="card" id="inv-table-card" style="padding:0;overflow:auto;margin-top:12px">
           <table class="tbl" id="inv-table">
             <thead>
               <tr>
@@ -116,7 +116,7 @@ export async function renderInventory(c, APP) {
             </thead>
             <tbody>${list.map(d => invRow(d)).join('')}</tbody>
           </table>
-          ${list.length === 0 ? '<div style="padding:40px;text-align:center;color:var(--muted)">No drugs found</div>' : ''}
+          <div id="inv-empty-msg" style="padding:40px;text-align:center;color:var(--muted);${list.length === 0 ? '' : 'display:none'}">No drugs found</div>
         </div>
       </div>`;
     } else {
@@ -516,11 +516,29 @@ export async function renderInventory(c, APP) {
     }
   };
 
-  window.invFilter = (v) => { filter = v; document.getElementById('inv-tab-content').innerHTML = renderTabContent(); };
+  window.invFilter = (v) => {
+    filter = v;
+    const tbody = document.querySelector('#inv-table tbody');
+    if (tbody) {
+      const list = filteredDrugs();
+      tbody.innerHTML = list.map(d => invRow(d)).join('');
+      const emptyMsg = document.getElementById('inv-empty-msg');
+      if (emptyMsg) emptyMsg.style.display = list.length === 0 ? 'block' : 'none';
+      window.updateInvSelection();
+    } else {
+      const tabContent = document.getElementById('inv-tab-content');
+      if (tabContent) tabContent.innerHTML = renderTabContent();
+    }
+  };
  
   window.setInventoryCategory = (cat) => {
     activeCategoryFilter = cat;
-    document.getElementById('inv-tab-content').innerHTML = renderTabContent();
+    const buttons = document.querySelectorAll('#inv-tab-content button[onclick*="setInventoryCategory"]');
+    buttons.forEach(btn => {
+      const isMatch = btn.getAttribute('onclick').includes(`'${cat}'`);
+      btn.className = `btn ${isMatch ? 'btn-primary' : 'btn-outline'}`;
+    });
+    window.invFilter(filter);
   };
 
   window.setInventoryTab = (tab) => {
