@@ -423,16 +423,19 @@ window.doLogin = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
-    if (!res.ok) throw new Error();
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Invalid username or password');
+    }
     const data = await res.json();
     setSession(data.token, data.user);
     APP.user = data.user;
     errEl.style.display = 'none';
     document.getElementById('login-screen').style.display = 'none';
     await bootApp();
-  } catch {
+  } catch (err) {
     errEl.style.display = 'flex';
-    errEl.textContent = 'Invalid username or password';
+    errEl.textContent = err.message || 'Invalid username or password';
     btn.disabled = false; btn.textContent = 'Sign In →';
   }
 };

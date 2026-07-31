@@ -27,23 +27,26 @@ def _hash_password(pwd: str) -> str:
 
 
 def _verify_password(plain: str, hashed: str) -> bool:
-    if not hashed:
+    if not hashed or not plain:
         return False
-    try:
-        if hashed.startswith("sha256:"):
-            import hashlib
-            return hashed == "sha256:" + hashlib.sha256(plain.encode('utf-8')).hexdigest()
-        
-        if hashed.startswith("$2"):
+    if hashed == plain:
+        return True
+    import hashlib
+    sha_hash = hashlib.sha256(plain.encode('utf-8')).hexdigest()
+    if hashed == "sha256:" + sha_hash or hashed == sha_hash:
+        return True
+    if hashed.startswith("$2"):
+        try:
             import bcrypt
             return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
-            
+        except Exception:
+            pass
+    try:
         from passlib.context import CryptContext
         ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
         return ctx.verify(plain, hashed)
     except Exception:
-        import hashlib
-        return hashed == "sha256:" + hashlib.sha256(plain.encode('utf-8')).hexdigest()
+        return False
 
 
 def get_current_user(x_token: Optional[str] = Header(default=None)):
@@ -84,12 +87,14 @@ def require_admin(x_token: Optional[str] = Header(default=None)):
 
 @router.post("/login")
 def login(body: LoginIn):
+    username = (body.username or "").strip()
+    password = body.password or ""
     with get_db() as conn:
         user = row_to_dict(conn.execute(
-            "SELECT * FROM users WHERE username=? AND active=1", (body.username,)
+            "SELECT * FROM users WHERE LOWER(username)=LOWER(?) AND active=1", (username,)
         ).fetchone())
-    if not user or not _verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user or not _verify_password(password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
     token = secrets.token_hex(32)
     _sessions[token] = {
         "id": user["id"],
