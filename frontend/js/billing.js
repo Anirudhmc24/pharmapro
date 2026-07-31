@@ -1260,7 +1260,7 @@ window.printBill = (data) => {
 <head>
   <title>Tax Invoice - ${res.bill_no}</title>
   <style>
-    body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 20px; color: #1e293b; background: #fff; font-size: 12px; line-height: 1.4; }`;
+    body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 20px; color: #1e293b; background: #fff; font-size: 12px; line-height: 1.4; }
     .invoice-card { max-width: 650px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
     .header { text-align: center; margin-bottom: 15px; }
     .shop-name { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
