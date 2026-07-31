@@ -285,14 +285,14 @@ nav{padding:8px}
     <div class="gap-12">
       <div class="field">
         <label>Username</label>
-        <input class="input" type="text" id="login-user" placeholder="Enter username" autofocus autocomplete="username">
+        <input class="input" type="text" id="login-user" placeholder="Enter username" autofocus autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pwd').focus()">
       </div>
       <div class="field">
         <label>Password</label>
         <input class="input" type="password" id="login-pwd" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
       <div id="login-err" style="display:none" class="alert-strip danger">Invalid username or password</div>
-      <button class="btn btn-primary" style="width:100%;margin-top:4px;padding:12px" onclick="doLogin()" id="login-btn">Sign In →</button>
+      <button class="btn btn-primary" type="button" style="width:100%;margin-top:4px;padding:12px" onclick="doLogin()" id="login-btn">Sign In →</button>
     </div>
     <div style="margin-top:20px;font-size:11px;color:var(--muted);text-align:center">Default: admin / admin123</div>
   </div>
@@ -398,7 +398,6 @@ window.handleAndroidBack = () => {
 };
 
 // Forward declarations — actual implementations assigned below after function definitions
-window.doLogin  = () => {};
 window.doLogout = () => {};
 
 const APP = {
@@ -411,32 +410,54 @@ window.APP = APP;
 
 // ── Login ────────────────────────────────────────────────
 window.doLogin = async () => {
-  const username   = document.getElementById('login-user').value.trim();
-  const password   = document.getElementById('login-pwd').value;
-  const btn        = document.getElementById('login-btn');
-  const errEl      = document.getElementById('login-err');
-  if (!username || !password) { errEl.style.display = 'flex'; errEl.textContent = 'Enter username and password'; return; }
-  btn.disabled = true; btn.textContent = 'Signing in…';
+  const userEl = document.getElementById('login-user');
+  const pwdEl  = document.getElementById('login-pwd');
+  const username = userEl ? userEl.value.trim() : '';
+  const password = pwdEl  ? pwdEl.value : '';
+  const btn      = document.getElementById('login-btn');
+  const errEl    = document.getElementById('login-err');
+
+  if (!username || !password) {
+    if (errEl) { errEl.style.display = 'flex'; errEl.textContent = 'Enter username and password'; }
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
+
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.detail || 'Invalid username or password');
     }
+
     const data = await res.json();
     setSession(data.token, data.user);
-    APP.user = data.user;
-    errEl.style.display = 'none';
-    document.getElementById('login-screen').style.display = 'none';
-    await bootApp();
+    if (window.APP) window.APP.user = data.user;
+
+    if (errEl) errEl.style.display = 'none';
+    const loginScr = document.getElementById('login-screen');
+    if (loginScr) loginScr.style.display = 'none';
+
+    if (typeof bootApp === 'function') {
+      await bootApp();
+    } else {
+      window.location.reload();
+    }
   } catch (err) {
-    errEl.style.display = 'flex';
-    errEl.textContent = err.message || 'Invalid username or password';
-    btn.disabled = false; btn.textContent = 'Sign In →';
+    console.error("Login failed:", err);
+    if (errEl) {
+      errEl.style.display = 'flex';
+      errEl.textContent = err.message || 'Invalid username or password';
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Sign In →';
+    }
   }
 };
 
