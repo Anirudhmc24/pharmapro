@@ -327,3 +327,37 @@ def test_clear_day_billing(client, auth_headers):
     assert bill_check.status_code == 404
 
 
+def test_bill_pdf_endpoint(client, auth_headers):
+    drug_resp = client.post("/api/drugs", json={
+        "name": "Pdfmol 500mg",
+        "tablets_per_strip": 10,
+        "mrp_per_tablet": 2.0
+    }, headers=auth_headers)
+    drug_id = drug_resp.json()["id"]
+
+    client.post("/api/batches", json={
+        "drug_id": drug_id,
+        "batch_no": "PDF-001",
+        "expiry": "2028-12",
+        "strips": 5
+    }, headers=auth_headers)
+
+    bill_resp = client.post("/api/bills", json={
+        "patient_name": "PDF Patient",
+        "items": [{"drug_id": drug_id, "tablets_qty": 5}]
+    }, headers=auth_headers)
+    assert bill_resp.status_code == 200
+    bill_id = bill_resp.json()["bill_id"]
+
+    pdf_inline = client.get(f"/api/bills/{bill_id}/pdf", headers=auth_headers)
+    assert pdf_inline.status_code == 200
+    assert pdf_inline.headers["content-type"] == "application/pdf"
+    assert "inline" in pdf_inline.headers["content-disposition"]
+
+    pdf_download = client.get(f"/api/bills/{bill_id}/pdf?download=1", headers=auth_headers)
+    assert pdf_download.status_code == 200
+    assert pdf_download.headers["content-type"] == "application/pdf"
+    assert "attachment" in pdf_download.headers["content-disposition"]
+
+
+

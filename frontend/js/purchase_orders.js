@@ -20,7 +20,10 @@ export async function renderPurchaseOrders(c, APP) {
       <div class="flex-between">
         <div><h2 style="font-size:18px;font-weight:800;margin-bottom:2px">Purchase Orders</h2>
           <div style="color:var(--muted);font-size:12px">${pos.length} orders · Track all supplier orders</div></div>
-        <button class="btn btn-primary btn-sm" onclick="window._renderCreatePO()">+ New PO</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" style="border-color:var(--danger);color:var(--danger);font-weight:700" onclick="window.openDealerReturnModal()">📦 Dealer Return / Debit Note</button>
+          <button class="btn btn-primary btn-sm" onclick="window._renderCreatePO()">+ New PO</button>
+        </div>
       </div>
       ${pos.length === 0 ? `<div class="card" style="text-align:center;padding:48px">
         <div style="font-size:48px;margin-bottom:12px">📋</div>
@@ -605,6 +608,226 @@ export async function renderPurchaseOrders(c, APP) {
       window.open(waUrl, '_blank');
     }
   };
+
+  window.openDealerReturnModal = async () => {
+    const [sups, drugs] = await Promise.all([GET('/suppliers'), GET('/drugs')]);
+    if (!sups.length) {
+      toast('Please add at least one supplier first.', 'warn');
+      return;
+    }
+    if (!drugs.length) {
+      toast('No drugs in inventory to return.', 'warn');
+      return;
+    }
+
+    let returnItems = [];
+
+    window.addDealerReturnItemRow = () => {
+      const drugId = parseInt(document.getElementById('dr-drug-select')?.value);
+      const batchId = parseInt(document.getElementById('dr-batch-select')?.value) || null;
+      const strips = parseInt(document.getElementById('dr-strips')?.value) || 0;
+      const unitCost = parseFloat(document.getElementById('dr-cost')?.value) || 0;
+      const reason = document.getElementById('dr-reason')?.value || 'Customer Rejected / Overstock';
+
+      if (!drugId || strips <= 0) {
+        toast('Please select a drug and enter a valid strips count', 'warn');
+        return;
+      }
+
+      const d = drugs.find(x => x.id === drugId);
+      const amount = strips * unitCost;
+
+      returnItems.push({
+        drug_id: drugId,
+        drug_name: d ? d.name : 'Drug',
+        batch_id: batchId,
+        batch_no: document.getElementById('dr-batch-select')?.selectedOptions[0]?.text || '—',
+        strips,
+        unit_cost: unitCost,
+        amount,
+        reason
+      });
+
+      renderDealerReturnItemsTable();
+    };
+
+    window.removeDealerReturnItemRow = (idx) => {
+      returnItems.splice(idx, 1);
+      renderDealerReturnItemsTable();
+    };
+
+    window.onDealerReturnDrugChange = async (drugId) => {
+      const bSelect = document.getElementById('dr-batch-select');
+      const cInput = document.getElementById('dr-cost');
+      if (!bSelect) return;
+      if (!drugId) {
+        bSelect.innerHTML = '<option value="">Select Batch…</option>';
+        return;
+      }
+      try {
+        const drugDetail = await GET('/drugs/' + drugId);
+        const batches = drugDetail.batches || [];
+        bSelect.innerHTML = batches.length ? batches.map(b => `<option value="${b.id}">${b.batch_no || 'Batch'} (Exp: ${b.expiry || '—'}, ${b.full_strips} strips)</option>`).join('') : '<option value="">No active batches</option>';
+        if (cInput && batches.length) {
+          cInput.value = (batches[0].cost_per_strip || (drugDetail.mrp_per_tablet * drugDetail.tablets_per_strip * 0.7)).toFixed(2);
+        }
+      } catch(e) {
+        console.error(e);
+      }
+    };
+
+    function renderDealerReturnItemsTable() {
+      const container = document.getElementById('dr-items-table');
+      const totalEl = document.getElementById('dr-total-amount');
+      if (!container) return;
+
+      const total = returnItems.reduce((s, i) => s + i.amount, 0);
+      if (totalEl) totalEl.textContent = '₹' + total.toFixed(2);
+
+      if (returnItems.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted);font-size:12px">No items added to return list yet</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <table class="tbl">
+          <thead><tr><th>Item</th><th>Batch</th><th>Strips</th><th>Cost/Strip</th><th>Total</th><th>Reason</th><th>Action</th></tr></thead>
+          <tbody>
+            ${returnItems.map((item, idx) => `
+              <tr>
+                <td><b>${item.drug_name}</b></td>
+                <td>${item.batch_no}</td>
+                <td>${item.strips}</td>
+                <td>₹${item.unit_cost.toFixed(2)}</td>
+                <td><b>₹${item.amount.toFixed(2)}</b></td>
+                <td style="font-size:11px;color:var(--muted)">${item.reason}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="removeDealerReturnItemRow(${idx})">✕</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    modal('📦 Dealer Return / Debit Note', `
+      <div style="display:flex;flex-direction:column;gap:12px;max-height:70vh;overflow-y:auto">
+        <div class="field">
+          <label>Select Supplier / Dealer *</label>
+          <select class="input" id="dr-supplier">
+            <option value="">-- Choose Supplier / Dealer --</option>
+            ${sups.map(s => `<option value="${s.id}">${s.name} ${s.phone ? `(${s.phone})` : ''}</option>`).join('')}
+          </select>
+        </div>
+
+        <div style="background:var(--surface-dim, #f8fafc);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:4px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--accent)">Add Item to Return</div>
+          <div class="grid-2">
+            <div class="field">
+              <label>Select Drug *</label>
+              <select class="input" id="dr-drug-select" onchange="onDealerReturnDrugChange(this.value)">
+                <option value="">-- Choose Drug --</option>
+                ${drugs.map(d => `<option value="${d.id}">${d.name} (${d.brand || ''})</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label>Select Batch</label>
+              <select class="input" id="dr-batch-select">
+                <option value="">Select Batch…</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-3" style="margin-top:8px">
+            <div class="field">
+              <label>Strips to Return *</label>
+              <input class="input" type="number" id="dr-strips" value="1" min="1">
+            </div>
+            <div class="field">
+              <label>Cost / Strip (₹)</label>
+              <input class="input" type="number" id="dr-cost" value="0.00" step="0.01">
+            </div>
+            <div class="field">
+              <label>Return Reason</label>
+              <select class="input" id="dr-reason">
+                <option value="Customer Rejected / Not Purchased">Customer Rejected / Not Purchased</option>
+                <option value="Expiring Soon / Expired">Expiring Soon / Expired</option>
+                <option value="Damaged / Defective Stock">Damaged / Defective Stock</option>
+                <option value="Overstock / Wrong Shipment">Overstock / Wrong Shipment</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" style="margin-top:10px;width:100%" onclick="addDealerReturnItemRow()">➕ Add to Return List</button>
+        </div>
+
+        <div style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-weight:700;font-size:13px">Return Items Summary</span>
+            <span style="font-size:14px;font-weight:800;color:var(--accent)" id="dr-total-amount">₹0.00</span>
+          </div>
+          <div id="dr-items-table" style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <div style="text-align:center;padding:16px;color:var(--muted);font-size:12px">No items added to return list yet</div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:8px">
+          <label>Additional Notes / Dealer Ref (Optional)</label>
+          <input class="input" id="dr-notes" placeholder="e.g. Returned via Sales Representative">
+        </div>
+      </div>
+    `, `
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:1.5" onclick="submitDealerReturn()">📄 Generate Debit Note & Invoice</button>
+    `);
+
+    window.submitDealerReturn = async () => {
+      const supplierId = parseInt(document.getElementById('dr-supplier')?.value);
+      const notes = document.getElementById('dr-notes')?.value?.trim() || '';
+
+      if (!supplierId) { toast('Please select a supplier', 'warn'); return; }
+      if (!returnItems.length) { toast('Please add at least one item to return', 'warn'); return; }
+
+      const payload = {
+        supplier_id: supplierId,
+        items: returnItems.map(i => ({
+          drug_id: i.drug_id,
+          batch_id: i.batch_id,
+          strips: i.strips,
+          unit_cost: i.unit_cost,
+          reason: i.reason
+        })),
+        reason: returnItems[0].reason,
+        notes: notes
+      };
+
+      try {
+        const res = await POST('/suppliers/returns', payload);
+        closeModal();
+        toast(`Return Invoice ${res.return_no} generated! ✅`, 'success');
+
+        openSupplierReturnCompleteModal(res.id, res.return_no, res.total_amount);
+      } catch (err) {
+        console.error(err);
+        toast('Error: ' + err.message, 'error');
+      }
+    };
+  };
+
+  function openSupplierReturnCompleteModal(returnId, returnNo, totalAmount) {
+    modal(`✅ Supplier Return Created: ${returnNo}`, `
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:36px;margin-bottom:8px">📦</div>
+        <div style="font-weight:800;font-size:18px;color:var(--accent)">₹${Number(totalAmount).toFixed(2)} Debit Note</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Supplier return invoice has been logged into inventory stock.</div>
+      </div>
+      <div id="sr-pdf-container" style="display:none;margin-top:10px">
+        <iframe src="/api/suppliers/returns/${returnId}/pdf" style="width:100%;height:400px;border:1px solid var(--border);border-radius:8px"></iframe>
+      </div>
+    `, `
+      <button class="btn btn-outline" style="flex:0.8" onclick="closeModal()">Close</button>
+      <button class="btn btn-outline" style="flex:1" onclick="const c=document.getElementById('sr-pdf-container'); if(c) c.style.display = c.style.display==='none'?'block':'none'">👁️ Preview PDF</button>
+      <a class="btn btn-outline" style="flex:1;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center" href="/api/suppliers/returns/${returnId}/pdf?download=1" download="SupplierReturn_${returnNo}.pdf" target="_blank">📄 Download PDF</a>
+      <button class="btn btn-primary" style="flex:1" onclick="window.open('/api/suppliers/returns/${returnId}/pdf', '_blank')">🖨️ Open / Print PDF</button>
+    `);
+  }
 
   // ── Boot ─────────────────────────────────────────────────────
   await renderList();

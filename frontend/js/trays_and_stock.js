@@ -1,5 +1,5 @@
 // trays.js + stock_entry.js combined
-import { GET, POST } from './api.js';
+import { GET, POST, PUT } from './api.js';
 import { tag, stripVis, fmtExp, expiryColor, monthsLeft, fmt, toast, compressImage } from './utils.js';
 
 export async function renderTrays(c, APP) {
@@ -88,6 +88,30 @@ export async function renderTrays(c, APP) {
 export async function renderStockEntry(c, APP) {
   const [sups, layout] = await Promise.all([GET('/suppliers'), GET('/layout').catch(() => [])]);
   let mode = 'keyboard', added = [];
+
+  window.onStockClassChange = (prefix) => {
+    const classSel = document.getElementById(`${prefix}-class`);
+    const pctInput = document.getElementById(`${prefix}-pct`);
+    if (classSel && pctInput) {
+      if (classSel.value === 'Ethnic') {
+        pctInput.value = '24.4';
+      } else {
+        pctInput.value = '60';
+      }
+      window.calculateStockCost(prefix);
+    }
+  };
+
+  window.calculateStockCost = (prefix) => {
+    const mrpId = prefix === 'sf' ? 'sf-mrp' : 'me-mrps';
+    const costId = prefix === 'sf' ? 'sf-cost' : 'me-cost';
+    const mrpVal = parseFloat(document.getElementById(mrpId)?.value || 0);
+    const pctVal = parseFloat(document.getElementById(`${prefix}-pct`)?.value || 0);
+    const costInput = document.getElementById(costId);
+    if (costInput) {
+      costInput.value = (mrpVal * (1 - pctVal / 100)).toFixed(2);
+    }
+  };
 
   function html() {
     return `<div class="gap-16 fade-in">
@@ -193,8 +217,22 @@ export async function renderStockEntry(c, APP) {
   }
 
   function stockFormHTML(drug) {
+    const isGeneric = (drug.category || '').toLowerCase() === 'generic';
     return `<div class="gap-12">
       <div class="alert-strip info">✅ ${drug.name} · ${drug.tablets_per_strip || 10} tabs/strip · Base MRP ₹${drug.mrp_per_strip || 0}/strip</div>
+      <div class="grid-2" style="margin-bottom:6px">
+        <div class="field">
+          <label>Medicine Class</label>
+          <select class="select" id="sf-class" onchange="window.onStockClassChange('sf')">
+            <option value="Ethnic" ${!isGeneric ? 'selected' : ''}>Ethnic (Ethical)</option>
+            <option value="Generic" ${isGeneric ? 'selected' : ''}>Generic</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Margin %</label>
+          <input class="input" type="number" id="sf-pct" value="${isGeneric ? 60 : 24.4}" step="0.1" oninput="window.calculateStockCost('sf')">
+        </div>
+      </div>
       <div class="grid-2">
         <div class="field"><label>Batch No.</label><input class="input" name="batch_no" id="sf-batch" placeholder="e.g. B25-001 (optional)"></div>
         <div class="field"><label>Expiry *</label><input class="input" type="month" name="expiry" id="sf-exp"></div>
@@ -202,11 +240,11 @@ export async function renderStockEntry(c, APP) {
       <div class="grid-3">
         <div class="field"><label>Strips Received *</label><input class="input" type="number" name="strips" id="sf-qty" value="1" min="1"></div>
         <div class="field"><label>Free / Bonus</label><input class="input" type="number" name="free" id="sf-free" value="0" min="0"></div>
-        <div class="field"><label>Cost / Strip (₹)</label><input class="input" type="number" name="cost" id="sf-cost" placeholder="Optional" step="0.5"></div>
+        <div class="field"><label>Cost / Strip (₹)</label><input class="input" type="number" name="cost" id="sf-cost" placeholder="Optional" step="0.5" value="${((drug.mrp_per_strip || 0) * (isGeneric ? 0.40 : 0.756)).toFixed(2)}"></div>
       </div>
       <div class="grid-3">
         <div class="field"><label>Supplier</label><select class="select" id="sf-sup">${supOpts()}</select></div>
-        <div class="field"><label>MRP Override (₹)</label><input class="input" type="number" id="sf-mrp" value="${drug.mrp_per_strip || 0}" step="0.5" title="MRP for this specific batch"></div>
+        <div class="field"><label>MRP Override (₹)</label><input class="input" type="number" id="sf-mrp" value="${drug.mrp_per_strip || 0}" step="0.5" title="MRP for this specific batch" oninput="window.calculateStockCost('sf')"></div>
         <div class="field"><label>GST %</label><select class="select" id="sf-gst"><option value="0">0%</option><option value="5" ${(APP.config.gst_slab || '5')=='5'?'selected':''}>5%</option><option value="12" ${APP.config.gst_slab=='12'?'selected':''}>12%</option><option value="18" ${APP.config.gst_slab=='18'?'selected':''}>18%</option></select></div>
       </div>
       <div class="section-title" style="margin-top:10px;margin-bottom:0px">Physical Placement</div>
@@ -324,16 +362,26 @@ export async function renderStockEntry(c, APP) {
       </div>
       <div class="grid-2">
         <div class="field"><label>Composition / Active Ingredient</label><input class="input" id="me-comp" placeholder="e.g. Salbutamol"></div>
-        <div class="field"><label>Category</label><input class="input" id="me-cat" placeholder="e.g. Bronchodilator"></div>
+        <div class="field">
+          <label>Medicine Class</label>
+          <select class="select" id="me-class" onchange="window.onStockClassChange('me')">
+            <option value="Ethnic">Ethnic (Ethical)</option>
+            <option value="Generic">Generic</option>
+          </select>
+        </div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Schedule</label>
           <select class="select" id="me-sched"><option value="OTC">OTC (No prescription)</option><option value="Rx">Rx (Prescription required)</option><option value="H">H (Hospital only)</option></select></div>
         <div class="field"><label>Tablets / Strip</label><input class="input" type="number" id="me-tps" value="10" min="1"></div>
       </div>
-      <div class="grid-2">
-        <div class="field"><label>MRP per Strip (₹) *</label><input class="input" type="number" id="me-mrps" placeholder="0.00" step="0.5" oninput="me_autoMrpTab()"></div>
+      <div class="grid-3" style="margin-bottom:6px">
+        <div class="field"><label>MRP per Strip (₹) *</label><input class="input" type="number" id="me-mrps" placeholder="0.00" step="0.5" oninput="me_autoMrpTab(); window.calculateStockCost('me')"></div>
         <div class="field"><label>MRP per Tablet (₹)</label><input class="input" type="number" id="me-mrpt" placeholder="Auto-calculated" step="0.01"></div>
+        <div class="field">
+          <label>Margin %</label>
+          <input class="input" type="number" id="me-pct" value="24.4" step="0.1" oninput="window.calculateStockCost('me')">
+        </div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
         <div class="section-title">First Stock Batch</div>
@@ -393,11 +441,13 @@ export async function renderStockEntry(c, APP) {
     if (!expiry) { toast('Expiry date is required', 'warn'); return; }
     if (monthsLeft(expiry) <= 0) { toast('⛔ That expiry date is already past', 'error'); return; }
     try {
+      const meClass = document.getElementById('me-class')?.value || 'Ethnic';
+      const category = meClass === 'Generic' ? 'Generic' : 'Ethical';
       // 1. Create the drug in catalogue
       const newDrug = await POST('/drugs', {
         name, brand: document.getElementById('me-brand')?.value || '',
         composition: document.getElementById('me-comp')?.value || '',
-        category:    document.getElementById('me-cat')?.value || '',
+        category:    category,
         schedule:    document.getElementById('me-sched')?.value || 'OTC',
         hsn: '30049099', tablets_per_strip: tps, strips_per_box: 10,
         mrp_per_strip: mrps, mrp_per_tablet: mrpt, reorder_level: 20,
@@ -428,6 +478,13 @@ export async function renderStockEntry(c, APP) {
     const box_id   = parseInt(document.getElementById('sf-box')?.value) || null;
     if (!expiry) { toast('Expiry date required', 'warn'); return; }
     if (monthsLeft(expiry) <= 0) { toast('⛔ That expiry is already past', 'error'); return; }
+    try {
+      const sfClass = document.getElementById('sf-class')?.value || 'Ethnic';
+      const category = sfClass === 'Generic' ? 'Generic' : 'Ethical';
+      await PUT('/drugs/' + drug_id, { category });
+    } catch(e) {
+      console.warn("Failed to update class category automatically:", e);
+    }
     await POST('/batches', { drug_id, batch_no, expiry, strips, cost_per_strip: cost, box_id, free_strips: free, mrp_per_strip: mrp, gst_pct: gst, supplier_id: sup_id });
     added.push({ drug_name, strips, expiry });
     toast(`${drug_name} · ${strips} strips added ✅`, 'success');

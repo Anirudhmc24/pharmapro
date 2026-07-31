@@ -21,6 +21,7 @@ export async function renderCustomers(c, APP) {
               <th>Contact Details</th>
               <th>Agreed Discount</th>
               <th>Loyalty Points</th>
+              <th>Credit Dues</th>
               <th>Last Purchase</th>
               <th>Tablet Purchases</th>
               <th>Joined</th>
@@ -30,6 +31,7 @@ export async function renderCustomers(c, APP) {
           <tbody>${custs.map(cu => {
             const purchasedEncoded = (cu.purchased_medicines || '').replace(/'/g, "&#39;");
             const lastDate = cu.last_purchase_date || '—';
+            const dues = cu.credit_balance || 0;
             return `<tr>
               <td>
                 <div style="font-weight:700">${cu.name}</div>
@@ -41,6 +43,7 @@ export async function renderCustomers(c, APP) {
               </td>
               <td><span class="tag tag-amber" style="font-weight:700">${cu.agreed_discount || 0}% Off</span></td>
               <td><span style="color:var(--accent);font-weight:800">${cu.loyalty_points || 0}</span> <span style="color:var(--muted);font-size:11px">pts</span></td>
+              <td>${dues > 0 ? `<span class="tag tag-red" style="font-weight:700">₹${dues.toFixed(2)}</span>` : '<span style="color:var(--muted)">₹0.00</span>'}</td>
               <td style="font-weight:600">${lastDate}</td>
               <td>
                 <div style="font-size:11px;color:var(--text);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${purchasedEncoded}">
@@ -48,7 +51,8 @@ export async function renderCustomers(c, APP) {
                 </div>
               </td>
               <td style="font-size:11px;color:var(--muted)">${formatDate(cu.created_at)}</td>
-              <td style="display:flex;gap:6px">
+              <td style="display:flex;gap:6px;flex-wrap:wrap">
+                ${dues > 0 ? `<button class="btn btn-outline btn-sm" style="border-color:var(--danger);color:var(--danger);font-weight:700" onclick="showCollectCustomerDues(${cu.id},'${cu.name.replace(/'/g,"\\'")}',${dues})">💰 Collect Dues</button>` : ''}
                 <button class="btn btn-outline btn-sm" onclick="showEditCustomer(${cu.id},'${cu.name.replace(/'/g,"\\'")}', '${cu.phone || ''}', '${cu.dob || ''}', '${cu.custom_id || ''}', ${cu.agreed_discount || 0}, ${cu.loyalty_points || 0}, '${purchasedEncoded}', '${lastDate}')">✏️ Edit</button>
                 <button class="btn btn-outline btn-sm" onclick="viewCustomerHistory(${cu.id},'${cu.name.replace(/'/g,"\\'")}')">📜 History</button>
               </td>
@@ -147,17 +151,60 @@ export async function renderCustomers(c, APP) {
     custs = await GET('/customers'); c.innerHTML = html();
   };
 
+  window.showCollectCustomerDues = (id, name, dueBalance) => {
+    modal(`💰 Collect Credit Dues — ${name}`, `
+      <div style="padding:12px;background:rgba(239, 68, 68, 0.1);border:1px solid var(--danger);border-radius:6px;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted)">Outstanding Credit Dues:</div>
+        <div style="font-size:20px;font-weight:800;color:var(--danger)">₹${Number(dueBalance).toFixed(2)}</div>
+      </div>
+      <div class="field">
+        <label>Amount Received (₹) *</label>
+        <input class="input" type="number" id="ccd-amount" value="${dueBalance}" min="1" max="${dueBalance}" step="0.01">
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label>Payment Mode</label>
+        <select class="input" id="ccd-mode">
+          <option value="Cash">Cash</option>
+          <option value="UPI">UPI</option>
+          <option value="Card">Card</option>
+        </select>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label>Notes / Ref No (Optional)</label>
+        <input class="input" id="ccd-note" placeholder="e.g. Received via GPay">
+      </div>
+    `, `
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" onclick="submitCollectCustomerDues(${id})">Record Payment</button>
+    `);
+  };
+
+  window.submitCollectCustomerDues = async (id) => {
+    const amount = parseFloat(document.getElementById('ccd-amount')?.value) || 0;
+    const payment_mode = document.getElementById('ccd-mode')?.value || 'Cash';
+    const note = document.getElementById('ccd-note')?.value?.trim() || '';
+
+    if (amount <= 0) { toast('Please enter a valid amount', 'warn'); return; }
+
+    await POST(`/customers/${id}/collect_credit`, { amount, payment_mode, note });
+    closeModal();
+    toast('Credit payment recorded successfully! ✅', 'success');
+    custs = await GET('/customers');
+    c.innerHTML = html();
+  };
+
   window.viewCustomerHistory = async (id, name) => {
     const bills = await GET('/customers/' + id + '/bills');
     modal(`🧾 ${name} — Purchase History`,
       bills.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--muted)">No purchases yet</div>' : `
-      <table class="tbl"><thead><tr><th>Bill No.</th><th>Items</th><th>Amount</th><th>Payment</th><th>Date</th></tr></thead>
+      <table class="tbl"><thead><tr><th>Bill No.</th><th>Items</th><th>Amount</th><th>Payment</th><th>Date</th><th>Action</th></tr></thead>
       <tbody>${bills.map(b => `<tr>
         <td style="font-family:monospace;font-weight:700;color:var(--accent)">${b.bill_no}</td>
         <td style="color:var(--muted)">${b.item_count}</td>
         <td style="font-weight:700">₹${b.total?.toFixed(2) || '0'}</td>
         <td><span class="tag tag-gray">${b.payment_mode}</span></td>
         <td style="font-size:12px;color:var(--muted)">${formatDate(b.created_at)}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="closeModal(); if(window.openViewBillModal) window.openViewBillModal(${b.id}, '${b.bill_no}')">👁️ View</button></td>
       </tr>`).join('')}</tbody></table>`,
       `<button class="btn btn-outline" style="width:100%" onclick="closeModal()">Close</button>`
     );
@@ -652,7 +699,8 @@ export async function renderBillHistory(c, APP) {
   };
 
   window.openViewBillModal = async (billId, billNo) => {
-    const bill = await _GET('/bills/' + billId);
+    const { GET: _apiGet } = await import('./api.js');
+    const bill = await _apiGet('/bills/' + billId);
     
     const itemsHtml = bill.items.map(item => `
       <tr>
@@ -668,8 +716,31 @@ export async function renderBillHistory(c, APP) {
       </tr>
     `).join('');
 
+    window.showBillModalTab = (tab) => {
+      const sumTab = document.getElementById('tab-bill-summary');
+      const pdfTab = document.getElementById('tab-bill-pdf');
+      const btnSum = document.getElementById('btn-bill-summary');
+      const btnPdf = document.getElementById('btn-bill-pdf');
+      if (tab === 'pdf') {
+        if (sumTab) sumTab.style.display = 'none';
+        if (pdfTab) pdfTab.style.display = 'block';
+        if (btnSum) { btnSum.className = 'btn btn-sm btn-outline'; }
+        if (btnPdf) { btnPdf.className = 'btn btn-sm btn-primary'; }
+      } else {
+        if (sumTab) sumTab.style.display = 'block';
+        if (pdfTab) pdfTab.style.display = 'none';
+        if (btnSum) { btnSum.className = 'btn btn-sm btn-primary'; }
+        if (btnPdf) { btnPdf.className = 'btn btn-sm btn-outline'; }
+      }
+    };
+
     const bodyHtml = `
-      <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;max-height: 70vh;overflow-y: auto;">
+      <div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px">
+        <button id="btn-bill-summary" class="btn btn-sm btn-primary" onclick="showBillModalTab('summary')">🧾 Bill Details</button>
+        <button id="btn-bill-pdf" class="btn btn-sm btn-outline" onclick="showBillModalTab('pdf')">📄 PDF Preview</button>
+      </div>
+
+      <div id="tab-bill-summary" style="display:flex;flex-direction:column;gap:12px;font-size:13px;max-height: 60vh;overflow-y: auto;">
         <div class="grid-2">
           <div><span style="color:var(--muted)">Patient:</span> <strong>${bill.patient_name || 'Walk-in'}</strong></div>
           <div><span style="color:var(--muted)">Doctor:</span> <strong>${bill.doctor || '—'}</strong></div>
@@ -715,6 +786,10 @@ export async function renderBillHistory(c, APP) {
           </div>
         </div>
       </div>
+
+      <div id="tab-bill-pdf" style="display:none;">
+        <iframe src="/api/bills/${bill.id}/pdf" style="width:100%; height:450px; border:1px solid var(--border); border-radius:8px;"></iframe>
+      </div>
     `;
 
     const printData = {
@@ -754,8 +829,9 @@ export async function renderBillHistory(c, APP) {
       }
     };
 
-    _modal(`👁️ Bill Detail — ${billNo}`, bodyHtml, `
-      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Close</button>
+    modal(`👁️ Bill Detail — ${billNo}`, bodyHtml, `
+      <button class="btn btn-outline" style="flex:0.8" onclick="closeModal()">Close</button>
+      <a class="btn btn-outline" style="flex:1; text-align:center; text-decoration:none; display:inline-flex; align-items:center; justify-content:center;" href="/api/bills/${bill.id}/pdf?download=1" download="Bill_${billNo}.pdf" target="_blank">📄 PDF</a>
       <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="window.shareBillOnWhatsapp(${bill.id}, '${bill.patient_name || bill.customer_name || 'Customer'}', '${billNo}', ${bill.total}, '${bill.customer_phone || ''}')">💬 WhatsApp</button>
       <button class="btn btn-outline" style="flex:1" onclick="window.printChallan(window._viewBillPrintData)">🚗 Challan</button>
       <button class="btn btn-primary" style="flex:1.2" onclick="window.printBill(window._viewBillPrintData)">🖨️ Print Bill</button>

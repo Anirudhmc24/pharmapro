@@ -51,3 +51,54 @@ def test_delete_supplier_fails_with_purchase_order(client, auth_headers):
     del_resp = client.delete(f"/api/suppliers/{sup_id}", headers=auth_headers)
     assert del_resp.status_code == 400
     assert "Purchase Orders exist" in del_resp.json()["detail"]
+
+
+def test_supplier_return_invoice_and_pdf(client, auth_headers):
+    sup_resp = client.post("/api/suppliers", json={"name": "Dealer XYZ", "contact": "Dealer Contact"}, headers=auth_headers)
+    sup_id = sup_resp.json()["id"]
+
+    drug_resp = client.post("/api/drugs", json={"name": "Returnable Tab", "tablets_per_strip": 10}, headers=auth_headers)
+    drug_id = drug_resp.json()["id"]
+
+    batch_resp = client.post("/api/batches", json={
+        "drug_id": drug_id,
+        "batch_no": "RET-001",
+        "expiry": "2029-06",
+        "strips": 10,
+        "cost_per_strip": 50.0
+    }, headers=auth_headers)
+    batch_id = batch_resp.json()["batch_id"]
+
+    # Create supplier return
+    ret_payload = {
+        "supplier_id": sup_id,
+        "reason": "Customer Rejected",
+        "notes": "Returned 2 strips",
+        "items": [
+            {
+                "drug_id": drug_id,
+                "batch_id": batch_id,
+                "strips": 2,
+                "unit_cost": 50.0,
+                "reason": "Customer Rejected"
+            }
+        ]
+    }
+    ret_resp = client.post("/api/suppliers/returns", json=ret_payload, headers=auth_headers)
+    assert ret_resp.status_code == 200
+    ret_data = ret_resp.json()
+    assert ret_data["ok"] is True
+    assert ret_data["total_amount"] == 100.0
+    return_id = ret_data["id"]
+
+    # Verify PDF generation (inline and attachment)
+    pdf_inline = client.get(f"/api/suppliers/returns/{return_id}/pdf", headers=auth_headers)
+    assert pdf_inline.status_code == 200
+    assert pdf_inline.headers["content-type"] == "application/pdf"
+    assert "inline" in pdf_inline.headers["content-disposition"]
+
+    pdf_download = client.get(f"/api/suppliers/returns/{return_id}/pdf?download=1", headers=auth_headers)
+    assert pdf_download.status_code == 200
+    assert pdf_download.headers["content-type"] == "application/pdf"
+    assert "attachment" in pdf_download.headers["content-disposition"]
+

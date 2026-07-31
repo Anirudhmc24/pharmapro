@@ -538,7 +538,7 @@ def update_bill(bill_id: int, bill: BillIn, background_tasks: BackgroundTasks, x
 
 
 @router.get("/{bill_id}/pdf")
-def get_bill_pdf(bill_id: int):
+def get_bill_pdf(bill_id: int, download: bool = False):
     from fastapi.responses import Response
     from fpdf import FPDF
     
@@ -660,12 +660,15 @@ def get_bill_pdf(bill_id: int):
     pdf.set_font("Helvetica", "I", 10)
     pdf.cell(0, 6, f"Thank you for your purchase in {shop_name}!", ln=True, align="C")
     
-    pdf_bytes = pdf.output(dest='S')
+    pdf_bytes = pdf.output()
     if isinstance(pdf_bytes, str):
         pdf_bytes = pdf_bytes.encode('latin1')
+    else:
+        pdf_bytes = bytes(pdf_bytes)
         
+    disposition = "attachment" if download else "inline"
     return Response(content=pdf_bytes, media_type="application/pdf", headers={
-        "Content-Disposition": f"attachment; filename=Bill_{bill['bill_no']}.pdf"
+        "Content-Disposition": f"{disposition}; filename=Bill_{bill['bill_no']}.pdf"
     })
 
 

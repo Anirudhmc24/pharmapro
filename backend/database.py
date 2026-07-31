@@ -307,6 +307,28 @@ CREATE TABLE IF NOT EXISTS expiry_returns (
     created_at  TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS supplier_returns (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_no     TEXT UNIQUE NOT NULL,
+    supplier_id   INTEGER NOT NULL REFERENCES suppliers(id),
+    total_amount  REAL DEFAULT 0,
+    reason        TEXT DEFAULT '',
+    notes         TEXT DEFAULT '',
+    created_by    INTEGER REFERENCES users(id),
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS supplier_return_items (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    return_id    INTEGER NOT NULL REFERENCES supplier_returns(id),
+    drug_id      INTEGER NOT NULL REFERENCES drugs(id),
+    batch_id     INTEGER REFERENCES batches(id),
+    strips       INTEGER NOT NULL,
+    unit_cost    REAL DEFAULT 0,
+    amount       REAL DEFAULT 0,
+    reason       TEXT DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS backorders (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     drug_id       INTEGER NOT NULL REFERENCES drugs(id),

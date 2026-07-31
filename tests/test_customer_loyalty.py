@@ -226,3 +226,51 @@ def test_session_persistence(client, auth_headers):
     assert resp_me_again.status_code == 200
     assert resp_me_again.json()["username"] == "admin"
 
+
+def test_credit_billing_dues_and_collection(client, auth_headers):
+    # Setup drug and batch
+    drug_resp = client.post("/api/drugs", json={"name": "CreditTab", "tablets_per_strip": 10, "mrp_per_tablet": 10.0}, headers=auth_headers)
+    drug_id = drug_resp.json()["id"]
+    client.post("/api/batches", json={"drug_id": drug_id, "batch_no": "CRED-1", "expiry": "2029-01", "strips": 10}, headers=auth_headers)
+
+    # Create customer
+    cust_resp = client.post("/api/customers", json={"name": "Credit User", "phone": "9876543210"}, headers=auth_headers)
+    cust_id = cust_resp.json()["id"]
+
+    # Bill under payment_mode='Credit' (10 tabs @ 10.0 = 100.0)
+    bill_resp = client.post("/api/bills", json={
+        "customer_id": cust_id,
+        "patient_name": "Credit User",
+        "phone": "9876543210",
+        "payment_mode": "Credit",
+        "discount_pct": 0,
+        "gst_inclusive": True,
+        "items": [{"drug_id": drug_id, "tablets_qty": 10}]
+    }, headers=auth_headers)
+    assert bill_resp.status_code == 200
+    assert bill_resp.json()["total"] == 100.0
+
+    # Verify customer credit_balance updated to 100.0
+    custs = client.get(f"/api/customers?q=9876543210", headers=auth_headers).json()
+    assert len(custs) == 1
+    assert custs[0]["credit_balance"] == 100.0
+
+    # Collect partial credit payment of 60.0
+    col_resp = client.post(f"/api/customers/{cust_id}/collect_credit", json={
+        "amount": 60.0,
+        "payment_mode": "UPI",
+        "note": "Paid via UPI"
+    }, headers=auth_headers)
+    assert col_resp.status_code == 200
+
+    # Verify remaining dues = 40.0
+    custs2 = client.get(f"/api/customers?q=9876543210", headers=auth_headers).json()
+    assert custs2[0]["credit_balance"] == 40.0
+
+    # Check credit ledger
+    ledger_resp = client.get(f"/api/customers/{cust_id}/credit_ledger", headers=auth_headers)
+    assert ledger_resp.status_code == 200
+    ledger = ledger_resp.json()
+    assert len(ledger) >= 2
+
+

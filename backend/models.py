@@ -209,4 +209,26 @@ class BillReturnIn(BaseModel):
 
 class CreditCollectIn(BaseModel):
     amount: float
+    payment_mode: str = "Cash"
     note: str = ""
+
+
+class SupplierReturnItemIn(BaseModel):
+    drug_id: int
+    batch_id: Optional[int] = None
+    strips: int
+    unit_cost: float = 0.0
+    reason: str = ""
+
+
+class SupplierReturnIn(BaseModel):
+    supplier_id: int
+    items: List[SupplierReturnItemIn]
+    reason: str = ""
+    notes: str = ""
+
+
+class BulkCategoryIn(BaseModel):
+    drug_ids: List[int]
+    category: str
+

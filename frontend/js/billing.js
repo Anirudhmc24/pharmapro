@@ -274,6 +274,11 @@ export async function renderBilling(c, APP) {
                   ` : `
                     <div style="font-size:11px;color:var(--muted)">${customer.phone || 'No phone'} · 🎯 ${customer.loyalty_points || 0} pts ${customer.agreed_discount > 0 ? `· 🏷️ ${customer.agreed_discount}% Off` : ''}</div>
                     ${customer.custom_id ? `<div style="font-size:10px;color:var(--muted);font-family:monospace;margin-top:2px">ID: ${customer.custom_id}</div>` : ''}
+                    ${customer.credit_balance > 0 ? `
+                      <div style="margin-top:6px;padding:6px 10px;background:rgba(239, 68, 68, 0.12);border:1px solid var(--danger);border-radius:6px;color:var(--danger);font-size:11px;font-weight:700">
+                        ⚠️ Outstanding Credit Dues: ₹${Number(customer.credit_balance).toFixed(2)}
+                      </div>
+                    ` : ''}
                   `}
                 </div>
                 <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px" onclick="billClearCustomer()">✕</button>
@@ -306,11 +311,21 @@ export async function renderBilling(c, APP) {
           <div class="card" style="flex:1">
             <div class="section-title">Bill Summary</div>
             <div class="gap-12">
-              ${summaryLines.map(([k, v]) =>
-                `<div class="flex-between" style="font-size:13px;color:var(--muted)"><span>${k}</span><span style="color:var(--text)">${v}</span></div>`
-              ).join('')}
+              <div class="flex-between" style="font-size:13px;color:var(--muted)">
+                <span>Subtotal</span>
+                <span style="color:var(--text)" id="summary-subtotal">${fmt(subtotal)}</span>
+              </div>
+              <div class="flex-between" style="font-size:13px;color:var(--muted)">
+                <span>Discount (<span id="summary-discount-pct">${discount}</span>%)</span>
+                <span style="color:var(--text)" id="summary-disc-amount">− ${fmt(discAmt)}</span>
+              </div>
+              <div class="flex-between" id="summary-gst-row" style="font-size:13px;color:var(--muted);${gstInclusive ? 'display:none;' : ''}">
+                <span>GST (12%)</span>
+                <span style="color:var(--text)" id="summary-gst-amount">+${fmt(gst)}</span>
+              </div>
               <div class="flex-between" style="font-size:20px;font-weight:900;border-top:1px solid var(--border);padding-top:10px">
-                <span>Total</span><span style="color:var(--accent)">${fmtI(total)}</span>
+                <span>Total</span>
+                <span style="color:var(--accent)" id="summary-total">${fmtI(total)}</span>
               </div>
             </div>
             <div class="field" style="margin-top:14px"><label>Discount %</label>
@@ -819,7 +834,40 @@ export async function renderBilling(c, APP) {
 
   window.cartQty    = (i, q) => { if (q <= 0) cart.splice(i, 1); else cart[i].qty = q; c.innerHTML = billHTML(); };
   window.cartRemove = (i)    => { cart.splice(i, 1); c.innerHTML = billHTML(); };
-  window.billDiscount  = (v) => { discount = v; c.innerHTML = billHTML(); };
+  window.billDiscount  = (v) => {
+    discount = v;
+    
+    const ptsRedeemed = (customer && redeemPoints) ? customer.loyalty_points : 0;
+    const subtotal = cart.reduce((s, item) => {
+      let activeQty = item.qty;
+      if (item.offer_type === 'BOGO') {
+        activeQty = item.qty - Math.floor(item.qty / 2);
+      }
+      return s + activeQty * item.mrp_per_tablet;
+    }, 0);
+    const pctDiscAmt = subtotal * discount / 100;
+    const discAmt  = pctDiscAmt + (ptsRedeemed * 0.01);
+    const gst      = gstInclusive ? 0 : Math.max(0, (subtotal - discAmt) * 0.12);
+    const total    = Math.max(0, subtotal - discAmt + (gstInclusive ? 0 : gst));
+
+    const discPctEl = document.getElementById('summary-discount-pct');
+    const discAmtEl = document.getElementById('summary-disc-amount');
+    const gstRowEl = document.getElementById('summary-gst-row');
+    const gstAmtEl = document.getElementById('summary-gst-amount');
+    const totalEl = document.getElementById('summary-total');
+    const btnEl = document.getElementById('bill-gen-btn');
+
+    if (discPctEl) discPctEl.textContent = discount;
+    if (discAmtEl) discAmtEl.textContent = '− ' + fmt(discAmt);
+    if (gstAmtEl) gstAmtEl.textContent = '+' + fmt(gst);
+    if (gstRowEl) {
+      gstRowEl.style.display = gstInclusive ? 'none' : 'flex';
+    }
+    if (totalEl) totalEl.textContent = fmtI(total);
+    if (btnEl) {
+      btnEl.textContent = cart.length ? 'Generate Bill · ' + fmtI(total) : 'Generate Bill';
+    }
+  };
   window.billPayMode   = (m) => { payMode = m; c.innerHTML = billHTML(); };
   window.toggleRedeem  = (v) => { redeemPoints = v; c.innerHTML = billHTML(); };
   window.billClear     = ()  => { cart = []; customer = null; discount = 0; redeemPoints = false; payMode = 'Cash'; c.innerHTML = billHTML(); };
@@ -832,16 +880,17 @@ export async function renderBilling(c, APP) {
     drop.innerHTML = [
       ...custs.map(cu => {
         const idLabel = cu.custom_id ? ` (ID: ${cu.custom_id})` : '';
-        const args = `${cu.id},'${cu.name.replace(/'/g,"\\'")}','${cu.phone || ''}',${cu.loyalty_points || 0},${cu.agreed_discount || 0},'${cu.custom_id || ''}'`;
-        return `<div class="search-item" onclick="billSetCustomer(${args})">${cu.name}${idLabel} <span style="color:var(--muted);font-size:11px">— ${cu.phone || ''}</span></div>`;
+        const dueBadge = cu.credit_balance > 0 ? ` <span style="color:var(--danger);font-size:10px;font-weight:700">(Dues: ₹${cu.credit_balance.toFixed(2)})</span>` : '';
+        const args = `${cu.id},'${cu.name.replace(/'/g,"\\'")}','${cu.phone || ''}',${cu.loyalty_points || 0},${cu.agreed_discount || 0},'${cu.custom_id || ''}',${cu.credit_balance || 0}`;
+        return `<div class="search-item" onclick="billSetCustomer(${args})">${cu.name}${idLabel}${dueBadge} <span style="color:var(--muted);font-size:11px">— ${cu.phone || ''}</span></div>`;
       }),
       `<div class="search-item" style="color:var(--accent)" onclick="billWalkIn('${q.replace(/'/g,"\\'")}')">+ Add "${q}" as patient</div>`
     ].join('');
     drop.style.display = 'block';
   };
 
-  window.billSetCustomer = (id, name, phone, pts, disc, customId) => { 
-    customer = { id, name, phone, loyalty_points: pts, agreed_discount: disc, custom_id: customId }; 
+  window.billSetCustomer = (id, name, phone, pts, disc, customId, creditBal = 0) => { 
+    customer = { id, name, phone, loyalty_points: pts, agreed_discount: disc, custom_id: customId, credit_balance: creditBal }; 
     if (disc > 0) {
       discount = disc;
     }
@@ -919,9 +968,10 @@ export async function renderBilling(c, APP) {
           <div style="font-size:12px;color:var(--muted);margin-top:4px">Payment Mode: ${payMode}</div>
         </div>
       `, `
-        <button class="btn btn-outline" style="flex:0.8" onclick="closeModal(); APP.navigate('dashboard')">Skip Print</button>
+        <button class="btn btn-outline" style="flex:0.8" onclick="closeModal(); APP.navigate('dashboard')">Skip</button>
+        <button class="btn btn-outline" style="flex:1" onclick="closeModal(); if (window.openViewBillModal) window.openViewBillModal(${b.bill_id}, '${b.bill_no}')">👁️ View Bill & PDF</button>
         <button class="btn btn-outline" style="flex:1; border-color:#25d366; color:#25d366" onclick="showWhatsappModal(window._lastBillData)">💬 WhatsApp</button>
-        <button class="btn btn-outline" style="flex:1" onclick="printChallan(window._lastBillData); closeModal(); APP.navigate('dashboard')">🚗 Print Challan</button>
+        <button class="btn btn-outline" style="flex:1" onclick="printChallan(window._lastBillData); closeModal(); APP.navigate('dashboard')">🚗 Challan</button>
         <button class="btn btn-primary" style="flex:1.2" onclick="printBill(window._lastBillData); closeModal(); APP.navigate('dashboard')">🖨️ Print Bill</button>
       `);
     } catch (e) {
@@ -1170,15 +1220,47 @@ window.printBill = (data) => {
     const totalVal = res.total || (taxableVal + gstAmt);
     const cgstAmt = gstAmt / 2;
     const sgstAmt = gstAmt / 2;
-    const isInclusive = Math.abs(totalVal - (subtotal - discAmt)) < 0.1;
+    function renderAndPrintHtml(htmlContent) {
+      try {
+        const w = window.open('', '_blank', 'width=800,height=800');
+        if (w && w.document) {
+          w.document.write(htmlContent);
+          w.document.close();
+          return;
+        }
+      } catch (e) {
+        console.warn("window.open failed, falling back to iframe print", e);
+      }
+      
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (err) {
+          console.error("Iframe print error:", err);
+        }
+        setTimeout(() => iframe.remove(), 2000);
+      }, 300);
+    }
 
-    const w = window.open('', '_blank', 'width=800,height=800');
-    w.document.write(`<!DOCTYPE html>
+    const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
   <title>Tax Invoice - ${res.bill_no}</title>
   <style>
-    body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 20px; color: #1e293b; background: #fff; font-size: 12px; line-height: 1.4; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 20px; color: #1e293b; background: #fff; font-size: 12px; line-height: 1.4; }`;
     .invoice-card { max-width: 650px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
     .header { text-align: center; margin-bottom: 15px; }
     .shop-name { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1375,13 +1457,13 @@ window.printBill = (data) => {
   </script>
 </body>
 </html>
-    `);
+    `;
+    renderAndPrintHtml(htmlContent);
   };
 
   window.printChallan = (data) => {
     const { res, items, cust } = data;
-    const w = window.open('', '_blank', 'width=800,height=600');
-    w.document.write(`<html><head><title>DELIVERY CHALLAN ${res.bill_no}</title>
+    const htmlContent = `<html><head><title>DELIVERY CHALLAN ${res.bill_no}</title>
     <style>
       body{font-family:sans-serif;padding:24px;color:#111;font-size:13px}
       .row{display:flex;justify-content:space-between}hr{border-top:1px solid #111;margin:16px 0}
@@ -1425,5 +1507,6 @@ window.printBill = (data) => {
       <div style="border-top:1px solid #000;padding-top:4px;width:200px;text-align:center">Transporter / Vehicle Sign</div>
       <div style="border-top:1px solid #000;padding-top:4px;width:200px;text-align:center">Receiver Signature</div>
     </div>
-    <script>window.print();window.close();<\/script></body></html>`);
-  }
+    <script>window.print();window.close();<\/script></body></html>`;
+    renderAndPrintHtml(htmlContent);
+  };

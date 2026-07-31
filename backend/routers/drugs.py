@@ -6,7 +6,7 @@ Drug catalogue, batches, FEFO logic
 import json
 from pydantic import BaseModel
 from backend.database import get_db, row_to_dict, rows_to_list
-from backend.models import DrugIn, DrugUpdateIn, BatchIn, DrugLocationIn
+from backend.models import DrugIn, DrugUpdateIn, BatchIn, DrugLocationIn, BulkCategoryIn
 from backend.routers.auth import get_current_user
 from backend.utils.backup import auto_trigger_backup
 from fastapi import APIRouter, HTTPException, Header, BackgroundTasks
@@ -271,6 +271,53 @@ def get_substitutes_any(drug_id: int = 0, name: str = "", composition: str = "")
             "comb_in_stock": comb_in_stock,
             "comb_orderable": comb_orderable,
         }
+
+
+ENRICHMENT_STATUS = {
+    "running": False,
+    "current": 0,
+    "total": 0,
+    "last_error": None
+}
+
+def enrich_inventory_task(force: bool = False):
+    global ENRICHMENT_STATUS
+    ENRICHMENT_STATUS["running"] = True
+    ENRICHMENT_STATUS["last_error"] = None
+    try:
+        from scripts.populate_indications import run as run_enrichment
+        run_enrichment(force=force)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        ENRICHMENT_STATUS["last_error"] = str(e)
+    finally:
+        ENRICHMENT_STATUS["running"] = False
+
+@router.post("/enrich_inventory")
+def trigger_enrichment(background_tasks: BackgroundTasks, force: bool = False, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    global ENRICHMENT_STATUS
+    if ENRICHMENT_STATUS["running"]:
+        return {"ok": False, "message": "Enrichment already running"}
+    
+    background_tasks.add_task(enrich_inventory_task, force=force)
+    return {"ok": True, "message": "Enrichment started in the background"}
+
+@router.get("/enrich_status")
+def get_enrichment_status(x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    global ENRICHMENT_STATUS
+    with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM drugs").fetchone()[0]
+        missing = conn.execute("""
+            SELECT COUNT(*) FROM drugs 
+            WHERE COALESCE(ai_enriched, 0) = 0
+        """).fetchone()[0]
+    
+    ENRICHMENT_STATUS["total"] = total
+    ENRICHMENT_STATUS["current"] = total - missing
+    return ENRICHMENT_STATUS
 
 
 @router.get("/{drug_id}")
@@ -617,53 +664,7 @@ def get_global_substitutes(q: str = ""):
             "substitutes": rows_to_list(rows)
         }
 
-# master_search and master_all moved above /{drug_id} to fix routing conflict
 
-ENRICHMENT_STATUS = {
-    "running": False,
-    "current": 0,
-    "total": 0,
-    "last_error": None
-}
-
-def enrich_inventory_task(force: bool = False):
-    global ENRICHMENT_STATUS
-    ENRICHMENT_STATUS["running"] = True
-    ENRICHMENT_STATUS["last_error"] = None
-    try:
-        from scripts.populate_indications import run as run_enrichment
-        run_enrichment(force=force)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        ENRICHMENT_STATUS["last_error"] = str(e)
-    finally:
-        ENRICHMENT_STATUS["running"] = False
-
-@router.post("/enrich_inventory")
-def trigger_enrichment(background_tasks: BackgroundTasks, force: bool = False, x_token: Optional[str] = Header(default=None)):
-    get_current_user(x_token)
-    global ENRICHMENT_STATUS
-    if ENRICHMENT_STATUS["running"]:
-        return {"ok": False, "message": "Enrichment already running"}
-    
-    background_tasks.add_task(enrich_inventory_task, force=force)
-    return {"ok": True, "message": "Enrichment started in the background"}
-
-@router.get("/enrich_status")
-def get_enrichment_status(x_token: Optional[str] = Header(default=None)):
-    get_current_user(x_token)
-    global ENRICHMENT_STATUS
-    with get_db() as conn:
-        total = conn.execute("SELECT COUNT(*) FROM drugs").fetchone()[0]
-        missing = conn.execute("""
-            SELECT COUNT(*) FROM drugs 
-            WHERE COALESCE(ai_enriched, 0) = 0
-        """).fetchone()[0]
-    
-    ENRICHMENT_STATUS["total"] = total
-    ENRICHMENT_STATUS["current"] = total - missing
-    return ENRICHMENT_STATUS
 
 
 class MasterEnrichIn(BaseModel):
@@ -810,4 +811,21 @@ def enrich_single_drug(body: EnrichSingleIn, background_tasks: BackgroundTasks, 
         import traceback
         traceback.print_exc()
         return {"ok": False, "message": str(e)}
+
+
+@router.post("/bulk_category")
+def bulk_update_category(body: BulkCategoryIn, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    with get_db() as conn:
+        cat = body.category
+        if cat == "Ethnic":
+            cat = "Ethical"
+        
+        # Build array of placeholders (?, ?, ?)
+        placeholders = ", ".join(["?"] * len(body.drug_ids))
+        query = f"UPDATE drugs SET category = ? WHERE id IN ({placeholders})"
+        conn.execute(query, (cat, *body.drug_ids))
+        conn.commit()
+    return {"ok": True}
+
 

@@ -114,3 +114,36 @@ def update_customer(customer_id: int, c: CustomerIn, x_token: Optional[str] = He
             WHERE id=?
         """, (c.name, c.phone, c.dob, c.custom_id, c.agreed_discount, c.purchased_medicines, c.last_purchase_date, c.loyalty_points, customer_id))
         return {"ok": True}
+
+
+from backend.models import CreditCollectIn
+from fastapi import HTTPException
+
+@router.post("/{customer_id}/collect_credit")
+def collect_customer_credit(customer_id: int, p: CreditCollectIn, x_token: Optional[str] = Header(default=None)):
+    get_current_user(x_token)
+    with get_db() as conn:
+        cust = conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
+        if not cust:
+            raise HTTPException(status_code=404, detail="Customer not found")
+            
+        conn.execute("UPDATE customers SET credit_balance = MAX(0, COALESCE(credit_balance, 0) - ?) WHERE id=?", (p.amount, customer_id))
+        note_str = p.note or f"Payment received via {p.payment_mode}"
+        conn.execute("""
+            INSERT INTO credit_ledger(customer_id, bill_id, type, amount, note)
+            VALUES(?,?,?,?,?)
+        """, (customer_id, None, "credit_payment", p.amount, note_str))
+    return {"ok": True, "message": "Credit payment collected successfully"}
+
+
+@router.get("/{customer_id}/credit_ledger")
+def get_customer_credit_ledger(customer_id: int):
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT cl.*, b.bill_no
+            FROM credit_ledger cl
+            LEFT JOIN bills b ON b.id = cl.bill_id
+            WHERE cl.customer_id=?
+            ORDER BY cl.created_at DESC LIMIT 50
+        """, (customer_id,)).fetchall()
+        return rows_to_list(rows)

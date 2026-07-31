@@ -15,6 +15,8 @@ export async function renderInventory(c, APP) {
   let problemQuery = '';
   let problemResults = [];
   let activeSegment = 'middle_aged_men';
+  let selectedDrugIds = new Set();
+
 
   function filteredDrugs() {
     let list = drugs;
@@ -41,7 +43,8 @@ export async function renderInventory(c, APP) {
       <div class="flex-between">
         <div><h2 style="font-size:18px;font-weight:800;margin-bottom:2px">Inventory</h2>
           <div style="color:var(--muted);font-size:12px">${drugs.length} drugs · Tablet-level tracking</div></div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-outline btn-sm" id="enrich-btn" onclick="triggerEnrichment()" style="white-space: nowrap;">🪄 Enrich Inventory</button>
           <button class="btn btn-outline btn-sm" onclick="showExpiringManager()">Return Expiring Stock</button>
           <button class="btn btn-primary btn-sm" onclick="showAddDrug()">+ Add Drug</button>
         </div>
@@ -51,6 +54,12 @@ export async function renderInventory(c, APP) {
       <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px">
         <button onclick="setInventoryTab('stock')" class="btn" style="border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:-2px;border:none;background:none;border-bottom:3px solid ${activeTab === 'stock' ? 'var(--accent)' : 'transparent'};color:${activeTab === 'stock' ? 'var(--accent)' : 'var(--muted)'};font-weight:800;padding:8px 16px;box-shadow:none">📋 Stock List</button>
         <button onclick="setInventoryTab('problem')" class="btn" style="border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:-2px;border:none;background:none;border-bottom:3px solid ${activeTab === 'problem' ? 'var(--accent)' : 'transparent'};color:${activeTab === 'problem' ? 'var(--accent)' : 'var(--muted)'};font-weight:800;padding:8px 16px;box-shadow:none">🔍 Search by Problem / Symptom</button>
+      </div>
+
+      <!-- Enrichment Progress Bar -->
+      <div id="enrichment-status-area" class="card-sm" style="display:none; background:var(--accent-dim); border: 1px solid var(--accent); margin-bottom: 16px; padding: 12px 16px;">
+        <div id="enrichment-progress-text" style="font-weight:700; font-size:12px; color:var(--accent); margin-bottom: 8px;">Progress: Checking...</div>
+        <div class="progress" style="height:6px"><div id="enrichment-progress-bar" class="progress-bar" style="width: 0%; height:100%"></div></div>
       </div>
 
       <div id="inv-tab-content">${renderTabContent()}</div>
@@ -72,9 +81,39 @@ export async function renderInventory(c, APP) {
             </button>
           `).join('')}
         </div>
+
+        <!-- Bulk Action Bar -->
+        <div id="inv-bulk-bar" class="card-sm" style="display:none; background:var(--accent-dim); border: 2px solid var(--accent); padding:10px 16px; margin-top:12px; margin-bottom:12px; border-radius:8px; justify-content:space-between; align-items:center;">
+          <div style="font-weight:700; font-size:13px; color:var(--text)">
+            Selected <span id="bulk-selected-count">0</span> items
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <span style="font-size:12px; color:var(--muted)">Move selected items to:</span>
+            <select class="select select-sm" id="bulk-cat-select" style="padding:4px 8px; font-size:11px; width:auto; border-radius:6px; height:32px;">
+              <option value="Ethical">Ethical (Ethnic)</option>
+              <option value="Generic">Generic</option>
+              <option value="Ointment">Ointment (Ointments)</option>
+              <option value="Cream">Cream (Creams)</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="window.applyBulkCategoryMove()" style="padding:4px 12px; font-size:11px; font-weight:700; border-radius:6px; height:32px;">Move Items</button>
+          </div>
+        </div>
+
         <div class="card" style="padding:0;overflow:auto;margin-top:12px">
           <table class="tbl" id="inv-table">
-            <thead><tr><th>Drug / Brand</th><th>Category</th><th>Location</th><th>Stock</th><th>Nearest Expiry</th><th>MRP/tab</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th style="width:40px; text-align:center;"><input type="checkbox" id="inv-select-all" onchange="window.toggleAllInvCheckbox(this.checked)"></th>
+                <th>Drug / Brand</th>
+                <th>Category</th>
+                <th>Location</th>
+                <th>Stock</th>
+                <th>Nearest Expiry</th>
+                <th>MRP/tab</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>${list.map(d => invRow(d)).join('')}</tbody>
           </table>
           ${list.length === 0 ? '<div style="padding:40px;text-align:center;color:var(--muted)">No drugs found</div>' : ''}
@@ -86,12 +125,6 @@ export async function renderInventory(c, APP) {
           <div style="color:var(--muted);font-size:13px;">
             Search symptoms, problems, or indications (e.g. "cough", "headache", "fever") to find suitable medicines in your stock.
           </div>
-          <button class="btn btn-outline btn-sm" id="enrich-btn" onclick="triggerEnrichment()" style="white-space: nowrap;">🪄 Enrich Inventory with AI</button>
-        </div>
-        
-        <div id="enrichment-status-area" class="card-sm" style="display:none; background:var(--accent-dim); border: 1px solid var(--accent); margin-bottom: 16px; padding: 12px 16px;">
-          <div id="enrichment-progress-text" style="font-weight:700; font-size:12px; color:var(--accent); margin-bottom: 8px;">Progress: Checking...</div>
-          <div class="progress"><div id="enrichment-progress-bar" class="progress-bar" style="width: 0%"></div></div>
         </div>
 
         <div class="search-wrap" style="margin-bottom:16px">
@@ -277,9 +310,8 @@ export async function renderInventory(c, APP) {
   }
 
   // Polling for AI enrichment
-  let enrichmentInterval = null;
-  window.triggerEnrichment = async () => {
-    const force = confirm("Do you want to re-enrich ALL medicines in the database (including already enriched ones)?\n\nClick OK to enrich all items.\nClick Cancel to only enrich new/missing items.");
+  window.runEnrichmentAction = async (force) => {
+    closeModal();
     const btn = document.getElementById('enrich-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Enriching...'; }
     try {
@@ -289,20 +321,38 @@ export async function renderInventory(c, APP) {
         startEnrichmentPolling();
       } else {
         toast(res.message || 'Failed to start enrichment', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory'; }
       }
     } catch(e) {
       toast('Error: ' + e.message, 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
+      if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory'; }
     }
   };
 
+  window.triggerEnrichment = () => {
+    modal(
+      '🪄 AI Inventory Enrichment',
+      `<div class="gap-12" style="font-size:14px; line-height:1.5; color:var(--text)">
+        <p>Enriching your inventory updates clinical details, indications, age suitability, and side effects using AI.</p>
+        <p style="color:var(--muted); font-size:12px; margin-top:8px"><strong>Missing Items Only</strong> will skip items that already have AI details.<br><strong>Re-Enrich All Items</strong> will force updates on all medicines.</p>
+      </div>`,
+      `<div style="display:flex; gap:8px; justify-content:flex-end; width:100%">
+        <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-outline btn-sm" onclick="window.runEnrichmentAction(false)" style="color:var(--accent); border-color:var(--accent)">Missing Items Only</button>
+        <button class="btn btn-primary btn-sm" onclick="window.runEnrichmentAction(true)">Re-Enrich All Items</button>
+      </div>`
+    );
+  };
+
   function startEnrichmentPolling() {
-    if (enrichmentInterval) clearInterval(enrichmentInterval);
+    if (window.enrichmentInterval) clearInterval(window.enrichmentInterval);
     const statusArea = document.getElementById('enrichment-status-area');
     if (statusArea) statusArea.style.display = 'block';
     
-    enrichmentInterval = setInterval(async () => {
+    const btn = document.getElementById('enrich-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enriching...'; }
+
+    window.enrichmentInterval = setInterval(async () => {
       try {
         const status = await GET('/drugs/enrich_status');
         const progressPct = status.total > 0 ? Math.round((status.current / status.total) * 100) : 0;
@@ -313,26 +363,30 @@ export async function renderInventory(c, APP) {
         if (progText) progText.textContent = `Progress: ${status.current} / ${status.total} medicines enriched (${progressPct}%)`;
         
         if (!status.running) {
-          clearInterval(enrichmentInterval);
-          enrichmentInterval = null;
-          toast('✅ AI Enrichment completed!', 'success');
+          clearInterval(window.enrichmentInterval);
+          window.enrichmentInterval = null;
+          toast('✅ AI Enrichment completed successfully!', 'success');
+          
+          const btn = document.getElementById('enrich-btn');
+          if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory'; }
+
+          setTimeout(() => {
+            const statusAreaNew = document.getElementById('enrichment-status-area');
+            if (statusAreaNew) statusAreaNew.style.display = 'none';
+          }, 3000);
           
           drugs = await GET('/inventory');
-          if (problemQuery.length >= 2) {
+          if (activeTab === 'stock') {
+            document.getElementById('inv-tab-content').innerHTML = renderTabContent();
+          } else if (problemQuery.length >= 2) {
             window.probSearch(problemQuery);
           }
-          
-          setTimeout(() => {
-            if (statusArea) statusArea.style.display = 'none';
-            const btn = document.getElementById('enrich-btn');
-            if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
-          }, 3000);
         }
       } catch(e) {
-        clearInterval(enrichmentInterval);
-        enrichmentInterval = null;
+        clearInterval(window.enrichmentInterval);
+        window.enrichmentInterval = null;
         const btn = document.getElementById('enrich-btn');
-        if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory with AI'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🪄 Enrich Inventory'; }
       }
     }, 1500);
   }
@@ -342,7 +396,9 @@ export async function renderInventory(c, APP) {
     const low = (d.stock_tablets || 0) < (d.reorder_level || APP.config.low_stock_alert_limit || 20);
     const exp = d.nearest_expiry;
     const ml  = monthsLeft(exp);
+    const isChecked = selectedDrugIds.has(d.id);
     return `<tr>
+      <td style="text-align:center;"><input type="checkbox" class="inv-checkbox" data-id="${d.id}" ${isChecked ? 'checked' : ''} onchange="window.onInvCheckboxChange(this)"></td>
       <td><div style="font-weight:700;color:var(--text)">${d.name}</div>
           <div style="font-size:11px;color:var(--muted)">${d.brand || ''}</div>
           ${d.composition ? `<div style="font-size:11px;color:var(--text);margin-top:2px">${d.composition.length > 55 ? d.composition.substring(0,55)+'...' : d.composition}</div>` : ''}</td>
@@ -378,6 +434,85 @@ export async function renderInventory(c, APP) {
       }
     } catch (e) {
       toast('Failed to locate drug: ' + e.message, 'error');
+    }
+  };
+
+  window.onInvCheckboxChange = (cb) => {
+    if (cb) {
+      const id = parseInt(cb.getAttribute('data-id'));
+      if (cb.checked) {
+        selectedDrugIds.add(id);
+      } else {
+        selectedDrugIds.delete(id);
+      }
+    }
+    window.updateInvSelection();
+  };
+
+  window.toggleAllInvCheckbox = (checked) => {
+    const visibleDrugs = filteredDrugs();
+    if (checked) {
+      visibleDrugs.forEach(d => selectedDrugIds.add(d.id));
+    } else {
+      visibleDrugs.forEach(d => selectedDrugIds.delete(d.id));
+    }
+    const checkboxes = document.querySelectorAll('.inv-checkbox');
+    checkboxes.forEach(cb => {
+      const id = parseInt(cb.getAttribute('data-id'));
+      cb.checked = selectedDrugIds.has(id);
+    });
+    window.updateInvSelection();
+  };
+
+  window.updateInvSelection = () => {
+    const bar = document.getElementById('inv-bulk-bar');
+    const countEl = document.getElementById('bulk-selected-count');
+    const selectAllCheck = document.getElementById('inv-select-all');
+
+    if (countEl) countEl.textContent = selectedDrugIds.size;
+    if (bar) {
+      if (selectedDrugIds.size > 0) {
+        bar.style.display = 'flex';
+      } else {
+        bar.style.display = 'none';
+      }
+    }
+    if (selectAllCheck) {
+      const visibleDrugs = filteredDrugs();
+      const visibleCheckedCount = visibleDrugs.filter(d => selectedDrugIds.has(d.id)).length;
+      selectAllCheck.checked = visibleDrugs.length > 0 && visibleCheckedCount === visibleDrugs.length;
+    }
+  };
+
+  window.applyBulkCategoryMove = async () => {
+    const checkedIds = Array.from(selectedDrugIds);
+    if (checkedIds.length === 0) {
+      toast('Please select at least one item', 'warn');
+      return;
+    }
+
+    const category = document.getElementById('bulk-cat-select')?.value;
+    if (!category) {
+      toast('Please select a target category', 'warn');
+      return;
+    }
+
+    const conf = confirm(`Are you sure you want to move ${checkedIds.length} items to category "${category}"?`);
+    if (!conf) return;
+
+    try {
+      await POST('/drugs/bulk_category', { drug_ids: checkedIds, category: category });
+      toast(`Successfully moved ${checkedIds.length} items to ${category} ✅`, 'success');
+      
+      selectedDrugIds.clear();
+      window.updateInvSelection();
+      
+      const refreshData = await GET('/inventory');
+      drugs = refreshData;
+      
+      document.getElementById('inv-tab-content').innerHTML = renderTabContent();
+    } catch (e) {
+      toast('Bulk update failed: ' + e.message, 'error');
     }
   };
 
@@ -1005,4 +1140,16 @@ export async function renderInventory(c, APP) {
       btn.disabled = false; btn.textContent = 'Return to Supplier';
     }
   };
+
+  // On page load/render, check if AI enrichment is already running in the background, if so, resume polling
+  setTimeout(async () => {
+    try {
+      const status = await GET('/drugs/enrich_status');
+      if (status && status.running) {
+        startEnrichmentPolling();
+      }
+    } catch(e) {
+      console.error('Error fetching enrichment status on render:', e);
+    }
+  }, 100);
 }
