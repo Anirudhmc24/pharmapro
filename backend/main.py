@@ -88,6 +88,18 @@ def serve_static(path: str):
 
 init_db()
 
+def find_available_port(start_port=8503, max_attempts=20):
+    import socket
+    for p in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(('127.0.0.1', p))
+                return p
+            except OSError:
+                continue
+    return start_port
+
+
 if __name__ == "__main__":
     import uvicorn
     import threading
@@ -101,15 +113,18 @@ if __name__ == "__main__":
     except ImportError:
         import webbrowser
 
+    port = find_available_port(8503)
+
     print("\n" + "="*50)
     print("  PharmaPro v2.0 Starting…")
+    print(f"  Running on: http://127.0.0.1:{port}")
     print("  Default login: admin / admin123")
     print("="*50 + "\n")
 
     if has_webview:
         # Start server in background thread
         server_thread = threading.Thread(
-            target=lambda: uvicorn.run(app, host="127.0.0.1", port=8503, log_config=None),
+            target=lambda: uvicorn.run(app, host="127.0.0.1", port=port, log_config=None),
             daemon=True
         )
         server_thread.start()
@@ -120,7 +135,7 @@ if __name__ == "__main__":
         # Launch dedicated desktop window
         webview.create_window(
             "PharmaPro",
-            "http://127.0.0.1:8503",
+            f"http://127.0.0.1:{port}",
             width=1280,
             height=720,
             resizable=True
@@ -128,10 +143,10 @@ if __name__ == "__main__":
         webview.start()
     else:
         # Fallback to webbrowser
-        def open_browser():
+        def open_browser(target_port):
             time.sleep(2)
-            webbrowser.open("http://127.0.0.1:8503")
+            webbrowser.open(f"http://127.0.0.1:{target_port}")
             
-        print("  Webview not found. Falling back to default browser at: http://localhost:8503")
-        threading.Thread(target=open_browser, daemon=True).start()
-        uvicorn.run(app, host="0.0.0.0", port=8503, log_config=None)
+        print(f"  Webview not found. Falling back to default browser at: http://localhost:{port}")
+        threading.Thread(target=open_browser, args=(port,), daemon=True).start()
+        uvicorn.run(app, host="0.0.0.0", port=port, log_config=None)
