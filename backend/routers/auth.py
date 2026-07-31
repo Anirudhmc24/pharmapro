@@ -18,24 +18,32 @@ _sessions: dict[str, dict] = {}
 
 def _hash_password(pwd: str) -> str:
     try:
-        from passlib.context import CryptContext
-        ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        return ctx.hash(pwd)
+        import bcrypt
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(pwd.encode('utf-8'), salt).decode('utf-8')
     except Exception:
         import hashlib
-        return "sha256:" + hashlib.sha256(pwd.encode()).hexdigest()
+        return "sha256:" + hashlib.sha256(pwd.encode('utf-8')).hexdigest()
 
 
 def _verify_password(plain: str, hashed: str) -> bool:
+    if not hashed:
+        return False
     try:
         if hashed.startswith("sha256:"):
             import hashlib
-            return hashed == "sha256:" + hashlib.sha256(plain.encode()).hexdigest()
+            return hashed == "sha256:" + hashlib.sha256(plain.encode('utf-8')).hexdigest()
+        
+        if hashed.startswith("$2"):
+            import bcrypt
+            return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+            
         from passlib.context import CryptContext
         ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
         return ctx.verify(plain, hashed)
     except Exception:
-        return False
+        import hashlib
+        return hashed == "sha256:" + hashlib.sha256(plain.encode('utf-8')).hexdigest()
 
 
 def get_current_user(x_token: Optional[str] = Header(default=None)):

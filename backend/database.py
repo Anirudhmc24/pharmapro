@@ -508,9 +508,8 @@ def init_db():
         admin = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
         if not admin:
             try:
-                from passlib.context import CryptContext
-                pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-                hashed = pwd_ctx.hash("admin123")
+                import bcrypt
+                hashed = bcrypt.hashpw("admin123".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             except Exception:
                 import hashlib
                 hashed = "sha256:" + hashlib.sha256("admin123".encode()).hexdigest()
