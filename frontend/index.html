@@ -395,7 +395,39 @@ window.handleAndroidBack = () => {
       window.updateAndroidBackState();
     }
   }
-};
+// ── Global Keyboard Shortcuts ──────────────────────────────
+window.addEventListener('keydown', (e) => {
+  // 1. Ctrl + Enter or Cmd + Enter: Submit active form / modal / stock entry from ANY input field
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    // Check if modal is open
+    const modalPrimary = document.querySelector('.modal-overlay .btn-primary, .modal-card .btn-primary');
+    if (modalPrimary && modalPrimary.offsetWidth > 0) {
+      e.preventDefault();
+      modalPrimary.click();
+      return;
+    }
+    // Check stock form primary button
+    const stockBtn = document.querySelector('#stock-form button.btn-primary, #stock-form button[onclick*="submitStock"], #stock-form button[onclick*="submitNewDrugAndStock"]');
+    if (stockBtn && stockBtn.offsetWidth > 0) {
+      e.preventDefault();
+      stockBtn.click();
+      return;
+    }
+  }
+
+  // 2. Alt + S or F2: Focus main search input in active page
+  if ((e.altKey && e.key.toLowerCase() === 's') || e.key === 'F2') {
+    const activeSearch = document.getElementById('stock-search') ||
+                         document.getElementById('bill-search') ||
+                         document.getElementById('inv-filter') ||
+                         document.getElementById('ad-master-search');
+    if (activeSearch && activeSearch.offsetWidth > 0) {
+      e.preventDefault();
+      activeSearch.focus();
+      if (activeSearch.select) activeSearch.select();
+    }
+  }
+});
 
 // Forward declarations — actual implementations assigned below after function definitions
 window.doLogout = () => {};

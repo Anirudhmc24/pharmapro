@@ -277,6 +277,7 @@ export async function renderStockEntry(c, APP) {
         <div class="field"><label>Box/Tray</label><select class="select" id="sf-box" onchange="if(document.getElementById('sf-lock-box')?.checked) window._stickyBox.box_id = parseInt(this.value);"><option value="">- Select Compartment First -</option></select></div>
       </div>
       <button class="btn btn-primary" style="width:100%" onclick="submitStock(${drug.id},'${drug.name.replace(/'/g,"\\'")}')">✅ Add to Stock</button>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">💡 Tip: Press <kbd style="background:var(--border);padding:2px 6px;border-radius:4px;font-weight:700">Ctrl + Enter</kbd> from any field to add stock, or <kbd style="background:var(--border);padding:2px 6px;border-radius:4px;font-weight:700">Alt + S</kbd> / <kbd style="background:var(--border);padding:2px 6px;border-radius:4px;font-weight:700">F2</kbd> to enter next medicine.</div>
     </div>`;
   }
 
@@ -546,6 +547,10 @@ export async function renderStockEntry(c, APP) {
       added.push({ drug_name: name, strips: strips+free, expiry });
       toast(`${name} added to catalogue & ${strips+free} strips to stock ✅`, 'success');
       c.innerHTML = html();
+      setTimeout(() => {
+        const searchInput = document.getElementById('stock-search');
+        if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+      }, 50);
     } catch (e) {
       toast('Error: ' + e.message, 'error');
     }
@@ -577,11 +582,13 @@ export async function renderStockEntry(c, APP) {
     added.push({ drug_name, strips, expiry });
     toast(`${drug_name} · ${strips} strips added ✅`, 'success');
     c.innerHTML = html();
-    if (mode === 'boxbatch' && window._stickyBox?.box_id) {
-      setTimeout(() => {
+    setTimeout(() => {
+      if (mode === 'boxbatch' && window._stickyBox?.box_id) {
         window.autoSelectBox('bb-fix', 'bb-comp', 'bb-box', window._stickyBox.box_id);
-      }, 50);
-    }
+      }
+      const searchInput = document.getElementById('stock-search');
+      if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+    }, 50);
   };
 
   window.startCameraScan = async () => {
