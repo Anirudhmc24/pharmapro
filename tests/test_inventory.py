@@ -235,3 +235,34 @@ def test_master_db_ai_inheritance(client, auth_headers):
     assert fetched["side_effects"] == "inherited side effects"
     assert fetched["administration"] == "take once daily"
     assert "child" in fetched["age_suitability"]
+
+
+def test_same_box_batch_stock_entry(client, auth_headers):
+    # 0. Insert valid box record into DB
+    from backend.database import get_db
+    with get_db() as conn:
+        f_id = conn.execute("INSERT INTO loc_fixtures(name) VALUES('Test Rack')").lastrowid
+        c_id = conn.execute("INSERT INTO loc_compartments(fixture_id, name) VALUES(?, 'Shelf A')", (f_id,)).lastrowid
+        box_id = conn.execute("INSERT INTO loc_boxes(compartment_id, name) VALUES(?, 'Box B-01')", (c_id,)).lastrowid
+        conn.commit()
+
+    # 1. Create two drugs assigned to box_id
+    d1 = client.post("/api/drugs", json={"name": "BoxDrug1 100mg", "tablets_per_strip": 10, "box_id": box_id}, headers=auth_headers).json()["id"]
+    d2 = client.post("/api/drugs", json={"name": "BoxDrug2 200mg", "tablets_per_strip": 10, "box_id": box_id}, headers=auth_headers).json()["id"]
+
+    # 2. Add batches for both drugs to the same box_id
+    b1_resp = client.post("/api/batches", json={"drug_id": d1, "batch_no": "BBOX-01", "expiry": "2028-06", "strips": 5, "box_id": box_id}, headers=auth_headers)
+    assert b1_resp.status_code == 200
+
+    b2_resp = client.post("/api/batches", json={"drug_id": d2, "batch_no": "BBOX-02", "expiry": "2028-06", "strips": 10, "box_id": box_id}, headers=auth_headers)
+    assert b2_resp.status_code == 200
+
+    # 3. Verify both drugs reflect stock in target box_id
+    info1 = client.get(f"/api/drugs/{d1}", headers=auth_headers).json()
+    info2 = client.get(f"/api/drugs/{d2}", headers=auth_headers).json()
+    assert info1["box_id"] == box_id
+    assert info1["batches"][0]["box_id"] == box_id
+    assert info2["box_id"] == box_id
+    assert info2["batches"][0]["box_id"] == box_id
+
+

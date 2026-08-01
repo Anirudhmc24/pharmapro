@@ -119,6 +119,7 @@ export async function renderStockEntry(c, APP) {
         <div style="color:var(--muted);font-size:12px">Add incoming stock to inventory</div></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px">
         ${[['keyboard','⌨️','Fast Type','Search drug, fill batch'],
+           ['boxbatch','📦','Box Entry','Add multiple items to 1 box'],
            ['camera','📷','Scan Strip','Webcam AI reading'],
            ['challan','📄','Invoice','Photo entire invoice'],
            ['adjust','⚖️','Adjust','Stock write-offs']].map(([m, icon, lbl, desc]) => `
@@ -140,6 +141,23 @@ export async function renderStockEntry(c, APP) {
   }
 
   function modePanel() {
+    if (mode === 'boxbatch') return `<div class="card">
+      <div class="section-title">📦 Same-Box Batch Entry</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">
+        Choose target Box / Tray once. All medicines added in this mode will automatically be saved into this physical location.
+      </div>
+      <div class="grid-3" style="margin-bottom:14px;background:var(--accent-dim);padding:12px;border-radius:10px;border:1px solid var(--accent)">
+        <div class="field"><label>Fixture</label><select class="select" id="bb-fix" onchange="updateComps(this.value, 'bb-comp', 'bb-box')">${fixtureOpts()}</select></div>
+        <div class="field"><label>Compartment/Shelf</label><select class="select" id="bb-comp" onchange="updateBoxes(document.getElementById('bb-fix').value, this.value, 'bb-box')"><option value="">- Select Fixture First -</option></select></div>
+        <div class="field"><label>Target Box/Tray *</label><select class="select" id="bb-box" onchange="window.onBoxBatchSelect(this.value)"><option value="">- Select Shelf First -</option></select></div>
+      </div>
+      <div id="bb-search-area">
+        <div style="color:var(--muted);font-size:12px;margin-bottom:8px">Search & add medicines into selected box:</div>
+        <input class="input" id="stock-search" placeholder="Type 2+ letters to search (e.g. Paracetamol, Augmentin)…" oninput="stockSearch(this.value)" autocomplete="off" style="margin-bottom:4px">
+        <div id="stock-drop" style="display:none;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;max-height:320px;overflow-y:auto;background:var(--card);box-shadow:0 4px 20px #00000066"></div>
+        <div id="stock-form" style="display:none"></div>
+      </div>
+    </div>`;
     if (mode === 'keyboard') return `<div class="card">
       <div class="section-title">Search Drug</div>
       <div style="color:var(--muted);font-size:12px;margin-bottom:10px">Type 2+ letters to search <b style="color:var(--accent)">253,000+ Indian medicines</b>. Select one to add stock.</div>
@@ -247,11 +265,16 @@ export async function renderStockEntry(c, APP) {
         <div class="field"><label>MRP Override (₹)</label><input class="input" type="number" id="sf-mrp" value="${drug.mrp_per_strip || 0}" step="0.5" title="MRP for this specific batch" oninput="window.calculateStockCost('sf')"></div>
         <div class="field"><label>GST %</label><select class="select" id="sf-gst"><option value="0">0%</option><option value="5" ${(APP.config.gst_slab || '5')=='5'?'selected':''}>5%</option><option value="12" ${APP.config.gst_slab=='12'?'selected':''}>12%</option><option value="18" ${APP.config.gst_slab=='18'?'selected':''}>18%</option></select></div>
       </div>
-      <div class="section-title" style="margin-top:10px;margin-bottom:0px">Physical Placement</div>
+      <div class="flex-between" style="margin-top:10px;margin-bottom:4px">
+        <div class="section-title" style="margin:0">Physical Placement</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--accent);cursor:pointer" title="Keep location selected for subsequent medicines">
+          <input type="checkbox" id="sf-lock-box" ${window._stickyBox?.enabled ? 'checked' : ''} onchange="window.toggleStickyBox(this.checked)"> 🔒 Lock Location for Same Box
+        </label>
+      </div>
       <div class="grid-3" style="margin-bottom:10px">
         <div class="field"><label>Fixture</label><select class="select" id="sf-fix" onchange="updateComps(this.value, 'sf-comp', 'sf-box')">${fixtureOpts(drug.box_id)}</select></div>
         <div class="field"><label>Compartment/Shelf</label><select class="select" id="sf-comp" onchange="updateBoxes(document.getElementById('sf-fix').value, this.value, 'sf-box')"><option value="">- Select Fixture First -</option></select></div>
-        <div class="field"><label>Box/Tray</label><select class="select" id="sf-box"><option value="">- Select Compartment First -</option></select></div>
+        <div class="field"><label>Box/Tray</label><select class="select" id="sf-box" onchange="if(document.getElementById('sf-lock-box')?.checked) window._stickyBox.box_id = parseInt(this.value);"><option value="">- Select Compartment First -</option></select></div>
       </div>
       <button class="btn btn-primary" style="width:100%" onclick="submitStock(${drug.id},'${drug.name.replace(/'/g,"\\'")}')">✅ Add to Stock</button>
     </div>`;
@@ -338,6 +361,57 @@ export async function renderStockEntry(c, APP) {
     }, 100);
   };
 
+  window._stickyBox = window._stickyBox || { enabled: false, box_id: null };
+
+  window.toggleStickyBox = (checked) => {
+    window._stickyBox.enabled = checked;
+    if (checked) {
+      const currentBoxId = document.getElementById('sf-box')?.value || document.getElementById('bb-box')?.value;
+      if (currentBoxId) {
+        window._stickyBox.box_id = parseInt(currentBoxId);
+        toast('🔒 Location locked for subsequent stock entries', 'info');
+      } else {
+        toast('Please select a Box/Tray location first', 'warn');
+      }
+    } else {
+      toast('Location unlocked', 'info');
+    }
+  };
+
+  window.onBoxBatchSelect = (boxId) => {
+    if (boxId) {
+      window._stickyBox.enabled = true;
+      window._stickyBox.box_id = parseInt(boxId);
+      toast('📦 Locked target box for batch unboxing!', 'info');
+    }
+  };
+
+  window.autoSelectBox = (fixSelId, compSelId, boxSelId, targetBoxId) => {
+    if (!targetBoxId || !window._layout) return;
+    const targetId = parseInt(targetBoxId);
+    for (let fIdx = 0; fIdx < window._layout.length; fIdx++) {
+      const fix = window._layout[fIdx];
+      if (!fix?.compartments) continue;
+      for (let cIdx = 0; cIdx < fix.compartments.length; cIdx++) {
+        const comp = fix.compartments[cIdx];
+        if (!comp?.boxes) continue;
+        for (const b of comp.boxes) {
+          if (b.id === targetId) {
+            const fixSel = document.getElementById(fixSelId);
+            const compSel = document.getElementById(compSelId);
+            const boxSel = document.getElementById(boxSelId);
+            if (fixSel) fixSel.value = fIdx;
+            window.updateComps(fIdx, compSelId, boxSelId);
+            if (compSel) compSel.value = cIdx;
+            window.updateBoxes(fIdx, cIdx, boxSelId);
+            if (boxSel) boxSel.value = targetId;
+            return;
+          }
+        }
+      }
+    }
+  };
+
   window.stockSelectDrug = (id) => {
     const drug = window._stockDrugs?.[id];
     if (!drug) { toast('Drug not found, try searching again', 'warn'); return; }
@@ -346,6 +420,17 @@ export async function renderStockEntry(c, APP) {
     const form = document.getElementById('stock-form');
     form.style.display = 'block';
     form.innerHTML = stockFormHTML(drug);
+
+    setTimeout(() => {
+      const targetBox = (mode === 'boxbatch' && document.getElementById('bb-box')?.value)
+        ? document.getElementById('bb-box')?.value
+        : (window._stickyBox?.enabled && window._stickyBox?.box_id)
+        ? window._stickyBox.box_id
+        : drug.box_id;
+      if (targetBox) {
+        window.autoSelectBox('sf-fix', 'sf-comp', 'sf-box', targetBox);
+      }
+    }, 50);
   };
 
   /* ── Manual entry form for new/unknown drugs ── */
@@ -436,7 +521,7 @@ export async function renderStockEntry(c, APP) {
     const cost   = parseFloat(document.getElementById('me-cost')?.value || 0);
     const sup_id = document.getElementById('me-sup')?.value || null;
     const gst    = parseFloat(document.getElementById('me-gst')?.value || 0);
-    const box_id = parseInt(document.getElementById('me-location')?.value) || null;
+    const box_id = parseInt(document.getElementById('me-location')?.value) || (window._stickyBox?.enabled ? window._stickyBox.box_id : null);
     if (!name)   { toast('Drug name is required', 'warn'); return; }
     if (!expiry) { toast('Expiry date is required', 'warn'); return; }
     if (monthsLeft(expiry) <= 0) { toast('⛔ That expiry date is already past', 'error'); return; }
@@ -486,11 +571,17 @@ export async function renderStockEntry(c, APP) {
       console.warn("Failed to update class category automatically:", e);
     }
     await POST('/batches', { drug_id, batch_no, expiry, strips, cost_per_strip: cost, box_id, free_strips: free, mrp_per_strip: mrp, gst_pct: gst, supplier_id: sup_id });
+    if (window._stickyBox?.enabled && box_id) {
+      window._stickyBox.box_id = box_id;
+    }
     added.push({ drug_name, strips, expiry });
     toast(`${drug_name} · ${strips} strips added ✅`, 'success');
-    document.getElementById('stock-search').value = '';
-    document.getElementById('stock-form').style.display = 'none';
     c.innerHTML = html();
+    if (mode === 'boxbatch' && window._stickyBox?.box_id) {
+      setTimeout(() => {
+        window.autoSelectBox('bb-fix', 'bb-comp', 'bb-box', window._stickyBox.box_id);
+      }, 50);
+    }
   };
 
   window.startCameraScan = async () => {

@@ -554,22 +554,22 @@ def add_batch(b: BatchIn, background_tasks: BackgroundTasks, x_token: Optional[s
         try:
             cur = conn.execute("""
                 INSERT INTO batches(drug_id,batch_no,expiry,full_strips,cost_per_strip,
-                                    supplier_id,free_strips,mrp_per_strip,gst_pct)
-                VALUES(?,?,?,?,?,?,?,?,?)""",
+                                    supplier_id,free_strips,mrp_per_strip,gst_pct,box_id)
+                VALUES(?,?,?,?,?,?,?,?,?,?)""",
                 (b.drug_id, batch_no, b.expiry, b.strips, b.cost_per_strip,
-                 b.supplier_id, b.free_strips, b.mrp_per_strip, b.gst_pct))
+                 b.supplier_id, b.free_strips, b.mrp_per_strip, b.gst_pct, b.box_id))
             batch_id = cur.lastrowid
         except sqlite3.IntegrityError:
             conn.execute("""
                 UPDATE batches SET full_strips=full_strips+?, free_strips=free_strips+?,
-                                   cost_per_strip=?, mrp_per_strip=?, gst_pct=?, supplier_id=?
+                                   cost_per_strip=?, mrp_per_strip=?, gst_pct=?, supplier_id=?, box_id=?
                 WHERE drug_id=? AND batch_no=?""",
-                         (b.strips, b.free_strips, b.cost_per_strip, b.mrp_per_strip, b.gst_pct, b.supplier_id,
+                         (b.strips, b.free_strips, b.cost_per_strip, b.mrp_per_strip, b.gst_pct, b.supplier_id, b.box_id,
                           b.drug_id, batch_no))
             batch_id = conn.execute("SELECT id FROM batches WHERE drug_id=? AND batch_no=?",
                                     (b.drug_id, batch_no)).fetchone()["id"]
         
-        # Optionally update box_id
+        # Optionally update box_id on parent drug as well
         if b.box_id is not None:
             conn.execute("UPDATE drugs SET box_id=? WHERE id=?", (b.box_id, b.drug_id))
 
